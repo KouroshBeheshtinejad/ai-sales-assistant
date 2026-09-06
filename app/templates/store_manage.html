@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{{ store.name }} - Store Management</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+    <div class="max-w-7xl mx-auto px-6 py-8">
+
+        <!-- Header -->
+        <div class="mb-8">
+
+            <a
+                href="/dashboard"
+                class="text-sm text-blue-600 hover:text-blue-800"
+            >
+                ← Back to Dashboard
+            </a>
+
+            <h1 class="text-3xl font-bold text-gray-900 mt-4">
+                {{ store.name }}
+            </h1>
+
+            {% if store.description %}
+                <p class="text-gray-600 mt-2">
+                    {{ store.description }}
+                </p>
+            {% endif %}
+
+        </div>
+
+
+        <!-- Store Information -->
+        <div class="bg-white rounded-xl shadow p-6 mb-8">
+
+            <div class="flex items-center justify-between">
+
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-900">
+                        Store Information
+                    </h2>
+
+                    <p class="text-gray-500 mt-1">
+                        Manage your store information and products.
+                    </p>
+                </div>
+
+                <button
+                    class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+                >
+                    Edit Store
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <!-- Products -->
+        <div>
+
+            <div class="flex items-center justify-between mb-4">
+
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-900">
+                        Products
+                    </h2>
+
+                    <p class="text-gray-500 mt-1">
+                        {{ products|length }} products
+                    </p>
+                </div>
+
+                <button
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                    + Add Product
+                </button>
+
+            </div>
+
+
+            {% if products %}
+
+                <div class="bg-white rounded-xl shadow overflow-hidden">
+
+                    <div class="overflow-x-auto">
+
+                        <table class="w-full">
+
+                            <thead class="bg-gray-50 border-b">
+
+                                <tr>
+
+                                    <th class="text-left px-6 py-4 text-sm font-semibold text-gray-600">
+                                        Product
+                                    </th>
+
+                                    <th class="text-left px-6 py-4 text-sm font-semibold text-gray-600">
+                                        Price
+                                    </th>
+
+                                    <th class="text-left px-6 py-4 text-sm font-semibold text-gray-600">
+                                        Stock
+                                    </th>
+
+                                    <th class="text-left px-6 py-4 text-sm font-semibold text-gray-600">
+                                        Size
+                                    </th>
+
+                                    <th class="text-left px-6 py-4 text-sm font-semibold text-gray-600">
+                                        Color
+                                    </th>
+
+                                    <th class="text-right px-6 py-4 text-sm font-semibold text-gray-600">
+                                        Actions
+                                    </th>
+
+                                </tr>
+
+                            </thead>
+
+
+                            <tbody class="divide-y">
+
+                                {% for product in products %}
+
+                                    <tr class="hover:bg-gray-50">
+
+                                        <td class="px-6 py-4">
+
+                                            <div>
+                                                <p class="font-medium text-gray-900">
+                                                    {{ product.name }}
+                                                </p>
+
+                                                {% if product.description %}
+                                                    <p class="text-sm text-gray-500 mt-1">
+                                                        {{ product.description }}
+                                                    </p>
+                                                {% endif %}
+                                            </div>
+
+                                        </td>
+
+
+                                        <td class="px-6 py-4 text-gray-700">
+                                            {{ product.price }}
+                                        </td>
+
+
+                                        <td class="px-6 py-4">
+
+                                            {% if product.stock > 0 %}
+
+                                                <span class="text-green-600 font-medium">
+                                                    {{ product.stock }}
+                                                </span>
+
+                                            {% else %}
+
+                                                <span class="text-red-600 font-medium">
+                                                    Out of stock
+                                                </span>
+
+                                            {% endif %}
+
+                                        </td>
+
+
+                                        <td class="px-6 py-4 text-gray-700">
+                                            {{ product.size or "-" }}
+                                        </td>
+
+
+                                        <td class="px-6 py-4 text-gray-700">
+                                            {{ product.color or "-" }}
+                                        </td>
+
+
+                                        <td class="px-6 py-4">
+
+                                            <div class="flex justify-end gap-2">
+
+                                                <button
+                                                    class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                                                >
+                                                    Edit
+                                                </button>
+
+                                                <button
+                                                    class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                                                >
+                                                    Delete
+                                                </button>
+
+                                            </div>
+
+                                        </td>
+
+                                    </tr>
+
+                                {% endfor %}
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </div>
+
+            {% else %}
+
+                <div class="bg-white rounded-xl shadow p-8 text-center">
+
+                    <h3 class="text-lg font-semibold text-gray-900">
+                        No products yet
+                    </h3>
+
+                    <p class="text-gray-500 mt-2">
+                        Add your first product to this store.
+                    </p>
+
+                    <button
+                        class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                        + Add Product
+                    </button>
+
+                </div>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+</body>
+
+</html>

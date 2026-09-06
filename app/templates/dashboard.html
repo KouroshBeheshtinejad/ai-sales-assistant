@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Dashboard - AI Sales Assistant</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+    <div class="max-w-7xl mx-auto px-6 py-8">
+
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">
+                Dashboard
+            </h1>
+
+            <p class="text-gray-600 mt-2">
+                Welcome, {{ user.email }}
+            </p>
+        </div>
+
+
+        <!-- Statistics -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            <!-- Stores -->
+            <div class="bg-white rounded-xl shadow p-6">
+                <p class="text-gray-500">
+                    Stores
+                </p>
+
+                <p class="text-3xl font-bold mt-2">
+                    {{ stores_count }}
+                </p>
+            </div>
+
+
+            <!-- Products -->
+            <div class="bg-white rounded-xl shadow p-6">
+                <p class="text-gray-500">
+                    Products
+                </p>
+
+                <p class="text-3xl font-bold mt-2">
+                    {{ products_count }}
+                </p>
+            </div>
+
+
+            <!-- Total Stock -->
+            <div class="bg-white rounded-xl shadow p-6">
+                <p class="text-gray-500">
+                    Total Stock
+                </p>
+
+                <p class="text-3xl font-bold mt-2">
+                    {{ total_stock }}
+                </p>
+            </div>
+
+        </div>
+
+
+        <!-- Stores -->
+        <div class="mt-8">
+
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">
+                Your Stores
+            </h2>
+
+
+            {% if stores %}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                    {% for store in stores %}
+
+                        <!-- Store Card -->
+                        <div class="bg-white rounded-xl shadow p-6">
+
+                            <div class="flex items-start justify-between">
+
+                                <div>
+                                    <h3 class="text-xl font-semibold text-gray-900">
+                                        {{ store.name }}
+                                    </h3>
+
+                                    {% if store.description %}
+                                        <p class="text-gray-500 mt-2">
+                                            {{ store.description }}
+                                        </p>
+                                    {% endif %}
+                                </div>
+
+                            </div>
+
+
+                            <!-- Store Statistics -->
+                            <div class="grid grid-cols-2 gap-4 mt-6">
+
+                                <!-- Products -->
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <p class="text-sm text-gray-500">
+                                        Products
+                                    </p>
+
+                                    <p class="text-2xl font-bold text-gray-900 mt-1">
+                                        {{ store.products_count }}
+                                    </p>
+                                </div>
+
+
+                                <!-- Stock -->
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <p class="text-sm text-gray-500">
+                                        Stock
+                                    </p>
+
+                                    <p class="text-2xl font-bold text-gray-900 mt-1">
+                                        {{ store.total_stock }}
+                                    </p>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    {% endfor %}
+
+                </div>
+
+
+            {% else %}
+
+                <!-- Empty State -->
+                <div class="bg-white rounded-xl shadow p-6">
+                    <p class="text-gray-500">
+                        You don't have any stores yet.
+                    </p>
+                </div>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+</body>
+
+</html>
