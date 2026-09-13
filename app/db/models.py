@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, Text, Numeric, Integer, Boolean, DateTime
+from sqlalchemy import ForeignKey, String, Text, Numeric, Integer, Boolean, DateTime, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
@@ -29,6 +29,11 @@ class Store(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    business_type: Mapped[str] = mapped_column(
+        String(100),
+        default="clothing",
+        index=True,
+    )
 
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
@@ -70,13 +75,19 @@ class Product(Base):
     )
 
     size: Mapped[str | None] = mapped_column(
-    String(100),
-    nullable=True,
+        String(100),
+        nullable=True,
     )
 
     color: Mapped[str | None] = mapped_column(
-    String(100),
-    nullable=True,
+        String(100),
+        nullable=True,
+    )
+
+    attributes: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=dict,
     )
 
     is_active: Mapped[bool] = mapped_column(
