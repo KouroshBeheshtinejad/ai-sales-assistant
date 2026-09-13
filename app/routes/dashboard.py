@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.db.models import User, Store, Product
 from app.routes.auth import get_current_user_from_cookie
+from app.core.business_types import get_business_type_label
 
 
 router = APIRouter(
@@ -81,6 +82,7 @@ def dashboard(
                 "id": store.id,
                 "name": store.name,
                 "description": store.description,
+                "business_type_label": get_business_type_label(store.business_type),
                 "products_count": store_products_count,
                 "total_stock": store_total_stock,
             }

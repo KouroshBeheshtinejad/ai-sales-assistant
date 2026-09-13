@@ -70,9 +70,18 @@
         <!-- Stores -->
         <div class="mt-8">
 
-            <h2 class="text-xl font-semibold text-gray-900 mb-4">
-                Your Stores
-            </h2>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold text-gray-900">
+                    Your Stores
+                </h2>
+
+                <a
+                    href="/stores/new"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                    + Create Store
+                </a>
+            </div>
 
 
             {% if stores %}
@@ -87,6 +96,7 @@
                             <div class="flex items-start justify-between">
 
                                 <div>
+
                                     <h3 class="text-xl font-semibold text-gray-900">
                                         {{ store.name }}
                                     </h3>
@@ -96,8 +106,19 @@
                                             {{ store.description }}
                                         </p>
                                     {% endif %}
+
+                                    <p class="text-sm text-blue-700 mt-2">
+                                        {{ store.business_type_label }}
+                                    </p>
                                 </div>
 
+                                <a 
+                                    href="/stores/{{ store.id }}/manage"
+                                    class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+                                >
+                                    Manage Store
+                                </a>
+                            
                             </div>
 
 
@@ -139,10 +160,27 @@
             {% else %}
 
                 <!-- Empty State -->
-                <div class="bg-white rounded-xl shadow p-6">
-                    <p class="text-gray-500">
-                        You don't have any stores yet.
+                <div class="bg-white rounded-xl shadow p-10 text-center">
+
+                    <h3 class="text-2xl font-bold text-gray-900">
+                        No Stores Yet
+                    </h3>
+
+                    <p class="text-gray-500 mt-2">
+                        Create your first store to start adding products and managing your business.
                     </p>
+
+                    <div class="mt-6">
+
+                        <a
+                            href="/stores/new"
+                            class="inline-block px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                            + Create Store
+                        </a>
+
+                    </div>
+
                 </div>
 
             {% endif %}
