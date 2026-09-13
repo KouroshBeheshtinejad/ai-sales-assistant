@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Edit Product - {{ product.name }}</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+    <div class="max-w-3xl mx-auto px-6 py-8">
+
+        <!-- Header -->
+        <div class="mb-8">
+
+            <a
+                href="/stores/{{ store.id }}/manage"
+                class="text-sm text-blue-600 hover:text-blue-800"
+            >
+                ← Back to Store
+            </a>
+
+            <h1 class="text-3xl font-bold text-gray-900 mt-4">
+                Edit Product
+            </h1>
+
+            <p class="text-gray-600 mt-2">
+                Update {{ product.name }}.
+            </p>
+
+        </div>
+
+
+        <!-- Product Form -->
+        <div class="bg-white rounded-xl shadow p-6">
+
+            <form
+                method="post"
+                action="/stores/{{ store.id }}/products/{{ product.id }}/edit"
+                class="space-y-6"
+            >
+
+                <!-- Name -->
+                <div>
+
+                    <label
+                        for="name"
+                        class="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                        Product Name
+                    </label>
+
+                    <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        value="{{ product.name }}"
+                        required
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+
+                </div>
+
+
+                <!-- Description -->
+                <div>
+
+                    <label
+                        for="description"
+                        class="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                        Description
+                    </label>
+
+                    <textarea
+                        id="description"
+                        name="description"
+                        rows="4"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >{{ product.description or "" }}</textarea>
+
+                </div>
+
+
+                <!-- Price & Stock -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                    <div>
+
+                        <label
+                            for="price"
+                            class="block text-sm font-medium text-gray-700 mb-2"
+                        >
+                            Price
+                        </label>
+
+                        <input
+                            type="number"
+                            id="price"
+                            name="price"
+                            min="0"
+                            step="0.01"
+                            value="{{ product.price }}"
+                            required
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label
+                            for="stock"
+                            class="block text-sm font-medium text-gray-700 mb-2"
+                        >
+                            Stock
+                        </label>
+
+                        <input
+                            type="number"
+                            id="stock"
+                            name="stock"
+                            min="0"
+                            value="{{ product.stock }}"
+                            required
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <!-- Business-specific fields -->
+                {% if business_fields %}
+                    <div class="border-t pt-6 space-y-6">
+                        <div>
+                            <h2 class="text-lg font-semibold text-gray-900">
+                                {{ business_type_label }} Details
+                            </h2>
+                        </div>
+
+                        {% for field in business_fields %}
+                            {% set field_value = (product.attributes or {}).get(field.name, '') %}
+                            {% if not field_value and field.name == 'size' %}
+                                {% set field_value = product.size or '' %}
+                            {% elif not field_value and field.name == 'color' %}
+                                {% set field_value = product.color or '' %}
+                            {% endif %}
+                            <div>
+                                <label
+                                    for="field_{{ field.name }}"
+                                    class="block text-sm font-medium text-gray-700 mb-2"
+                                >
+                                    {{ field.label }}
+                                </label>
+
+                                {% if field.type == "textarea" %}
+                                    <textarea
+                                        id="field_{{ field.name }}"
+                                        name="field_{{ field.name }}"
+                                        rows="3"
+                                        placeholder="{{ field.placeholder or '' }}"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >{{ field_value }}</textarea>
+                                {% elif field.type == "select" %}
+                                    <select
+                                        id="field_{{ field.name }}"
+                                        name="field_{{ field.name }}"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="">Select {{ field.label }}</option>
+                                        {% for option in field.options %}
+                                            <option value="{{ option }}" {% if field_value == option %}selected{% endif %}>{{ option }}</option>
+                                        {% endfor %}
+                                    </select>
+                                {% elif field.type == "checkbox" %}
+                                    <label class="inline-flex items-center gap-2 text-gray-700">
+                                        <input
+                                            type="checkbox"
+                                            id="field_{{ field.name }}"
+                                            name="field_{{ field.name }}"
+                                            value="true"
+                                            {% if field_value in [true, 'true', 'on'] %}checked{% endif %}
+                                            class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        >
+                                        <span>Yes</span>
+                                    </label>
+                                {% else %}
+                                    <input
+                                        type="{{ field.type }}"
+                                        id="field_{{ field.name }}"
+                                        name="field_{{ field.name }}"
+                                        value="{{ field_value }}"
+                                        placeholder="{{ field.placeholder or '' }}"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end gap-3 pt-4 border-t">
+
+                    <a
+                        href="/stores/{{ store.id }}/manage"
+                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                    >
+                        Cancel
+                    </a>
+
+                    <button
+                        type="submit"
+                        class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                        Save Changes
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</body>
+
+</html>
