@@ -50,13 +50,18 @@
                     <p class="text-gray-500 mt-1">
                         Manage your store information and products.
                     </p>
+
+                    <p class="text-sm text-blue-700 mt-3">
+                        Business type: {{ business_type_label }}
+                    </p>
                 </div>
 
-                <button
+                <a
+                    href="/stores/{{ store.id }}/edit"
                     class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
                 >
                     Edit Store
-                </button>
+                </a>
 
             </div>
 
@@ -78,11 +83,12 @@
                     </p>
                 </div>
 
-                <button
+                <a
+                    href="/stores/{{ store.id }}/products/new"
                     class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                     + Add Product
-                </button>
+            </a>
 
             </div>
 
@@ -117,6 +123,10 @@
 
                                     <th class="text-left px-6 py-4 text-sm font-semibold text-gray-600">
                                         Color
+                                    </th>
+
+                                    <th class="text-left px-6 py-4 text-sm font-semibold text-gray-600">
+                                        Business Details
                                     </th>
 
                                     <th class="text-right px-6 py-4 text-sm font-semibold text-gray-600">
@@ -184,22 +194,44 @@
                                             {{ product.color or "-" }}
                                         </td>
 
+                                        <td class="px-6 py-4 text-sm text-gray-700">
+                                            {% if product.attributes %}
+                                                {% for key, value in product.attributes.items() %}
+                                                    <div>
+                                                        <span class="font-medium">{{ key|replace('_', ' ')|title }}:</span>
+                                                        {{ value }}
+                                                    </div>
+                                                {% endfor %}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+
 
                                         <td class="px-6 py-4">
 
                                             <div class="flex justify-end gap-2">
 
-                                                <button
+                                                <a
+                                                    href="/stores/{{ store.id }}/products/{{ product.id }}/edit"
                                                     class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
                                                 >
                                                     Edit
-                                                </button>
+                                                </a>
 
-                                                <button
-                                                    class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                                                <form
+                                                    method="post"
+                                                    action="/stores/{{ store.id }}/products/{{ product.id }}/delete"
+                                                    class="inline"
+                                                    onsubmit="return confirm('Are you sure you want to delete this product?');"
                                                 >
-                                                    Delete
-                                                </button>
+                                                    <button
+                                                        type="submit"
+                                                        class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </form>
 
                                             </div>
 
@@ -229,11 +261,12 @@
                         Add your first product to this store.
                     </p>
 
-                    <button
+                    <a
+                        href="/stores/{{ store.id }}/products/new"
                         class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
                         + Add Product
-                    </button>
+                    </a>
 
                 </div>
 
