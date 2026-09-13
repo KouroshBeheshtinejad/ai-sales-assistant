@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 
 from app.db.database import engine
@@ -20,12 +21,10 @@ app.include_router(stores_router)
 app.include_router(products_router)
 app.include_router(dashboard_router)
 
-@app.get("/")
-async def root():
-    return {
-        "message": "AI Sales Assistant API is running",
-        "version": "0.1.0",
-    }
+@app.get("/", include_in_schema=False)
+async def root(request: Request):
+    target = "/dashboard" if request.cookies.get("access_token") else "/auth/login"
+    return RedirectResponse(url=target)
 
 
 @app.get("/health/db")

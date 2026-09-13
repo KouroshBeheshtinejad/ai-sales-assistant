@@ -1,7 +1,9 @@
 import jwt
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
@@ -21,6 +23,8 @@ router = APIRouter(
     tags=["Authentication"],
 )
 
+templates = Jinja2Templates(directory="app/templates")
+
 
 security = HTTPBearer()
 
@@ -33,6 +37,68 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
+
+
+@router.get("/login", response_class=HTMLResponse, include_in_schema=False)
+def login_page(request: Request):
+    if request.cookies.get("access_token"):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    return templates.TemplateResponse(request=request, name="auth_login.html", context={"error": None})
+
+
+@router.get("/register", response_class=HTMLResponse, include_in_schema=False)
+def register_page(request: Request):
+    if request.cookies.get("access_token"):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": None})
+
+
+@router.post("/login-form", response_class=HTMLResponse, include_in_schema=False)
+def login_form(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not verify_password(password, user.password_hash):
+        return templates.TemplateResponse(
+            request=request,
+            name="auth_login.html",
+            context={"error": "The email or password is incorrect."},
+            status_code=401,
+        )
+    access_token = create_access_token(user.id)
+    redirect = RedirectResponse(url="/dashboard", status_code=303)
+    redirect.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=60 * 60)
+    return redirect
+
+
+@router.post("/register-form", response_class=HTMLResponse, include_in_schema=False)
+def register_form(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    if len(password) < 8:
+        return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": "Password must be at least 8 characters."}, status_code=422)
+    if db.query(User).filter(User.email == email).first():
+        return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": "An account with this email already exists."}, status_code=400)
+    user = User(email=email, password_hash=hash_password(password))
+    db.add(user)
+    db.commit()
+    access_token = create_access_token(user.id)
+    redirect = RedirectResponse(url="/dashboard", status_code=303)
+    redirect.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=60 * 60)
+    return redirect
+
+
+@router.get("/logout", include_in_schema=False)
+def logout():
+    response = RedirectResponse(url="/auth/login", status_code=303)
+    response.delete_cookie("access_token")
+    return response
 
 
 @router.post("/register")
