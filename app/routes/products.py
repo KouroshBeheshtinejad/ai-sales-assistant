@@ -1,5 +1,7 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -15,12 +17,34 @@ router = APIRouter(
 
 class ProductCreateRequest(BaseModel):
     store_id: int
-    name: str
+    name: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
-    price: float
-    stock: int = 0
+    price: float = Field(..., ge=0)
+    stock: int = Field(0, ge=0)
     size: str | None = None
     color: str | None = None
+    attributes: dict[str, Any] | None = None
+
+
+def _product_response(product: Product, message: str | None = None):
+    response = {
+        "id": product.id,
+        "product_id": product.id,
+        "store_id": product.store_id,
+        "name": product.name,
+        "description": product.description,
+        "price": product.price,
+        "stock": product.stock,
+        "size": product.size,
+        "color": product.color,
+        "attributes": product.attributes or {},
+        "is_active": product.is_active,
+        "created_at": product.created_at,
+        "updated_at": product.updated_at,
+    }
+    if message is not None:
+        response["message"] = message
+    return response
 
 
 @router.post("/")
@@ -49,8 +73,9 @@ def create_product(
         description=data.description,
         price=data.price,
         stock=data.stock,
-        size=data.size,
-        color=data.color,
+        size=(data.attributes or {}).get("size", data.size),
+        color=(data.attributes or {}).get("color", data.color),
+        attributes=data.attributes or {},
         store_id=store.id,
     )
 
@@ -58,18 +83,7 @@ def create_product(
     db.commit()
     db.refresh(product)
 
-    return {
-        "message": "Product created successfully",
-        "product_id": product.id,
-        "store_id": product.store_id,
-        "name": product.name,
-        "description": product.description,
-        "price": product.price,
-        "stock": product.stock,
-        "size": product.size,
-        "color": product.color,
-        "is_active": product.is_active,
-    }
+    return _product_response(product, "Product created successfully")
 
 @router.get("/")
 def get_products(
@@ -99,18 +113,7 @@ def get_products(
     )
 
     return [
-        {
-            "id": product.id,
-            "name": product.name,
-            "description": product.description,
-            "price": product.price,
-            "stock": product.stock,
-            "size": product.size,
-            "color": product.color,
-            "is_active": product.is_active,
-            "created_at": product.created_at,
-            "updated_at": product.updated_at,
-        }
+        _product_response(product)
         for product in products
     ]
 
@@ -136,27 +139,16 @@ def get_product(
             detail="Product not found",
         )
 
-    return {
-        "id": product.id,
-        "store_id": product.store_id,
-        "name": product.name,
-        "description": product.description,
-        "price": product.price,
-        "stock": product.stock,
-        "size": product.size,
-        "color": product.color,
-        "is_active": product.is_active,
-        "created_at": product.created_at,
-        "updated_at": product.updated_at,
-    }
+    return _product_response(product)
 
 class ProductUpdateRequest(BaseModel):
-    name: str | None = None
+    name: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
-    price: float | None = None
-    stock: int | None = None
+    price: float | None = Field(None, ge=0)
+    stock: int | None = Field(None, ge=0)
     size: str | None = None
     color: str | None = None
+    attributes: dict[str, Any] | None = None
     is_active: bool | None = None
 
 
@@ -185,24 +177,21 @@ def update_product(
 
     update_data = data.model_dump(exclude_unset=True)
 
+    if "attributes" in update_data and update_data["attributes"] is not None:
+        update_data["size"] = update_data["attributes"].get(
+            "size", update_data.get("size", product.size)
+        )
+        update_data["color"] = update_data["attributes"].get(
+            "color", update_data.get("color", product.color)
+        )
+
     for field, value in update_data.items():
         setattr(product, field, value)
 
     db.commit()
     db.refresh(product)
 
-    return {
-        "message": "Product updated successfully",
-        "product_id": product.id,
-        "store_id": product.store_id,
-        "name": product.name,
-        "description": product.description,
-        "price": product.price,
-        "stock": product.stock,
-        "size": product.size,
-        "color": product.color,
-        "is_active": product.is_active,
-    }
+    return _product_response(product, "Product updated successfully")
 
 @router.delete("/{product_id}")
 def delete_product(
