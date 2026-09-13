@@ -2,7 +2,7 @@ import jwt
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -27,12 +27,12 @@ security = HTTPBearer()
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=8)
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=8)
 
 
 @router.post("/register")
@@ -161,6 +161,13 @@ def get_current_user_from_cookie(
 ):
     token = request.cookies.get("access_token")
 
+    # Fallback to Authorization header
+    if not token:
+        authorization = request.headers.get("Authorization")
+
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.split(" ", 1)[1]
+
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -182,7 +189,7 @@ def get_current_user_from_cookie(
                 detail="Invalid token",
             )
 
-    except jwt.PyJWTError:
+    except (jwt.PyJWTError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
