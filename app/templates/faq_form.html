@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'edit' %}Edit FAQ{% else %}New FAQ{% endif %} · Nava{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-3xl">
+  <a href="/stores/{{ store.id }}/faq-manager" class="text-sm font-bold text-slate-500 hover:text-ink">← Back to FAQs</a>
+  <div class="mt-8">
+    <p class="text-sm font-bold uppercase tracking-[.18em] text-coral">{{ business_type_label }} knowledge</p>
+    <h1 class="display mt-2 text-4xl font-extrabold tracking-tight text-ink">{% if mode == 'edit' %}Update FAQ{% else %}Create FAQ{% endif %}</h1>
+  </div>
+
+    <form method="post" action="{% if mode == 'edit' %}/stores/{{ store.id }}/faq-manager/{{ faq.id }}/edit{% else %}/stores/{{ store.id }}/faq-manager/new{% endif %}" class="mt-8 rounded-3xl bg-white p-6 shadow-soft md:p-9">
+    <div class="space-y-6">
+      <label class="block">
+        <span class="mb-2 block text-sm font-bold">Question</span>
+        <input name="question" value="{{ faq.question if faq else '' }}" required class="w-full rounded-xl border border-slate-200 px-4 py-3.5 outline-none focus:border-coral focus:ring-4 focus:ring-coral/10" placeholder="How fast is delivery?">
+      </label>
+
+      <label class="block">
+        <span class="mb-2 block text-sm font-bold">Answer</span>
+        <textarea name="answer" rows="5" required class="w-full resize-none rounded-xl border border-slate-200 px-4 py-3.5 outline-none focus:border-coral focus:ring-4 focus:ring-coral/10" placeholder="Provide a clear answer customers may ask again.">{{ faq.answer if faq else '' }}</textarea>
+      </label>
+
+      <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+        <input type="checkbox" name="is_active" value="true" {% if faq is none or faq.is_active %}checked{% endif %} class="h-4 w-4 rounded border-slate-300 text-coral focus:ring-coral">
+        <span class="text-sm font-semibold text-slate-700">Active</span>
+      </label>
+    </div>
+
+    <div class="mt-8 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
+      <a href="/stores/{{ store.id }}/faq-manager" class="rounded-xl px-5 py-3 text-center text-sm font-bold text-slate-500 hover:bg-slate-50">Cancel</a>
+      <button class="rounded-xl bg-ink px-6 py-3 font-bold text-white hover:bg-slate-700">{% if mode == 'edit' %}Save changes{% else %}Create FAQ{% endif %}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
