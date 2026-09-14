@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.business_types import BUSINESS_TYPES, get_business_fields_for_store, get_business_type_label, normalize_business_type
 from app.db.database import get_db
-from app.db.models import User, Store, Product
+from app.db.models import User, Store, Product, FAQ, KnowledgeBaseEntry
 from app.routes.auth import get_current_user_from_cookie
 
 
@@ -59,6 +59,22 @@ def manage_store(
         .all()
     )
 
+    faqs = (
+        db.query(FAQ)
+        .filter(FAQ.store_id == store.id)
+        .order_by(FAQ.updated_at.desc())
+        .limit(3)
+        .all()
+    )
+
+    knowledge_entries = (
+        db.query(KnowledgeBaseEntry)
+        .filter(KnowledgeBaseEntry.store_id == store.id)
+        .order_by(KnowledgeBaseEntry.updated_at.desc())
+        .limit(3)
+        .all()
+    )
+
     return templates.TemplateResponse(
         request=request,
         name="store_manage.html",
@@ -66,9 +82,326 @@ def manage_store(
             "user": current_user,
             "store": store,
             "products": products,
+            "faqs": faqs,
+            "knowledge_entries": knowledge_entries,
             "business_type_label": get_business_type_label(store.business_type),
         },
     )
+
+
+@router.get(
+    "/stores/{store_id}/faq-manager",
+    response_class=HTMLResponse,
+)
+def manage_faqs(
+    store_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    faqs = db.query(FAQ).filter(FAQ.store_id == store.id).order_by(FAQ.updated_at.desc()).all()
+    return templates.TemplateResponse(
+        request=request,
+        name="store_faqs.html",
+        context={
+            "user": current_user,
+            "store": store,
+            "faqs": faqs,
+            "business_type_label": get_business_type_label(store.business_type),
+        },
+    )
+
+
+@router.get(
+    "/stores/{store_id}/faq-manager/new",
+    response_class=HTMLResponse,
+)
+def new_faq_form(
+    store_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+    return templates.TemplateResponse(
+        request=request,
+        name="faq_form.html",
+        context={
+            "user": current_user,
+            "store": store,
+            "faq": None,
+            "mode": "create",
+            "business_type_label": get_business_type_label(store.business_type),
+        },
+    )
+
+
+@router.post(
+    "/stores/{store_id}/faq-manager/new",
+)
+def create_faq_from_form(
+    store_id: int,
+    request: Request,
+    question: str = Form(...),
+    answer: str = Form(...),
+    is_active: bool = Form(True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    faq = FAQ(question=question.strip(), answer=answer.strip(), is_active=is_active, store_id=store.id)
+    db.add(faq)
+    db.commit()
+    return RedirectResponse(url=f"/stores/{store.id}/faq-manager", status_code=303)
+
+
+@router.get(
+    "/stores/{store_id}/faq-manager/{faq_id}/edit",
+    response_class=HTMLResponse,
+)
+def edit_faq_form(
+    store_id: int,
+    faq_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    faq = db.query(FAQ).filter(FAQ.id == faq_id, FAQ.store_id == store.id).first()
+    if faq is None:
+        raise HTTPException(status_code=404, detail="FAQ not found")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="faq_form.html",
+        context={
+            "user": current_user,
+            "store": store,
+            "faq": faq,
+            "mode": "edit",
+            "business_type_label": get_business_type_label(store.business_type),
+        },
+    )
+
+
+@router.post(
+    "/stores/{store_id}/faq-manager/{faq_id}/edit",
+)
+def update_faq_from_form(
+    store_id: int,
+    faq_id: int,
+    request: Request,
+    question: str = Form(...),
+    answer: str = Form(...),
+    is_active: bool = Form(True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    faq = db.query(FAQ).filter(FAQ.id == faq_id, FAQ.store_id == store.id).first()
+    if faq is None:
+        raise HTTPException(status_code=404, detail="FAQ not found")
+
+    faq.question = question.strip()
+    faq.answer = answer.strip()
+    faq.is_active = is_active
+    db.commit()
+    return RedirectResponse(url=f"/stores/{store.id}/faq-manager", status_code=303)
+
+
+@router.post(
+    "/stores/{store_id}/faq-manager/{faq_id}/delete",
+)
+def delete_faq_from_form(
+    store_id: int,
+    faq_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    faq = db.query(FAQ).filter(FAQ.id == faq_id, FAQ.store_id == store.id).first()
+    if faq is None:
+        raise HTTPException(status_code=404, detail="FAQ not found")
+
+    db.delete(faq)
+    db.commit()
+    return RedirectResponse(url=f"/stores/{store.id}/faq-manager", status_code=303)
+
+
+@router.get(
+    "/stores/{store_id}/knowledge-manager",
+    response_class=HTMLResponse,
+)
+def manage_knowledge(
+    store_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    entries = db.query(KnowledgeBaseEntry).filter(KnowledgeBaseEntry.store_id == store.id).order_by(KnowledgeBaseEntry.updated_at.desc()).all()
+    return templates.TemplateResponse(
+        request=request,
+        name="store_knowledge.html",
+        context={
+            "user": current_user,
+            "store": store,
+            "entries": entries,
+            "business_type_label": get_business_type_label(store.business_type),
+        },
+    )
+
+
+@router.get(
+    "/stores/{store_id}/knowledge-manager/new",
+    response_class=HTMLResponse,
+)
+def new_knowledge_form(
+    store_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="knowledge_form.html",
+        context={
+            "user": current_user,
+            "store": store,
+            "entry": None,
+            "mode": "create",
+            "business_type_label": get_business_type_label(store.business_type),
+        },
+    )
+
+
+@router.post(
+    "/stores/{store_id}/knowledge-manager/new",
+)
+def create_knowledge_from_form(
+    store_id: int,
+    request: Request,
+    title: str = Form(...),
+    content: str = Form(...),
+    is_active: bool = Form(True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    entry = KnowledgeBaseEntry(title=title.strip(), content=content.strip(), is_active=is_active, store_id=store.id)
+    db.add(entry)
+    db.commit()
+    return RedirectResponse(url=f"/stores/{store.id}/knowledge-manager", status_code=303)
+
+
+@router.get(
+    "/stores/{store_id}/knowledge-manager/{knowledge_id}/edit",
+    response_class=HTMLResponse,
+)
+def edit_knowledge_form(
+    store_id: int,
+    knowledge_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    entry = db.query(KnowledgeBaseEntry).filter(KnowledgeBaseEntry.id == knowledge_id, KnowledgeBaseEntry.store_id == store.id).first()
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Knowledge entry not found")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="knowledge_form.html",
+        context={
+            "user": current_user,
+            "store": store,
+            "entry": entry,
+            "mode": "edit",
+            "business_type_label": get_business_type_label(store.business_type),
+        },
+    )
+
+
+@router.post(
+    "/stores/{store_id}/knowledge-manager/{knowledge_id}/edit",
+)
+def update_knowledge_from_form(
+    store_id: int,
+    knowledge_id: int,
+    request: Request,
+    title: str = Form(...),
+    content: str = Form(...),
+    is_active: bool = Form(True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    entry = db.query(KnowledgeBaseEntry).filter(KnowledgeBaseEntry.id == knowledge_id, KnowledgeBaseEntry.store_id == store.id).first()
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Knowledge entry not found")
+
+    entry.title = title.strip()
+    entry.content = content.strip()
+    entry.is_active = is_active
+    db.commit()
+    return RedirectResponse(url=f"/stores/{store.id}/knowledge-manager", status_code=303)
+
+
+@router.post(
+    "/stores/{store_id}/knowledge-manager/{knowledge_id}/delete",
+)
+def delete_knowledge_from_form(
+    store_id: int,
+    knowledge_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    entry = db.query(KnowledgeBaseEntry).filter(KnowledgeBaseEntry.id == knowledge_id, KnowledgeBaseEntry.store_id == store.id).first()
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Knowledge entry not found")
+
+    db.delete(entry)
+    db.commit()
+    return RedirectResponse(url=f"/stores/{store.id}/knowledge-manager", status_code=303)
 
 @router.get(
     "/stores/{store_id}/products/new",
