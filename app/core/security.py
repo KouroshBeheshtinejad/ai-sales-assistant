@@ -5,7 +5,10 @@ import jwt
 from pwdlib import PasswordHash
 
 
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
+SECRET_KEY = os.getenv(
+    "SECRET_KEY",
+    "development-only-secret-change-me-please-set-env",
+)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
