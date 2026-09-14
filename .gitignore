@@ -4,3 +4,4 @@ __pycache__/
 .env
 .venv/
 venv/
+ai_sales_before_faq_kb.dump

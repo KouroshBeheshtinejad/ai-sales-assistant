@@ -1,9 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import ForeignKey, String, Text, Numeric, Integer, Boolean, DateTime, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class User(Base):
@@ -14,7 +18,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow,
     )
 
     stores: Mapped[list["Store"]] = relationship(
@@ -42,7 +46,7 @@ class Store(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow,
     )
 
     owner: Mapped["User"] = relationship(
@@ -52,6 +56,70 @@ class Store(Base):
     products: Mapped[list["Product"]] = relationship(
         back_populates="store",
         cascade="all, delete-orphan",
+    )
+
+    faqs: Mapped[list["FAQ"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan",
+    )
+
+    knowledge_entries: Mapped[list["KnowledgeBaseEntry"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan",
+    )
+
+
+class FAQ(Base):
+    __tablename__ = "faqs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    question: Mapped[str] = mapped_column(String(500), nullable=False)
+    answer: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    store_id: Mapped[int] = mapped_column(
+        ForeignKey("stores.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        onupdate=_utcnow,
+    )
+
+    store: Mapped["Store"] = relationship(
+        back_populates="faqs",
+    )
+
+
+class KnowledgeBaseEntry(Base):
+    __tablename__ = "knowledge_base_entries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    store_id: Mapped[int] = mapped_column(
+        ForeignKey("stores.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        onupdate=_utcnow,
+    )
+
+    store: Mapped["Store"] = relationship(
+        back_populates="knowledge_entries",
     )
 
 
@@ -102,13 +170,13 @@ class Product(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=_utcnow,
+        onupdate=_utcnow,
     )
 
     store: Mapped["Store"] = relationship(
