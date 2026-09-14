@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'edit' %}Edit knowledge entry{% else %}New knowledge entry{% endif %} · Nava{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-3xl">
+  <a href="/stores/{{ store.id }}/knowledge-manager" class="text-sm font-bold text-slate-500 hover:text-ink">← Back to knowledge base</a>
+  <div class="mt-8">
+    <p class="text-sm font-bold uppercase tracking-[.18em] text-coral">{{ business_type_label }} knowledge</p>
+    <h1 class="display mt-2 text-4xl font-extrabold tracking-tight text-ink">{% if mode == 'edit' %}Update entry{% else %}Create entry{% endif %}</h1>
+  </div>
+
+    <form method="post" action="{% if mode == 'edit' %}/stores/{{ store.id }}/knowledge-manager/{{ entry.id }}/edit{% else %}/stores/{{ store.id }}/knowledge-manager/new{% endif %}" class="mt-8 rounded-3xl bg-white p-6 shadow-soft md:p-9">
+    <div class="space-y-6">
+      <label class="block">
+        <span class="mb-2 block text-sm font-bold">Title</span>
+        <input name="title" value="{{ entry.title if entry else '' }}" required class="w-full rounded-xl border border-slate-200 px-4 py-3.5 outline-none focus:border-coral focus:ring-4 focus:ring-coral/10" placeholder="Shipping policy">
+      </label>
+
+      <label class="block">
+        <span class="mb-2 block text-sm font-bold">Content</span>
+        <textarea name="content" rows="6" required class="w-full resize-none rounded-xl border border-slate-200 px-4 py-3.5 outline-none focus:border-coral focus:ring-4 focus:ring-coral/10" placeholder="Add the source material the future assistant can use.">{{ entry.content if entry else '' }}</textarea>
+      </label>
+
+      <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+        <input type="checkbox" name="is_active" value="true" {% if entry is none or entry.is_active %}checked{% endif %} class="h-4 w-4 rounded border-slate-300 text-coral focus:ring-coral">
+        <span class="text-sm font-semibold text-slate-700">Active</span>
+      </label>
+    </div>
+
+    <div class="mt-8 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
+      <a href="/stores/{{ store.id }}/knowledge-manager" class="rounded-xl px-5 py-3 text-center text-sm font-bold text-slate-500 hover:bg-slate-50">Cancel</a>
+      <button class="rounded-xl bg-ink px-6 py-3 font-bold text-white hover:bg-slate-700">{% if mode == 'edit' %}Save changes{% else %}Create entry{% endif %}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
