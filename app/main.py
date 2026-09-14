@@ -9,6 +9,9 @@ from app.routes.store_management import router as store_management_router
 from app.routes.stores import router as stores_router
 from app.routes.products import router as products_router
 from app.routes.dashboard import router as dashboard_router
+from app.routes.faqs import router as faqs_router
+from app.routes.knowledge_base import router as knowledge_base_router
+from app.routes.chat import router as chat_router
 
 app = FastAPI(
     title="AI Sales Assistant",
@@ -19,6 +22,9 @@ app.include_router(auth_router)
 app.include_router(store_management_router)
 app.include_router(stores_router)
 app.include_router(products_router)
+app.include_router(faqs_router)
+app.include_router(knowledge_base_router)
+app.include_router(chat_router)
 app.include_router(dashboard_router)
 
 @app.get("/", include_in_schema=False)
