@@ -1,0 +1,9 @@
+.git
+.env
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+ai_sales_before_faq_kb.dump
+tests

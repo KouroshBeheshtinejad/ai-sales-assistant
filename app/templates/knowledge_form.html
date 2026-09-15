@@ -9,6 +9,7 @@
   </div>
 
     <form method="post" action="{% if mode == 'edit' %}/stores/{{ store.id }}/knowledge-manager/{{ entry.id }}/edit{% else %}/stores/{{ store.id }}/knowledge-manager/new{% endif %}" class="mt-8 rounded-3xl bg-white p-6 shadow-soft md:p-9">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <div class="space-y-6">
       <label class="block">
         <span class="mb-2 block text-sm font-bold">Title</span>

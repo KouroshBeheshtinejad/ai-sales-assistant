@@ -1,14 +1,12 @@
 from datetime import datetime, timedelta, timezone
-import os
 
 import jwt
 from pwdlib import PasswordHash
 
+from app.core.config import secret_key
 
-SECRET_KEY = os.getenv(
-    "SECRET_KEY",
-    "development-only-secret-change-me-please-set-env",
-)
+
+SECRET_KEY = secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 

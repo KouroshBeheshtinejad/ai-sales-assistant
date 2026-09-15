@@ -1,12 +1,17 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import Product, Store, User
 from app.routes.auth import get_current_user
+from app.services.semantic_index import (
+    SOURCE_PRODUCT,
+    safely_discard_semantic_document,
+    safely_sync_semantic_document,
+)
 
 
 router = APIRouter(
@@ -17,13 +22,21 @@ router = APIRouter(
 
 class ProductCreateRequest(BaseModel):
     store_id: int
-    name: str = Field(..., min_length=1, max_length=255)
-    description: str | None = None
-    price: float = Field(..., ge=0)
-    stock: int = Field(0, ge=0)
-    size: str | None = None
-    color: str | None = None
+    name: str = Field(..., max_length=255)
+    description: str | None = Field(None, max_length=10000)
+    price: float = Field(..., ge=0, le=9999999999.99, allow_inf_nan=False)
+    stock: int = Field(0, ge=0, le=2147483647)
+    size: str | None = Field(None, max_length=100)
+    color: str | None = Field(None, max_length=100)
     attributes: dict[str, Any] | None = None
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Product name must not be blank")
+        return value
 
 
 def _product_response(product: Product, message: str | None = None):
@@ -82,6 +95,7 @@ def create_product(
     db.add(product)
     db.commit()
     db.refresh(product)
+    safely_sync_semantic_document(db, product)
 
     return _product_response(product, "Product created successfully")
 
@@ -142,14 +156,24 @@ def get_product(
     return _product_response(product)
 
 class ProductUpdateRequest(BaseModel):
-    name: str | None = Field(None, min_length=1, max_length=255)
-    description: str | None = None
-    price: float | None = Field(None, ge=0)
-    stock: int | None = Field(None, ge=0)
-    size: str | None = None
-    color: str | None = None
+    name: str | None = Field(None, max_length=255)
+    description: str | None = Field(None, max_length=10000)
+    price: float | None = Field(None, ge=0, le=9999999999.99, allow_inf_nan=False)
+    stock: int | None = Field(None, ge=0, le=2147483647)
+    size: str | None = Field(None, max_length=100)
+    color: str | None = Field(None, max_length=100)
     attributes: dict[str, Any] | None = None
     is_active: bool | None = None
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        if not value:
+            raise ValueError("Product name must not be blank")
+        return value
 
 
 @router.put("/{product_id}")
@@ -175,6 +199,7 @@ def update_product(
             detail="Product not found",
         )
 
+    safely_discard_semantic_document(db, SOURCE_PRODUCT, product.id, product.store_id)
     update_data = data.model_dump(exclude_unset=True)
 
     if "attributes" in update_data and update_data["attributes"] is not None:
@@ -190,6 +215,7 @@ def update_product(
 
     db.commit()
     db.refresh(product)
+    safely_sync_semantic_document(db, product)
 
     return _product_response(product, "Product updated successfully")
 
@@ -215,6 +241,7 @@ def delete_product(
             detail="Product not found",
         )
 
+    safely_discard_semantic_document(db, SOURCE_PRODUCT, product.id, product.store_id)
     db.delete(product)
     db.commit()
 

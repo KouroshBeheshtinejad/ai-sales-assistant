@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.core.business_types import get_business_type_label, normalize_business_type
@@ -15,9 +15,17 @@ router = APIRouter(
 
 
 class StoreCreateRequest(BaseModel):
-    name: str
-    description: str | None = None
-    business_type: str = "clothing"
+    name: str = Field(..., max_length=255)
+    description: str | None = Field(None, max_length=10000)
+    business_type: str = Field("clothing", max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Store name must not be blank")
+        return value
 
 
 @router.post("/")
@@ -102,9 +110,19 @@ def get_store(
     }
 
 class StoreUpdateRequest(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    business_type: str | None = None
+    name: str | None = Field(None, max_length=255)
+    description: str | None = Field(None, max_length=10000)
+    business_type: str | None = Field(None, max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        if not value:
+            raise ValueError("Store name must not be blank")
+        return value
 
 
 @router.put("/{store_id}")

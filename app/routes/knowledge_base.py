@@ -1,13 +1,18 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import KnowledgeBaseEntry, User
 from app.routes.auth import get_current_user
 from app.services.knowledge_service import get_knowledge_for_store_or_404, get_store_or_404
+from app.services.semantic_index import (
+    SOURCE_KNOWLEDGE_BASE,
+    safely_discard_semantic_document,
+    safely_sync_semantic_document,
+)
 
 
 router = APIRouter(
@@ -17,15 +22,33 @@ router = APIRouter(
 
 
 class KnowledgeCreateRequest(BaseModel):
-    title: str = Field(..., min_length=1, max_length=255)
-    content: str = Field(..., min_length=1)
+    title: str = Field(..., max_length=255)
+    content: str = Field(..., max_length=10000)
     is_active: bool = True
+
+    @field_validator("title", "content")
+    @classmethod
+    def text_must_not_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Knowledge text must not be blank")
+        return value
 
 
 class KnowledgeUpdateRequest(BaseModel):
-    title: str | None = Field(default=None, min_length=1, max_length=255)
-    content: str | None = Field(default=None, min_length=1)
+    title: str | None = Field(default=None, max_length=255)
+    content: str | None = Field(default=None, max_length=10000)
     is_active: bool | None = None
+
+    @field_validator("title", "content")
+    @classmethod
+    def text_must_not_be_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        if not value:
+            raise ValueError("Knowledge text must not be blank")
+        return value
 
 
 class KnowledgeResponse(BaseModel):
@@ -95,6 +118,7 @@ def create_knowledge_entry(
     db.add(entry)
     db.commit()
     db.refresh(entry)
+    safely_sync_semantic_document(db, entry)
     return entry
 
 
@@ -111,6 +135,9 @@ def update_knowledge_entry(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
+    safely_discard_semantic_document(
+        db, SOURCE_KNOWLEDGE_BASE, entry.id, entry.store_id
+    )
     update_data = data.model_dump(exclude_unset=True)
     if "title" in update_data and update_data["title"] is not None:
         update_data["title"] = update_data["title"].strip()
@@ -122,6 +149,7 @@ def update_knowledge_entry(
 
     db.commit()
     db.refresh(entry)
+    safely_sync_semantic_document(db, entry)
     return entry
 
 
@@ -137,6 +165,9 @@ def delete_knowledge_entry(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
+    safely_discard_semantic_document(
+        db, SOURCE_KNOWLEDGE_BASE, entry.id, entry.store_id
+    )
     db.delete(entry)
     db.commit()
     return {"message": "Knowledge entry deleted successfully"}

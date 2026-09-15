@@ -4,9 +4,17 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.core.business_types import BUSINESS_TYPES, get_business_fields_for_store, get_business_type_label, normalize_business_type
+from app.core.csrf import require_csrf_token
 from app.db.database import get_db
 from app.db.models import User, Store, Product, FAQ, KnowledgeBaseEntry
 from app.routes.auth import get_current_user_from_cookie
+from app.services.semantic_index import (
+    SOURCE_FAQ,
+    SOURCE_KNOWLEDGE_BASE,
+    SOURCE_PRODUCT,
+    safely_discard_semantic_document,
+    safely_sync_semantic_document,
+)
 
 
 router = APIRouter(
@@ -153,6 +161,7 @@ def create_faq_from_form(
     is_active: bool = Form(True),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    _: None = Depends(require_csrf_token),
 ):
     store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
     if store is None:
@@ -161,6 +170,7 @@ def create_faq_from_form(
     faq = FAQ(question=question.strip(), answer=answer.strip(), is_active=is_active, store_id=store.id)
     db.add(faq)
     db.commit()
+    safely_sync_semantic_document(db, faq)
     return RedirectResponse(url=f"/stores/{store.id}/faq-manager", status_code=303)
 
 
@@ -208,6 +218,7 @@ def update_faq_from_form(
     is_active: bool = Form(True),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    _: None = Depends(require_csrf_token),
 ):
     store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
     if store is None:
@@ -217,10 +228,12 @@ def update_faq_from_form(
     if faq is None:
         raise HTTPException(status_code=404, detail="FAQ not found")
 
+    safely_discard_semantic_document(db, SOURCE_FAQ, faq.id, faq.store_id)
     faq.question = question.strip()
     faq.answer = answer.strip()
     faq.is_active = is_active
     db.commit()
+    safely_sync_semantic_document(db, faq)
     return RedirectResponse(url=f"/stores/{store.id}/faq-manager", status_code=303)
 
 
@@ -232,6 +245,7 @@ def delete_faq_from_form(
     faq_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    _: None = Depends(require_csrf_token),
 ):
     store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
     if store is None:
@@ -241,6 +255,7 @@ def delete_faq_from_form(
     if faq is None:
         raise HTTPException(status_code=404, detail="FAQ not found")
 
+    safely_discard_semantic_document(db, SOURCE_FAQ, faq.id, faq.store_id)
     db.delete(faq)
     db.commit()
     return RedirectResponse(url=f"/stores/{store.id}/faq-manager", status_code=303)
@@ -311,6 +326,7 @@ def create_knowledge_from_form(
     is_active: bool = Form(True),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    _: None = Depends(require_csrf_token),
 ):
     store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
     if store is None:
@@ -319,6 +335,7 @@ def create_knowledge_from_form(
     entry = KnowledgeBaseEntry(title=title.strip(), content=content.strip(), is_active=is_active, store_id=store.id)
     db.add(entry)
     db.commit()
+    safely_sync_semantic_document(db, entry)
     return RedirectResponse(url=f"/stores/{store.id}/knowledge-manager", status_code=303)
 
 
@@ -366,6 +383,7 @@ def update_knowledge_from_form(
     is_active: bool = Form(True),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    _: None = Depends(require_csrf_token),
 ):
     store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
     if store is None:
@@ -375,10 +393,14 @@ def update_knowledge_from_form(
     if entry is None:
         raise HTTPException(status_code=404, detail="Knowledge entry not found")
 
+    safely_discard_semantic_document(
+        db, SOURCE_KNOWLEDGE_BASE, entry.id, entry.store_id
+    )
     entry.title = title.strip()
     entry.content = content.strip()
     entry.is_active = is_active
     db.commit()
+    safely_sync_semantic_document(db, entry)
     return RedirectResponse(url=f"/stores/{store.id}/knowledge-manager", status_code=303)
 
 
@@ -390,6 +412,7 @@ def delete_knowledge_from_form(
     knowledge_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    _: None = Depends(require_csrf_token),
 ):
     store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
     if store is None:
@@ -399,6 +422,9 @@ def delete_knowledge_from_form(
     if entry is None:
         raise HTTPException(status_code=404, detail="Knowledge entry not found")
 
+    safely_discard_semantic_document(
+        db, SOURCE_KNOWLEDGE_BASE, entry.id, entry.store_id
+    )
     db.delete(entry)
     db.commit()
     return RedirectResponse(url=f"/stores/{store.id}/knowledge-manager", status_code=303)
@@ -507,6 +533,7 @@ async def update_product_from_form(
     color: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    _: None = Depends(require_csrf_token),
 ):
     store = (
         db.query(Store)
@@ -538,6 +565,7 @@ async def update_product_from_form(
             detail="Product not found",
         )
 
+    safely_discard_semantic_document(db, SOURCE_PRODUCT, product.id, product.store_id)
     product.name = name
     product.description = description
     product.price = price
@@ -552,6 +580,7 @@ async def update_product_from_form(
     product.color = custom_attributes.get("color", color)
 
     db.commit()
+    safely_sync_semantic_document(db, product)
 
     return RedirectResponse(
         url=f"/stores/{store.id}/manage",
@@ -572,6 +601,7 @@ async def create_product_from_form(
     color: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    _: None = Depends(require_csrf_token),
 ):
     store = (
         db.query(Store)
@@ -604,6 +634,7 @@ async def create_product_from_form(
 
     db.add(product)
     db.commit()
+    safely_sync_semantic_document(db, product)
 
     return RedirectResponse(
         url=f"/stores/{store.id}/manage",
@@ -655,6 +686,7 @@ def update_store_from_form(
     business_type: str = Form(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    _: None = Depends(require_csrf_token),
 ):
     store = (
         db.query(Store)
@@ -690,6 +722,7 @@ def delete_product_from_store(
     product_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    _: None = Depends(require_csrf_token),
 ):
     store = (
         db.query(Store)
@@ -721,6 +754,7 @@ def delete_product_from_store(
             detail="Product not found",
         )
 
+    safely_discard_semantic_document(db, SOURCE_PRODUCT, product.id, product.store_id)
     db.delete(product)
     db.commit()
 
@@ -756,6 +790,7 @@ def create_store_from_form(
     business_type: str = Form(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    _: None = Depends(require_csrf_token),
 ):
     store = Store(
         name=name,
@@ -771,4 +806,3 @@ def create_store_from_form(
         url="/dashboard",
         status_code=303,
     )
-

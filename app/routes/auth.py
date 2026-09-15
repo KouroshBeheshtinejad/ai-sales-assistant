@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import User
+from app.core.config import cookie_settings
+from app.core.csrf import require_csrf_token
 from app.core.security import (
     ALGORITHM,
     SECRET_KEY,
@@ -27,6 +29,18 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 security = HTTPBearer()
+
+
+def _set_access_token_cookie(response: Response, access_token: str) -> None:
+    settings = cookie_settings()
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=settings.secure,
+        samesite=settings.samesite,
+        max_age=settings.max_age_seconds,
+    )
 
 
 class RegisterRequest(BaseModel):
@@ -59,6 +73,7 @@ def login_form(
     email: str = Form(...),
     password: str = Form(...),
     db: Session = Depends(get_db),
+    _: None = Depends(require_csrf_token),
 ):
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.password_hash):
@@ -70,7 +85,7 @@ def login_form(
         )
     access_token = create_access_token(user.id)
     redirect = RedirectResponse(url="/dashboard", status_code=303)
-    redirect.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=60 * 60)
+    _set_access_token_cookie(redirect, access_token)
     return redirect
 
 
@@ -80,6 +95,7 @@ def register_form(
     email: str = Form(...),
     password: str = Form(...),
     db: Session = Depends(get_db),
+    _: None = Depends(require_csrf_token),
 ):
     if len(password) < 8:
         return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": "Password must be at least 8 characters."}, status_code=422)
@@ -90,12 +106,12 @@ def register_form(
     db.commit()
     access_token = create_access_token(user.id)
     redirect = RedirectResponse(url="/dashboard", status_code=303)
-    redirect.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=60 * 60)
+    _set_access_token_cookie(redirect, access_token)
     return redirect
 
 
-@router.get("/logout", include_in_schema=False)
-def logout():
+@router.post("/logout", include_in_schema=False)
+def logout(_: None = Depends(require_csrf_token)):
     response = RedirectResponse(url="/auth/login", status_code=303)
     response.delete_cookie("access_token")
     return response
@@ -157,14 +173,7 @@ def login(
 
     access_token = create_access_token(user.id)
 
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=60 * 60,
-    )
+    _set_access_token_cookie(response, access_token)
 
     return {
         "message": "Login successful",
@@ -193,14 +202,15 @@ def get_current_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
             )
+        user_id = int(user_id)
 
-    except jwt.PyJWTError:
+    except (jwt.PyJWTError, TypeError, ValueError, OverflowError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
         )
 
-    user = db.get(User, int(user_id))
+    user = db.get(User, user_id)
 
     if user is None:
         raise HTTPException(
@@ -254,14 +264,15 @@ def get_current_user_from_cookie(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
             )
+        user_id = int(user_id)
 
-    except (jwt.PyJWTError, ValueError):
+    except (jwt.PyJWTError, TypeError, ValueError, OverflowError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
         )
 
-    user = db.get(User, int(user_id))
+    user = db.get(User, user_id)
 
     if user is None:
         raise HTTPException(

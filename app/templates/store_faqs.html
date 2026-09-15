@@ -24,6 +24,7 @@
           <div class="flex gap-2">
             <a href="/stores/{{ store.id }}/faq-manager/{{ faq.id }}/edit" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-ink hover:border-slate-300">Edit</a>
             <form method="post" action="/stores/{{ store.id }}/faq-manager/{{ faq.id }}/delete" onsubmit="return confirm('Delete this FAQ?')">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
               <button class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-100">Delete</button>
             </form>
           </div>

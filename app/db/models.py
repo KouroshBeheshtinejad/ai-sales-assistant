@@ -1,13 +1,69 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import ForeignKey, String, Text, Numeric, Integer, Boolean, DateTime, JSON
+import json
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql.type_api import UserDefinedType
+from sqlalchemy.types import TypeDecorator
 
 from app.db.database import Base
+from app.services.embedding_provider import DEFAULT_EMBEDDING_DIMENSION
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+class _PostgresVector(UserDefinedType):
+    cache_ok = True
+
+    def __init__(self, dimensions: int):
+        self.dimensions = dimensions
+
+    def get_col_spec(self, **kw):
+        return f"vector({self.dimensions})"
+
+
+class EmbeddingVector(TypeDecorator):
+    """Use pgvector in PostgreSQL and JSON for isolated SQLite test databases."""
+
+    impl = JSON
+    cache_ok = True
+
+    def __init__(self, dimensions: int):
+        super().__init__()
+        self.dimensions = dimensions
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(_PostgresVector(self.dimensions))
+        return dialect.type_descriptor(JSON())
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if dialect.name == "postgresql":
+            return "[" + ",".join(f"{float(item):.10g}" for item in value) + "]"
+        return list(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None or isinstance(value, list):
+            return value
+        if dialect.name == "postgresql" and isinstance(value, str):
+            return [float(item) for item in json.loads(value)]
+        return value
 
 
 class User(Base):
@@ -181,4 +237,37 @@ class Product(Base):
 
     store: Mapped["Store"] = relationship(
         back_populates="products",
+    )
+
+
+class SemanticDocument(Base):
+    """A non-authoritative vector index entry for one searchable store record."""
+
+    __tablename__ = "semantic_documents"
+    __table_args__ = (
+        UniqueConstraint("store_id", "source_type", "source_id", name="uq_semantic_document_source"),
+        Index("ix_semantic_documents_store_active", "store_id", "is_active"),
+        Index("ix_semantic_documents_source", "source_type", "source_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(
+        ForeignKey("stores.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(
+        EmbeddingVector(DEFAULT_EMBEDDING_DIMENSION),
+        nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        onupdate=_utcnow,
+        nullable=False,
     )

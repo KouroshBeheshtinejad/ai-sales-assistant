@@ -1,7 +1,13 @@
-from fastapi import FastAPI, Request
+import logging
+
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.core.config import allowed_hosts
+from app.core.csrf import ensure_csrf_token, set_csrf_cookie
 from app.db.database import engine
 from app.db import models
 from app.routes.auth import router as auth_router
@@ -17,6 +23,16 @@ app = FastAPI(
     title="AI Sales Assistant",
     version="0.1.0",
 )
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts())
+logger = logging.getLogger(__name__)
+
+
+@app.middleware("http")
+async def csrf_cookie_middleware(request: Request, call_next):
+    ensure_csrf_token(request)
+    response = await call_next(request)
+    set_csrf_cookie(request, response)
+    return response
 
 app.include_router(auth_router)
 app.include_router(store_management_router)
@@ -41,3 +57,22 @@ async def database_health():
             "database": "connected",
             "result": result.scalar(),
         }
+
+
+@app.get("/health/live", include_in_schema=False)
+async def liveness_check():
+    return {"status": "ok"}
+
+
+@app.get("/health/ready", include_in_schema=False)
+async def readiness_check():
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        logger.warning("Readiness probe database check failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service is not ready",
+        )
+    return {"status": "ready"}
