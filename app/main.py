@@ -20,6 +20,7 @@ from app.routes.knowledge_base import router as knowledge_base_router
 from app.routes.chat import router as chat_router
 from app.routes.cart import router as cart_router
 from app.routes.order import router as order_router
+from app.routes.seller_orders import router as seller_orders_router
 
 app = FastAPI(
     title="AI Sales Assistant",
@@ -46,6 +47,7 @@ app.include_router(chat_router)
 app.include_router(dashboard_router)
 app.include_router(cart_router)
 app.include_router(order_router)
+app.include_router(seller_orders_router)
 
 @app.get("/", include_in_schema=False)
 async def root(request: Request):
