@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import json
 
@@ -81,6 +82,11 @@ class User(Base):
         back_populates="owner",
         cascade="all, delete-orphan",
     )
+    
+    carts: Mapped[list["Cart"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class Store(Base):
@@ -122,6 +128,15 @@ class Store(Base):
     knowledge_entries: Mapped[list["KnowledgeBaseEntry"]] = relationship(
         back_populates="store",
         cascade="all, delete-orphan",
+    )
+    
+    carts: Mapped[list["Cart"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan",
+    )
+
+    orders: Mapped[list["Order"]] = relationship(
+        back_populates="store",
     )
 
 
@@ -271,3 +286,213 @@ class SemanticDocument(Base):
         onupdate=_utcnow,
         nullable=False,
     )
+
+class Cart(Base):
+    __tablename__ = "carts"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "store_id",
+            name="uq_cart_user_store",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    store_id: Mapped[int] = mapped_column(
+        ForeignKey("stores.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        onupdate=_utcnow,
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship(
+        back_populates="carts",
+    )
+
+    store: Mapped["Store"] = relationship(
+        back_populates="carts",
+    )
+
+    items: Mapped[list["CartItem"]] = relationship(
+        back_populates="cart",
+        cascade="all, delete-orphan",
+    )
+
+
+class CartItem(Base):
+    __tablename__ = "cart_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "cart_id",
+            "product_id",
+            name="uq_cart_item_product",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    cart_id: Mapped[int] = mapped_column(
+        ForeignKey("carts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+
+    quantity: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        nullable=False,
+    )
+
+    cart: Mapped["Cart"] = relationship(
+        back_populates="items",
+    )
+
+    product: Mapped["Product"] = relationship()
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+
+    store_id: Mapped[int] = mapped_column(
+        ForeignKey("stores.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="pending",
+        index=True,
+    )
+
+    customer_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    customer_phone: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    customer_address: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    total_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        onupdate=_utcnow,
+        nullable=False,
+    )
+
+    cancelled_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    user: Mapped["User"] = relationship()
+
+    store: Mapped["Store"] = relationship(
+        back_populates="orders",
+    )
+
+    items: Mapped[list["OrderItem"]] = relationship(
+        back_populates="order",
+        cascade="all, delete-orphan",
+    )
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    order_id: Mapped[int] = mapped_column(
+        ForeignKey("orders.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    product_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    unit_price: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+    )
+
+    quantity: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    line_total: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+    )
+
+    order: Mapped["Order"] = relationship(
+        back_populates="items",
+    )
+
+    product: Mapped["Product | None"] = relationship()

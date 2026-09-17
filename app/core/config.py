@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import os
 import secrets
+
+from dotenv import load_dotenv
 from dataclasses import dataclass
 
 
 PRODUCTION_ENVIRONMENTS = frozenset({"production", "prod"})
+
+load_dotenv()
 
 
 def app_environment() -> str:
