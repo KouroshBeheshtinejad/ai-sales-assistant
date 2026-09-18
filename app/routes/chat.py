@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import Store
+from app.db.models import Product, Store
 from app.services.chat_retrieval import (
     RetrievedContext,
     format_context,
@@ -159,7 +159,15 @@ def public_store_page(
     return templates.TemplateResponse(
         request=request,
         name="public_store.html",
-        context={"store": store},
+        context={
+            "store": store,
+            "products": (
+                db.query(Product)
+                .filter(Product.store_id == store_id, Product.is_active.is_(True))
+                .order_by(Product.id)
+                .all()
+            ),
+        },
     )
 
 

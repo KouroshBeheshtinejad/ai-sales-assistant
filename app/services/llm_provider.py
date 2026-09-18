@@ -115,6 +115,10 @@ class MockLLMProvider:
             name, _, details = product.partition(":")
             description = details.split("; price=", 1)[0].strip()
             return f"بر اساس اطلاعات ثبت‌شده، «{name}» می‌تواند گزینهٔ مناسبی باشد؛ {description}"
+        if product:
+            name, _, details = product.partition(":")
+            stock = details.split("stock=", 1)[-1].strip()
+            return f"بله، «{name}» موجود است و {stock} عدد در انبار دارد."
 
         answer = next((line[3:].strip() for line in lines if line.startswith("A:")), None)
         if answer:
