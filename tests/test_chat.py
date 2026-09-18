@@ -44,7 +44,7 @@ class RecordingProvider:
         self.user_prompt = ""
         self.user_prompts = []
 
-    def complete(self, system_prompt, user_prompt):
+    def complete(self, system_prompt, user_prompt, messages=None, tools=None, response_format=None):
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
         self.user_prompts.append(user_prompt)
@@ -52,12 +52,12 @@ class RecordingProvider:
 
 
 class FailingProvider:
-    def complete(self, system_prompt, user_prompt):
+    def complete(self, system_prompt, user_prompt, messages=None, tools=None, response_format=None):
         raise LLMProviderError("provider failed")
 
 
 class UnexpectedFailingProvider:
-    def complete(self, system_prompt, user_prompt):
+    def complete(self, system_prompt, user_prompt, messages=None, tools=None, response_format=None):
         raise RuntimeError("unexpected provider failure")
 
 
@@ -190,7 +190,9 @@ def test_public_chat_succeeds_without_login_and_limits_prompt_to_store_data(clie
     )
 
     assert response.status_code == 200
-    assert response.json() == {"success": True, "answer": "Test assistant answer"}
+    assert response.json()["success"] is True
+    assert response.json()["answer"] == "Test assistant answer"
+    assert response.json()["guest_token"]
     assert "Yes, delivery takes two days." in provider.user_prompt
     assert "Second store" not in provider.user_prompt
 
@@ -355,7 +357,7 @@ def test_retrieval_failure_is_safe_and_logged(client, monkeypatch, caplog):
     def fail_retrieval(*args, **kwargs):
         raise RuntimeError("unexpected retrieval failure")
 
-    monkeypatch.setattr(chat_route, "retrieve_store_context", fail_retrieval)
+    monkeypatch.setattr("app.services.sales_agent.retrieve_store_context", fail_retrieval)
     caplog.set_level(logging.ERROR, logger="app.routes.chat")
     response = client.post(
         f"/public/stores/{store.id}/chat", json={"question": "Hello"}
@@ -366,7 +368,7 @@ def test_retrieval_failure_is_safe_and_logged(client, monkeypatch, caplog):
     assert "unexpected retrieval failure" not in response.text
     assert "temporarily unavailable" in response.json()["answer"]
     assert provider.user_prompt == ""
-    assert "Chat retrieval failed" in caplog.text
+    assert "Sales agent retrieval failed" in caplog.text
 
 
 def test_missing_provider_configuration_returns_safe_response(client, monkeypatch):
@@ -785,3 +787,37 @@ def test_semantic_faq_and_knowledge_matches_are_not_filtered(
         assert [faq.answer for faq in context.faqs] == ["پاسخ FAQ مرتبط"]
     else:
         assert [entry.content for entry in context.knowledge_entries] == ["پاسخ KB مرتبط"]
+
+
+def test_follow_up_question_uses_product_from_conversation_history(client):
+    store = create_store("Conversation Context Store")
+    add_product(
+        store.id,
+        "Running Sneakers",
+        "کفش ورزشی سبک برای دویدن",
+        3200000,
+        5,
+    )
+
+    app.dependency_overrides[
+        __import__("app.routes.chat", fromlist=["get_llm_provider"]).get_llm_provider
+    ] = lambda: MockLLMProvider()
+
+    first_response = client.post(
+        f"/public/stores/{store.id}/chat",
+        json={"question": "Running Sneakers را معرفی کن"},
+    )
+
+    assert first_response.status_code == 200
+    guest_token = first_response.json()["guest_token"]
+
+    second_response = client.post(
+        f"/public/stores/{store.id}/chat",
+        json={
+            "question": "قیمتش چنده؟",
+            "guest_token": guest_token,
+        },
+    )
+
+    assert second_response.status_code == 200
+    assert "3200000.00" in second_response.json()["answer"]

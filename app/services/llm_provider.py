@@ -1,7 +1,7 @@
 import json
 import os
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 from urllib import error, request
 
 
@@ -15,7 +15,15 @@ SYSTEM_PROMPT = """شما دستیار فروش دقیق و خوش‌برخور�
 
 
 class LLMProvider(Protocol):
-    def complete(self, system_prompt: str, user_prompt: str) -> str:
+    def complete(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        messages: list[dict[str, str]] | None = None,
+        tools: list[dict] | None = None,
+        response_format: dict | None = None,
+    ) -> str | dict[str, Any]:
         ...
 
 
@@ -24,7 +32,15 @@ class LLMProviderError(RuntimeError):
 
 
 class UnavailableLLMProvider:
-    def complete(self, system_prompt: str, user_prompt: str) -> str:
+    def complete(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        messages: list[dict[str, str]] | None = None,
+        tools: list[dict] | None = None,
+        response_format: dict | None = None,
+    ) -> str | dict[str, Any]:
         raise LLMProviderError("AI chat provider is not configured")
 
 
@@ -62,7 +78,15 @@ class MockLLMProvider:
             None,
         )
 
-    def complete(self, system_prompt: str, user_prompt: str) -> str:
+    def complete(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        messages: list[dict[str, str]] | None = None,
+        tools: list[dict] | None = None,
+        response_format: dict | None = None,
+    ) -> str | dict[str, Any]:
         marker = "Retrieved store data:\n"
         context = user_prompt.split(marker, 1)[-1].strip()
         lines = [line.strip() for line in context.splitlines() if line.strip()]
@@ -134,18 +158,41 @@ class OpenAICompatibleProvider:
     timeout_seconds: float
     max_output_tokens: int
 
-    def complete(self, system_prompt: str, user_prompt: str) -> str:
-        payload = json.dumps(
-            {
-                "model": self.model,
-                "temperature": 0,
-                "max_tokens": self.max_output_tokens,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-            }
-        ).encode("utf-8")
+    def complete(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        messages: list[dict[str, str]] | None = None,
+        tools: list[dict] | None = None,
+        response_format: dict | None = None,
+    ) -> str | dict[str, Any]:
+        if messages is None:
+            request_messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+        else:
+            request_messages = [
+                {"role": "system", "content": system_prompt},
+                *messages,
+                {"role": "user", "content": user_prompt},
+            ]
+
+        payload_data = {
+            "model": self.model,
+            "temperature": 0,
+            "max_tokens": self.max_output_tokens,
+            "messages": request_messages,
+        }
+
+        if response_format is not None:
+            payload_data["response_format"] = response_format
+
+        if tools is not None:
+            payload_data["tools"] = tools
+
+        payload = json.dumps(payload_data).encode("utf-8")
         http_request = request.Request(
             self.endpoint,
             data=payload,
@@ -158,15 +205,33 @@ class OpenAICompatibleProvider:
         try:
             with request.urlopen(http_request, timeout=self.timeout_seconds) as response:
                 data = json.loads(response.read().decode("utf-8"))
+        except error.HTTPError as exc:
+            try:
+                error_body = exc.read().decode("utf-8", errors="replace")
+            except Exception:
+                error_body = ""
+            raise LLMProviderError(
+                f"AI chat provider request failed with HTTP {exc.code}: {error_body[:1000]}"
+            ) from exc
         except (error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
             raise LLMProviderError("AI chat provider request failed") from exc
 
         try:
-            content = data["choices"][0]["message"]["content"]
+            message = data["choices"][0]["message"]
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMProviderError("AI chat provider returned an invalid response") from exc
+
+        tool_calls = message.get("tool_calls")
+        if tool_calls:
+            return {
+                "content": message.get("content") or "",
+                "tool_calls": tool_calls,
+            }
+
+        content = message.get("content")
         if not isinstance(content, str) or not content.strip():
             raise LLMProviderError("AI chat provider returned an empty response")
+
         return content.strip()
 
 

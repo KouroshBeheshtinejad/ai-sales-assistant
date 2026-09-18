@@ -15,6 +15,8 @@ from app.services.chat_retrieval import (
     retrieve_store_context,
 )
 from app.services.chat_rate_limit import enforce_chat_rate_limit
+from app.services.sales_agent import SalesAgentService
+from app.services.conversation_service import ConversationService
 from app.services.llm_provider import (
     SYSTEM_PROMPT,
     LLMProvider,
@@ -30,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 class ChatRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=1000)
+    guest_token: str | None = None
 
     @field_validator("question")
     @classmethod
@@ -43,6 +46,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     success: bool
     answer: str
+    guest_token: str | None = None
 
 
 _RECOMMENDATION_TERMS = (
@@ -138,61 +142,105 @@ def chat(
     provider: LLMProvider = Depends(get_llm_provider),
 ):
     enforce_chat_rate_limit(request)
-    if _is_prompt_injection(data.question):
-        return ChatResponse(
-            success=True,
-            answer="فقط می‌توانم دربارهٔ محصولات و قوانین همین فروشگاه پاسخ بدهم.",
+    
+    conversation, response_guest_token = (
+            ConversationService.get_or_create_conversation(
+            db,
+            store_id=store_id,
+            guest_token=data.guest_token,
         )
-    try:
-        context = retrieve_store_context(db, store_id, data.question)
-    except Exception:
-        logger.exception("Chat retrieval failed for store_id=%s", store_id)
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={
-                "success": False,
-                "answer": "The store assistant is temporarily unavailable. Please try again later.",
-            },
-        )
-    if context is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
+    )
+
+    agent = SalesAgentService(
+        db=db,
+        provider=provider,
+    )
+
+    history_messages = ConversationService.get_history(
+        db,
+        conversation_id=conversation.id,
+        limit=20,
+    )
+
+    history = [
+        {
+            "role": message.role,
+            "content": message.content,
+        }
+        for message in history_messages
+        if message.role in {"user", "assistant"}
+    ]
 
     try:
-        formatted_context = format_context(context)
-        answer = provider.complete(
-            SYSTEM_PROMPT,
-            _chat_prompt(
-                data.question,
-                formatted_context,
-                _answer_guidance(data.question, context, formatted_context),
-            ),
+        answer = agent.respond(
+            store_id=store_id,
+            question=data.question,
+            history=history,
         )
-    except LLMProviderError:
-        logger.exception("Chat provider failed for store_id=%s", store_id)
+        ConversationService.add_message(
+            db,
+            conversation_id=conversation.id,
+            role="user",
+            content=data.question,
+        )
+        ConversationService.add_message(
+            db,
+            conversation_id=conversation.id,
+            role="assistant",
+            content=answer,
+        )
+        db.commit()
+        
+    except LookupError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Store not found",
+        )
+    except LLMProviderError as exc:
+        if "empty response" in str(exc).lower():
+            logger.warning(
+                "Chat provider could not produce an answer: %s",
+                exc,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={
+                    "success": False,
+                    "answer": (
+                        "The store assistant could not produce an answer. "
+                        "Please try again later."
+                    ),
+                },
+            )
+
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
                 "success": False,
-                "answer": "The store assistant is temporarily unavailable. Please contact the seller directly.",
+                "answer": (
+                    "The store assistant is temporarily unavailable. "
+                    "Please contact the seller directly."
+                ),
             },
         )
     except Exception:
-        logger.exception("Unexpected chat response-generation failure for store_id=%s", store_id)
+        logger.exception(
+            "Unexpected chat response-generation failure for store_id=%s",
+            store_id,
+        )
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
                 "success": False,
-                "answer": "The store assistant is temporarily unavailable. Please try again later.",
+                "answer": (
+                    "The store assistant is temporarily unavailable. "
+                    "Please try again later."
+                ),
             },
         )
 
-    if not isinstance(answer, str) or not answer.strip():
-        logger.warning("Chat provider returned an empty response for store_id=%s", store_id)
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={
-                "success": False,
-                "answer": "The store assistant could not produce an answer. Please contact the seller directly.",
-            },
-        )
-    return ChatResponse(success=True, answer=answer.strip())
+    return ChatResponse(
+        success=True,
+        answer=answer,
+        guest_token=response_guest_token,
+    )
