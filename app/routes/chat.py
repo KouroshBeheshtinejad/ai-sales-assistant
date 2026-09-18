@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
@@ -17,6 +17,17 @@ from app.services.chat_retrieval import (
 from app.services.chat_rate_limit import enforce_chat_rate_limit
 from app.services.sales_agent import SalesAgentService
 from app.services.conversation_service import ConversationService
+from app.services.sales_intent import SalesIntent, detect_intent
+from app.services.cart_service import CartService
+from app.services.order_service import OrderService
+from app.services.guest_commerce import (
+    cart_summary,
+    extract_customer_fields,
+    extract_quantity,
+    get_cart,
+    is_confirmation,
+    resolve_product,
+)
 from app.services.llm_provider import (
     SYSTEM_PROMPT,
     LLMProvider,
@@ -47,6 +58,28 @@ class ChatResponse(BaseModel):
     success: bool
     answer: str
     guest_token: str | None = None
+
+
+def _persist_chat_turn(db, conversation, question: str, answer: str) -> None:
+    ConversationService.add_message(
+        db, conversation_id=conversation.id, role="user", content=question
+    )
+    ConversationService.add_message(
+        db, conversation_id=conversation.id, role="assistant", content=answer
+    )
+    db.commit()
+
+
+def _order_confirmation(order) -> str:
+    items = "، ".join(
+        f"{item.product_name} × {item.quantity}" for item in order.items
+    )
+    return (
+        f"سفارش شما با شماره {order.id} ثبت شد.\n"
+        f"اقلام: {items}\n"
+        f"مبلغ کل: {order.total_amount}\n"
+        f"وضعیت: {order.status}"
+    )
 
 
 _RECOMMENDATION_TERMS = (
@@ -140,14 +173,16 @@ def chat(
     data: ChatRequest,
     db: Session = Depends(get_db),
     provider: LLMProvider = Depends(get_llm_provider),
+    guest_token_header: str | None = Header(default=None, alias="X-Guest-Token"),
 ):
     enforce_chat_rate_limit(request)
     
+    request_guest_token = data.guest_token or guest_token_header
     conversation, response_guest_token = (
-            ConversationService.get_or_create_conversation(
+        ConversationService.get_or_create_conversation(
             db,
             store_id=store_id,
-            guest_token=data.guest_token,
+            guest_token=request_guest_token,
         )
     )
 
@@ -171,7 +206,104 @@ def chat(
         if message.role in {"user", "assistant"}
     ]
 
+    guest_token = response_guest_token or request_guest_token
+    intent = detect_intent(data.question)
+
     try:
+        if guest_token and conversation.checkout_state == "awaiting_confirmation":
+            if is_confirmation(data.question):
+                order = OrderService.create_order(
+                    db=db,
+                    user_id=None,
+                    guest_token=guest_token,
+                    store_id=store_id,
+                    customer_name=conversation.checkout_customer_name or "",
+                    customer_phone=conversation.checkout_customer_phone or "",
+                    customer_address=conversation.checkout_customer_address or "",
+                    idempotency_key=f"conversation:{conversation.id}",
+                )
+                conversation.checkout_state = "completed"
+                conversation.last_order_id = order.id
+                answer = _order_confirmation(order)
+            else:
+                answer = "برای ثبت سفارش، لطفاً «بله» یا «ثبت کن» را ارسال کنید."
+            _persist_chat_turn(db, conversation, data.question, answer)
+            return ChatResponse(success=True, answer=answer, guest_token=guest_token)
+
+        if guest_token and conversation.checkout_state == "awaiting_customer":
+            fields = extract_customer_fields(data.question)
+            if fields.get("name"):
+                conversation.checkout_customer_name = fields["name"]
+            if fields.get("phone"):
+                conversation.checkout_customer_phone = fields["phone"]
+            if fields.get("address"):
+                conversation.checkout_customer_address = fields["address"]
+            if all((
+                conversation.checkout_customer_name,
+                conversation.checkout_customer_phone,
+                conversation.checkout_customer_address,
+            )):
+                conversation.checkout_state = "awaiting_confirmation"
+                cart = get_cart(db, store_id=store_id, guest_token=guest_token)
+                answer = (
+                    f"اطلاعات دریافت شد.\n{cart_summary(cart)}\n"
+                    "آیا سفارش را ثبت کنم؟"
+                )
+            else:
+                missing = []
+                if not conversation.checkout_customer_name:
+                    missing.append("نام")
+                if not conversation.checkout_customer_phone:
+                    missing.append("شماره تلفن")
+                if not conversation.checkout_customer_address:
+                    missing.append("آدرس")
+                answer = "لطفاً این موارد را ارسال کنید: " + "، ".join(missing)
+            _persist_chat_turn(db, conversation, data.question, answer)
+            return ChatResponse(success=True, answer=answer, guest_token=guest_token)
+
+        if guest_token and intent == SalesIntent.CART_ADD:
+            product = resolve_product(db, store_id, data.question, history)
+            quantity = extract_quantity(data.question)
+            if product is None:
+                answer = "محصول را دقیق‌تر مشخص می‌کنید؟"
+            elif quantity is None:
+                answer = f"چه تعدادی از «{product.name}» می‌خواهید؟"
+            else:
+                cart = CartService.add_item(
+                    db=db,
+                    user_id=None,
+                    guest_token=guest_token,
+                    store_id=store_id,
+                    product_id=product.id,
+                    quantity=quantity,
+                )
+                answer = f"{quantity} عدد «{product.name}» به سبد خرید اضافه شد.\n{cart_summary(cart)}"
+            _persist_chat_turn(db, conversation, data.question, answer)
+            return ChatResponse(success=True, answer=answer, guest_token=guest_token)
+
+        if guest_token and intent == SalesIntent.CART_VIEW:
+            answer = cart_summary(get_cart(db, store_id=store_id, guest_token=guest_token))
+            _persist_chat_turn(db, conversation, data.question, answer)
+            return ChatResponse(success=True, answer=answer, guest_token=guest_token)
+
+        if guest_token and intent in {SalesIntent.CHECKOUT, SalesIntent.ORDER_CREATE}:
+            cart = get_cart(db, store_id=store_id, guest_token=guest_token)
+            if not cart.items:
+                answer = "سبد خرید شما خالی است. ابتدا یک محصول به سبد اضافه کنید."
+            else:
+                fields = extract_customer_fields(data.question)
+                conversation.checkout_customer_name = fields.get("name")
+                conversation.checkout_customer_phone = fields.get("phone")
+                conversation.checkout_customer_address = fields.get("address")
+                if all(fields.get(key) for key in ("name", "phone", "address")):
+                    conversation.checkout_state = "awaiting_confirmation"
+                    answer = f"{cart_summary(cart)}\nآیا سفارش را ثبت کنم؟"
+                else:
+                    conversation.checkout_state = "awaiting_customer"
+                    answer = "برای checkout لطفاً نام، شماره تلفن و آدرس خود را ارسال کنید."
+            _persist_chat_turn(db, conversation, data.question, answer)
+            return ChatResponse(success=True, answer=answer, guest_token=guest_token)
+
         answer = agent.respond(
             store_id=store_id,
             question=data.question,
@@ -191,6 +323,12 @@ def chat(
         )
         db.commit()
         
+    except ValueError as exc:
+        db.rollback()
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "answer": str(exc)},
+        )
     except LookupError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

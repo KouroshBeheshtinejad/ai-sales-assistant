@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.db.models import Cart, CartItem, Order, OrderItem, Product
+from app.db.models import Cart, CartItem, Conversation, Order, OrderItem, Product
 
 
 class OrderService:
@@ -12,25 +12,56 @@ class OrderService:
     @staticmethod
     def create_order(
         db: Session,
-        user_id: int,
+        user_id: int | None,
         store_id: int,
         customer_name: str,
         customer_phone: str,
         customer_address: str,
+        guest_token: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Order:
         """
         تبدیل سبد خرید کاربر به سفارش.
         """
+
+        if user_id is None and not guest_token:
+            raise ValueError("A user or guest token is required")
+
+        if guest_token:
+            conversation = db.scalar(
+                select(Conversation).where(
+                    Conversation.guest_token == guest_token,
+                    Conversation.store_id == store_id,
+                )
+            )
+            if conversation is None:
+                raise ValueError("Guest token is not valid for this store")
+
+        if idempotency_key:
+            existing_order = db.scalar(
+                select(Order).where(Order.idempotency_key == idempotency_key)
+            )
+            if existing_order is not None:
+                if existing_order.store_id != store_id or (
+                    user_id is not None and existing_order.user_id != user_id
+                ) or (
+                    user_id is None and existing_order.guest_token != guest_token
+                ):
+                    raise ValueError("Invalid idempotency key")
+                return existing_order
+
+        identity_filters = [Cart.store_id == store_id]
+        if user_id is not None:
+            identity_filters.append(Cart.user_id == user_id)
+        else:
+            identity_filters.append(Cart.guest_token == guest_token)
 
         cart = db.scalar(
             select(Cart)
             .options(
                 joinedload(Cart.items).joinedload(CartItem.product)
             )
-            .where(
-                Cart.user_id == user_id,
-                Cart.store_id == store_id,
-            )
+            .where(*identity_filters)
         )
 
         if cart is None or not cart.items:
@@ -41,7 +72,11 @@ class OrderService:
 
         # بررسی محصولات و موجودی قبل از ایجاد سفارش
         for cart_item in cart.items:
-            product = cart_item.product
+            product = db.scalar(
+                select(Product)
+                .where(Product.id == cart_item.product_id)
+                .with_for_update()
+            )
 
             if product is None:
                 raise ValueError("Product no longer exists")
@@ -77,12 +112,14 @@ class OrderService:
         # ایجاد سفارش
         order = Order(
             user_id=user_id,
+            guest_token=guest_token,
             store_id=store_id,
             status="pending",
             customer_name=customer_name,
             customer_phone=customer_phone,
             customer_address=customer_address,
             total_amount=total_amount,
+            idempotency_key=idempotency_key,
         )
 
         db.add(order)
@@ -118,6 +155,24 @@ class OrderService:
             .where(
                 Order.id == order_id,
                 Order.user_id == user_id,
+            )
+        )
+
+    @staticmethod
+    def get_guest_order(
+        db: Session,
+        order_id: int,
+        store_id: int,
+        guest_token: str,
+    ) -> Order | None:
+        return db.scalar(
+            select(Order)
+            .options(joinedload(Order.items))
+            .where(
+                Order.id == order_id,
+                Order.store_id == store_id,
+                Order.user_id.is_(None),
+                Order.guest_token == guest_token,
             )
         )
 

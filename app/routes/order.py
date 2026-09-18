@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import User
-from app.routes.auth import get_current_user
+from app.routes.auth import get_current_user, get_optional_user
 from app.services.order_service import OrderService
 
 
@@ -52,16 +52,25 @@ def create_order(
     store_id: int,
     payload: CreateOrderRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
+    guest_token: str | None = Header(default=None, alias="X-Guest-Token"),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
+    if current_user is None and (not guest_token or not idempotency_key):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Guest token and idempotency key are required",
+        )
     try:
         order = OrderService.create_order(
             db=db,
-            user_id=current_user.id,
+            user_id=current_user.id if current_user else None,
             store_id=store_id,
             customer_name=payload.customer_name,
             customer_phone=payload.customer_phone,
             customer_address=payload.customer_address,
+            guest_token=None if current_user else guest_token,
+            idempotency_key=idempotency_key,
         )
     except ValueError as exc:
         raise HTTPException(
@@ -69,6 +78,26 @@ def create_order(
             detail=str(exc),
         ) from exc
 
+    return order_response(order)
+
+
+@router.get("/stores/{store_id}/guest/{order_id}")
+def get_guest_order(
+    store_id: int,
+    order_id: int,
+    guest_token: str | None = Header(default=None, alias="X-Guest-Token"),
+    db: Session = Depends(get_db),
+):
+    if not guest_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Guest token is required")
+    order = OrderService.get_guest_order(
+        db=db,
+        order_id=order_id,
+        store_id=store_id,
+        guest_token=guest_token,
+    )
+    if order is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     return order_response(order)
 
 

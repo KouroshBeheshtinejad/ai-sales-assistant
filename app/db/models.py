@@ -349,6 +349,25 @@ class Conversation(Base):
         nullable=False,
     )
 
+    checkout_state: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="idle",
+    )
+
+    checkout_customer_name: Mapped[str | None] = mapped_column(
+        String(255), nullable=True,
+    )
+    checkout_customer_phone: Mapped[str | None] = mapped_column(
+        String(50), nullable=True,
+    )
+    checkout_customer_address: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+    )
+    last_order_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True,
+    )
+
     store: Mapped["Store"] = relationship(
         back_populates="conversations",
     )
@@ -408,14 +427,27 @@ class Cart(Base):
             "store_id",
             name="uq_cart_user_store",
         ),
+        UniqueConstraint(
+            "guest_token",
+            "store_id",
+            name="uq_cart_guest_store",
+        ),
+        CheckConstraint(
+            "(user_id IS NOT NULL) OR (guest_token IS NOT NULL)",
+            name="ck_carts_identity",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    user_id: Mapped[int] = mapped_column(
+    user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
+    )
+
+    guest_token: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True,
     )
 
     store_id: Mapped[int] = mapped_column(
@@ -496,12 +528,28 @@ class CartItem(Base):
 class Order(Base):
     __tablename__ = "orders"
 
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_orders_idempotency_key"),
+        CheckConstraint(
+            "(user_id IS NOT NULL) OR (guest_token IS NOT NULL)",
+            name="ck_orders_identity",
+        ),
+    )
+
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    user_id: Mapped[int] = mapped_column(
+    user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
         index=True,
+    )
+
+    guest_token: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True,
+    )
+
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, index=True,
     )
 
     store_id: Mapped[int] = mapped_column(

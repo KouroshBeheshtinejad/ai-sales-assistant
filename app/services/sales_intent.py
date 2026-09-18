@@ -29,6 +29,13 @@ def detect_intent(text: str) -> SalesIntent:
         return SalesIntent.CART_VIEW
 
     if any(term in normalized for term in (
+        "میخوام", "می‌خوام", "می خواهم", "دوتا", "دو تا", "عدد", "quantity",
+    )) and any(char.isdigit() for char in normalized) or any(
+        phrase in normalized for phrase in ("یکی", "دو تا", "سه تا", "چهار تا", "پنج تا")
+    ):
+        return SalesIntent.CART_ADD
+
+    if any(term in normalized for term in (
         "سفارش", "order",
     )):
         if any(term in normalized for term in (

@@ -29,6 +29,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 
 def _set_access_token_cookie(response: Response, access_token: str) -> None:
@@ -218,6 +219,35 @@ def get_current_user(
             detail="User not found",
         )
 
+    return user
+
+
+def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),
+    db: Session = Depends(get_db),
+):
+    if credentials is None:
+        return None
+
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+        )
+        user_id = int(payload["sub"])
+    except (jwt.PyJWTError, KeyError, TypeError, ValueError, OverflowError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
+
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
     return user
 
 

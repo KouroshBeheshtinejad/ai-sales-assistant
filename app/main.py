@@ -1,7 +1,8 @@
 import logging
 
 from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -21,6 +22,7 @@ from app.routes.chat import router as chat_router
 from app.routes.cart import router as cart_router
 from app.routes.order import router as order_router
 from app.routes.seller_orders import router as seller_orders_router
+from app.routes.conversations import router as conversations_router
 
 app = FastAPI(
     title="AI Sales Assistant",
@@ -28,6 +30,7 @@ app = FastAPI(
 )
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts())
 logger = logging.getLogger(__name__)
+templates = Jinja2Templates(directory="app/templates")
 
 
 @app.middleware("http")
@@ -48,11 +51,19 @@ app.include_router(dashboard_router)
 app.include_router(cart_router)
 app.include_router(order_router)
 app.include_router(seller_orders_router)
+app.include_router(conversations_router)
 
 @app.get("/", include_in_schema=False)
 async def root(request: Request):
-    target = "/dashboard" if request.cookies.get("access_token") else "/auth/login"
-    return RedirectResponse(url=target)
+    return templates.TemplateResponse(
+        request=request,
+        name="landing.html",
+    )
+
+
+@app.get("/landing", response_class=HTMLResponse, include_in_schema=False)
+async def landing(request: Request):
+    return templates.TemplateResponse(request=request, name="landing.html")
 
 
 @app.get("/health/db")

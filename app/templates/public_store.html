@@ -28,6 +28,22 @@
         <p id="chat-error" class="mt-3 hidden text-sm font-semibold text-red-600" role="alert"></p>
       </form>
     </section>
+
+    <section class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-soft lg:col-span-2" aria-label="Shopping cart and checkout">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div><p class="text-xs font-bold uppercase tracking-[.18em] text-coral">Guest checkout</p><h2 class="display mt-1 text-2xl font-extrabold text-ink">Your cart</h2></div>
+        <button id="cart-refresh" type="button" class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-ink hover:border-coral">Refresh cart</button>
+      </div>
+      <div id="cart-items" class="mt-5 space-y-3 text-sm text-slate-700"><p class="text-slate-500">Your cart is empty.</p></div>
+      <p id="cart-total" class="mt-5 text-lg font-extrabold text-ink"></p>
+      <form id="checkout-form" class="mt-6 grid gap-3 border-t border-slate-100 pt-6 md:grid-cols-3">
+        <input name="customer_name" required maxlength="255" class="rounded-xl border border-slate-200 px-4 py-3" placeholder="Full name">
+        <input name="customer_phone" required maxlength="50" class="rounded-xl border border-slate-200 px-4 py-3" placeholder="Phone">
+        <input name="customer_address" required maxlength="500" class="rounded-xl border border-slate-200 px-4 py-3" placeholder="Address">
+        <button class="rounded-xl bg-ink px-5 py-3 font-bold text-white hover:bg-slate-700 md:col-span-3" type="submit">Place order</button>
+      </form>
+      <p id="checkout-result" class="mt-4 hidden whitespace-pre-line text-sm font-semibold" role="status"></p>
+    </section>
   </div>
 </main>
 {% endblock %}
@@ -39,7 +55,36 @@
   const submit = document.getElementById('chat-submit');
   const messages = document.getElementById('chat-messages');
   const error = document.getElementById('chat-error');
+  const cartItems = document.getElementById('cart-items');
+  const cartTotal = document.getElementById('cart-total');
+  const checkoutForm = document.getElementById('checkout-form');
+  const checkoutResult = document.getElementById('checkout-result');
+  const tokenKey = 'nava_guest_token_{{ store.id }}';
+  let guestToken = localStorage.getItem(tokenKey);
   let pending = false;
+
+  function guestHeaders(extra = {}) {
+    return guestToken ? {...extra, 'X-Guest-Token': guestToken} : extra;
+  }
+
+  async function refreshCart() {
+    if (!guestToken) return;
+    const response = await fetch('/cart/stores/{{ store.id }}', {headers: guestHeaders()});
+    if (!response.ok) return;
+    const cart = await response.json();
+    cartItems.replaceChildren();
+    if (!cart.items.length) {
+      cartItems.innerHTML = '<p class="text-slate-500">Your cart is empty.</p>';
+    } else {
+      cart.items.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3';
+        row.textContent = `${item.product_name} · ${item.quantity} × ${item.unit_price} = ${item.line_total}`;
+        cartItems.appendChild(row);
+      });
+    }
+    cartTotal.textContent = cart.items.length ? `Total: ${cart.total_amount}` : '';
+  }
 
   function addMessage(text, isCustomer) {
     const message = document.createElement('div');
@@ -66,14 +111,19 @@
     try {
       const response = await fetch('/public/stores/{{ store.id }}/chat', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: guestHeaders({'Content-Type': 'application/json'}),
         body: JSON.stringify({question}),
       });
       const data = await response.json();
       if (!response.ok || !data.success) {
         throw new Error(data.answer || 'The assistant is temporarily unavailable.');
       }
+      if (data.guest_token) {
+        guestToken = data.guest_token;
+        localStorage.setItem(tokenKey, guestToken);
+      }
       addMessage(data.answer, false);
+      refreshCart();
     } catch (requestError) {
       error.textContent = requestError.message || 'The assistant is temporarily unavailable. Please try again.';
       error.classList.remove('hidden');
@@ -84,6 +134,30 @@
       input.focus();
     }
   });
+
+  document.getElementById('cart-refresh').addEventListener('click', refreshCart);
+  checkoutForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    checkoutResult.classList.add('hidden');
+    if (!guestToken) {
+      checkoutResult.textContent = 'Start a chat first so your guest cart can be identified.';
+      checkoutResult.classList.remove('hidden');
+      return;
+    }
+    const payload = Object.fromEntries(new FormData(checkoutForm));
+    const response = await fetch('/orders/stores/{{ store.id }}', {
+      method: 'POST',
+      headers: guestHeaders({'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID()}),
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    checkoutResult.textContent = response.ok
+      ? `Order #${data.id} created. Total: ${data.total_amount}`
+      : (data.detail || 'Checkout failed.');
+    checkoutResult.classList.remove('hidden');
+    if (response.ok) refreshCart();
+  });
+  refreshCart();
 })();
 </script>
 {% endblock %}

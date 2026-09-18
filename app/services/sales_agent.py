@@ -177,7 +177,12 @@ class SalesAgentService:
             f"Retrieved store data:\n{retrieved_data}"
         )
 
-    def respond(self, store_id: int, question: str) -> str:
+    def respond(
+        self,
+        store_id: int,
+        question: str,
+        history: list[dict[str, str]] | None = None,
+    ) -> str:
         if self.is_prompt_injection(question):
             return "فقط می‌توانم دربارهٔ محصولات و قوانین همین فروشگاه پاسخ بدهم."
 
@@ -202,11 +207,20 @@ class SalesAgentService:
             
             return "فقط می‌توانم دربارهٔ محصولات و قوانین همین فروشگاه پاسخ بدهم."
 
+        retrieval_question = question
+        if history:
+            previous_turns = " ".join(
+                message["content"]
+                for message in history[-6:]
+                if message.get("role") == "user" and message.get("content")
+            )
+            retrieval_question = f"{previous_turns} {question}".strip()
+
         try:
             context = retrieve_store_context(
                 self.db,
                 store_id,
-                question,
+                retrieval_question,
             )
         except Exception:
             logger.exception(
@@ -220,12 +234,21 @@ class SalesAgentService:
 
         formatted_context = format_context(context)
 
+        history_context = ""
+        if history:
+            history_context = "\n\nConversation history:\n" + "\n".join(
+                f"{message['role']}: {message['content']}"
+                for message in history[-20:]
+                if message.get("role") in {"user", "assistant"}
+                and message.get("content")
+            )
+
         try:
             answer = self.provider.complete(
                 SYSTEM_PROMPT,
                 self._build_prompt(
                     question,
-                    formatted_context,
+                    formatted_context + history_context,
                     self._answer_guidance(
                         question,
                         context,

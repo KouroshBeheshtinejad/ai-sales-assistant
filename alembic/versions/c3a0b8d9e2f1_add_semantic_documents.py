@@ -18,24 +18,40 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    op.execute(
-        """
-        CREATE TABLE semantic_documents (
-            id SERIAL PRIMARY KEY,
-            store_id INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-            source_type VARCHAR(32) NOT NULL,
-            source_id INTEGER NOT NULL,
-            content_hash VARCHAR(64) NOT NULL,
-            embedding vector(384) NOT NULL,
-            is_active BOOLEAN NOT NULL DEFAULT true,
-            created_at TIMESTAMP NOT NULL DEFAULT now(),
-            updated_at TIMESTAMP NOT NULL DEFAULT now(),
-            CONSTRAINT uq_semantic_document_source
-                UNIQUE (store_id, source_type, source_id)
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        op.execute(
+            """
+            CREATE TABLE semantic_documents (
+                id SERIAL PRIMARY KEY,
+                store_id INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+                source_type VARCHAR(32) NOT NULL,
+                source_id INTEGER NOT NULL,
+                content_hash VARCHAR(64) NOT NULL,
+                embedding vector(384) NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                created_at TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at TIMESTAMP NOT NULL DEFAULT now(),
+                CONSTRAINT uq_semantic_document_source
+                    UNIQUE (store_id, source_type, source_id)
+            )
+            """
         )
-        """
-    )
+    else:
+        op.create_table(
+            "semantic_documents",
+            sa.Column("id", sa.Integer(), primary_key=True),
+            sa.Column("store_id", sa.Integer(), sa.ForeignKey("stores.id", ondelete="CASCADE"), nullable=False),
+            sa.Column("source_type", sa.String(length=32), nullable=False),
+            sa.Column("source_id", sa.Integer(), nullable=False),
+            sa.Column("content_hash", sa.String(length=64), nullable=False),
+            sa.Column("embedding", sa.JSON(), nullable=False),
+            sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
+            sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.UniqueConstraint("store_id", "source_type", "source_id", name="uq_semantic_document_source"),
+        )
     op.create_index(
         "ix_semantic_documents_store_active",
         "semantic_documents",

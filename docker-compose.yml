@@ -1,11 +1,31 @@
 services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-change-this-development-secret}
+      APP_ALLOWED_HOSTS: ${APP_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-disabled}
+      AI_CHAT_API_KEY: ${AI_CHAT_API_KEY:-}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-gpt-4o-mini}
+      AI_CHAT_ENDPOINT: ${AI_CHAT_ENDPOINT:-https://api.openai.com/v1/chat/completions}
+      AI_RAG_ENABLED: ${AI_RAG_ENABLED:-false}
+      AI_RAG_EMBEDDING_PROVIDER: ${AI_RAG_EMBEDDING_PROVIDER:-mock}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nava}:${POSTGRES_PASSWORD:-nava-development-password}@db:5432/${POSTGRES_DB:-nava}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
   db:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in the environment}
-      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in the environment}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the environment}
+      POSTGRES_DB: ${POSTGRES_DB:-nava}
+      POSTGRES_USER: ${POSTGRES_USER:-nava}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nava-development-password}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:

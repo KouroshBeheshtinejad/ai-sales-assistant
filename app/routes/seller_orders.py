@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import User
-from app.routes.auth import get_current_user
+from app.routes.auth import get_current_user, get_current_user_from_cookie
 from app.services.seller_order_service import SellerOrderService
 
 
@@ -12,10 +14,29 @@ router = APIRouter(
     prefix="/seller/orders",
     tags=["Seller Orders"],
 )
+templates = Jinja2Templates(directory="app/templates")
 
 
 class UpdateOrderStatusRequest(BaseModel):
     status: str = Field(..., min_length=1, max_length=20)
+
+
+@router.get("/view/{store_id}", response_class=HTMLResponse, include_in_schema=False)
+def seller_orders_page(
+    store_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    try:
+        orders = SellerOrderService.list_store_orders(db, current_user.id, store_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return templates.TemplateResponse(
+        request=request,
+        name="seller_orders.html",
+        context={"orders": orders, "store_id": store_id, "user": current_user},
+    )
 
 
 def seller_order_response(order):

@@ -142,3 +142,27 @@ for database diagnostics.
 The chat limiter remains process-local by design. For multiple workers or
 instances, enforce a shared limit at the reverse proxy or API gateway first; a
 shared store such as Redis requires separate approval and infrastructure work.
+
+## NAVA product package
+
+NAVA is an AI conversational-commerce software asset for catalog-based stores.
+The package includes product/FAQ/knowledge retrieval, seller management, cart
+and order services, provider abstraction, migrations, Docker, tests, and a
+Persian clothing demo store.
+
+### Demo and handoff
+
+- Landing page: `/` or `/landing`
+- Demo seed: `python scripts/seed_demo.py`
+- Reproducible demo: [docs/DEMO.md](docs/DEMO.md)
+- Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Deployment: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- Backup: [docs/BACKUP.md](docs/BACKUP.md)
+- Buyer positioning: [docs/SALES.md](docs/SALES.md)
+
+Guest commerce uses the cryptographically random conversation token as the
+store-scoped cart and order identity. Public cart APIs accept `X-Guest-Token`,
+guest orders require `X-Guest-Token` plus `Idempotency-Key`, and guest order
+lookup verifies both token and store. Chat executes cart, checkout, and order
+actions deterministically; the provider never controls prices, stock, or order
+creation.
