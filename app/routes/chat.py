@@ -171,6 +171,41 @@ def public_store_page(
     )
 
 
+@router.get("/public/stores/{store_id}/catalog")
+def public_store_catalog(store_id: int, db: Session = Depends(get_db)):
+    store = db.query(Store).filter(Store.id == store_id).first()
+    if store is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
+    products = (
+        db.query(Product)
+        .filter(Product.store_id == store_id, Product.is_active.is_(True))
+        .order_by(Product.id)
+        .all()
+    )
+    return {
+        "store": {
+            "id": store.id,
+            "name": store.name,
+            "description": store.description,
+            "business_type": store.business_type,
+        },
+        "products": [
+            {
+                "id": product.id,
+                "name": product.name,
+                "description": product.description,
+                "price": str(product.price),
+                "stock": product.stock,
+                "size": product.size,
+                "color": product.color,
+                "attributes": product.attributes or {},
+                "is_active": product.is_active,
+            }
+            for product in products
+        ],
+    }
+
+
 @router.post(
     "/public/stores/{store_id}/chat",
     response_model=ChatResponse,

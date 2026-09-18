@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /seller
+Sitemap: /sitemap.xml

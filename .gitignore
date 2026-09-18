@@ -35,6 +35,7 @@ logs/
 # Build / packaging
 build/
 dist/
+node_modules/
 *.egg-info/
 .eggs/
 

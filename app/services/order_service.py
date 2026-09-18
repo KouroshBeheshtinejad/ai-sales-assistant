@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Cart, CartItem, Conversation, Order, OrderItem, Product
+from app.services.notification_service import notify_order_created
 
 
 class OrderService:
@@ -125,6 +126,10 @@ class OrderService:
         db.add(order)
         db.flush()
 
+        if guest_token:
+            conversation.last_order_id = order.id
+            conversation.checkout_state = "completed"
+
         # کاهش موجودی و اتصال اقلام به سفارش
         for cart_item, order_item in zip(cart.items, order_items):
             cart_item.product.stock -= cart_item.quantity
@@ -136,6 +141,7 @@ class OrderService:
 
         db.commit()
         db.refresh(order)
+        notify_order_created(order)
 
         return order
 

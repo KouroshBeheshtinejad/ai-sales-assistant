@@ -8,6 +8,10 @@
 
 `APP_ENV=production`، `DATABASE_URL`، `SECRET_KEY` قوی و `APP_ALLOWED_HOSTS` را الزامی کنید. پورت PostgreSQL را عمومی نکنید، provider key را فقط در secret manager/environment قرار دهید، لاگ‌ها را بدون password/API key نگه دارید و health checkهای `/health/live` و `/health/ready` را monitor کنید.
 
+اعلان سفارش از مرز `notification_service` عبور می‌کند. مقدار پیش‌فرض
+`SMS_PROVIDER=disabled` است؛ تا زمان انتخاب vendor واقعی، هیچ credential یا API
+فرضی اضافه نشده و شکست اعلان روی تراکنش سفارش اثر نمی‌گذارد.
+
 ## migration و backup
 
 Migrationها در release step جداگانه با `alembic upgrade head` اجرا شوند. قبل از migration یا release از PostgreSQL dump بگیرید. دامنه، HTTPS، cookie امن و محدودیت rate در reverse proxy باید فعال باشد.
