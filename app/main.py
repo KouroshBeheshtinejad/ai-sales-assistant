@@ -68,6 +68,18 @@ async def csrf_cookie_middleware(request: Request, call_next):
     set_csrf_cookie(request, response)
     return response
 
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
+
 app.include_router(auth_router)
 app.include_router(store_management_router)
 app.include_router(stores_router)
@@ -168,6 +180,18 @@ async def react_product_route(store_id: int, product_id: int, request: Request):
 
 @app.get("/seller", include_in_schema=False)
 async def react_seller_route():
+    if (frontend_dist / "index.html").is_file():
+        return FileResponse(frontend_dist / "index.html")
+    raise HTTPException(status_code=404, detail="Not found")
+
+
+@app.get("/login", include_in_schema=False)
+@app.get("/register", include_in_schema=False)
+@app.get("/seller/products", include_in_schema=False)
+@app.get("/seller/knowledge", include_in_schema=False)
+@app.get("/seller/orders", include_in_schema=False)
+@app.get("/seller/conversations", include_in_schema=False)
+async def react_frontend_route():
     if (frontend_dist / "index.html").is_file():
         return FileResponse(frontend_dist / "index.html")
     raise HTTPException(status_code=404, detail="Not found")

@@ -12,6 +12,7 @@ export const getCatalog = (id) => json(`/public/stores/${id}/catalog`)
 export const sendChat = async (id, question) => { const data = await json(`/public/stores/${id}/chat`, { method: 'POST', headers: guestHeaders(), body: JSON.stringify({ question, guest_token: guestToken() }) }); saveGuestToken(data.guest_token); return data }
 export const getCart = (id) => json(`/cart/stores/${id}`, { headers: guestHeaders() })
 export const checkout = (id, payload) => json(`/orders/stores/${id}`, { method: 'POST', headers: { ...guestHeaders(), 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify(payload) })
+export const registerUser = (payload) => json('/auth/register', { method: 'POST', body: JSON.stringify(payload) })
 export const login = (payload) => json('/auth/login', { method: 'POST', body: JSON.stringify(payload) })
 export const getStores = (token) => json('/stores/', { headers: { Authorization: `Bearer ${token}` } })
 export const getOrders = (storeId, token) => json(`/seller/orders/stores/${storeId}`, { headers: { Authorization: `Bearer ${token}` } })
