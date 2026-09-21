@@ -125,6 +125,9 @@ def test_create_order(client, test_data):
 
     assert data["store_id"] == test_data["store"].id
     assert data["status"] == "pending"
+    assert len(data["tracking_number"]) == 10
+    assert data["tracking_number"].isdigit()
+    assert data["invoice_number"].startswith("INV-")
     assert data["customer_name"] == "Ali Ahmadi"
     assert data["total_amount"] == "50.00"
     assert len(data["items"]) == 1
@@ -178,7 +181,77 @@ def test_get_order_details(client, test_data):
 
     assert response.status_code == 200
     assert response.json()["id"] == order_id
+    assert len(response.json()["tracking_number"]) == 10
     assert len(response.json()["items"]) == 1
+
+
+def test_track_order_by_tracking_number(client, test_data):
+    add_item_to_cart(client, test_data)
+    create_response = client.post(
+        f"/orders/stores/{test_data['store'].id}",
+        headers=auth_headers(test_data),
+        json={
+            "customer_name": "Ali",
+            "customer_phone": "09120000000",
+            "customer_address": "Tehran",
+        },
+    )
+    tracking_number = create_response.json()["tracking_number"]
+
+    response = client.get(f"/orders/track/{tracking_number}")
+
+    assert response.status_code == 200
+    assert response.json()["tracking_number"] == tracking_number
+    assert response.json()["status"] == "pending"
+    assert "customer_name" not in response.json()
+
+
+def test_track_order_rejects_invalid_number(client, test_data):
+    response = client.get("/orders/track/123")
+
+    assert response.status_code == 404
+
+
+def test_download_invoice_pdf(client, test_data):
+    add_item_to_cart(client, test_data)
+    create_response = client.post(
+        f"/orders/stores/{test_data['store'].id}",
+        headers=auth_headers(test_data),
+        json={
+            "customer_name": "Ali",
+            "customer_phone": "09120000000",
+            "customer_address": "Tehran",
+        },
+    )
+    order_id = create_response.json()["id"]
+
+    response = client.get(f"/orders/{order_id}/invoice", headers=auth_headers(test_data))
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content.startswith(b"%PDF")
+
+
+def test_create_order_accepts_structured_customer_fields(client, test_data):
+    add_item_to_cart(client, test_data)
+    response = client.post(
+        f"/orders/stores/{test_data['store'].id}",
+        headers=auth_headers(test_data),
+        json={
+            "first_name": "Ali",
+            "last_name": "Ahmadi",
+            "email": "ali@example.com",
+            "customer_phone": "09120000000",
+            "customer_address": "Tehran",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["customer_name"] == "Ali Ahmadi"
+    assert data["first_name"] == "Ali"
+    assert data["last_name"] == "Ahmadi"
+    assert data["email"] == "ali@example.com"
 
 
 def test_cancel_order(client, test_data):

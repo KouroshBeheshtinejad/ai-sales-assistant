@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -7,8 +9,12 @@ from sqlalchemy.pool import StaticPool
 from app.core import config
 from app.core.csrf import CSRF_COOKIE_NAME
 from app.db.database import Base, get_db
+from app.db.models import PasswordResetToken, User
+from app.core.security import create_access_token, hash_password
+from app.routes.auth import _reset_hash
 from app.main import app
 from app import main
+from app.services.verification_service import issue_code
 
 
 engine = create_engine(
@@ -171,3 +177,63 @@ def test_security_headers_are_present(client):
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+
+
+def test_login_rate_limit_can_be_configured(client, monkeypatch):
+    monkeypatch.setenv("AUTH_RATE_LIMIT_REQUESTS", "1")
+    client.post("/auth/login", json={"email": "missing@example.com", "password": "StrongPass123!"})
+    response = client.post("/auth/login", json={"email": "missing@example.com", "password": "StrongPass123!"})
+
+    assert response.status_code == 429
+
+
+def test_api_registration_requires_verification_before_login(client):
+    registered = client.post(
+        "/auth/register",
+        json={"email": "verify@example.com", "password": "StrongPass123!", "phone": "09120000000"},
+    )
+    assert registered.status_code == 200
+    assert registered.json()["verification_required"] is True
+
+    blocked = client.post(
+        "/auth/login",
+        json={"email": "verify@example.com", "password": "StrongPass123!"},
+    )
+    assert blocked.status_code == 403
+
+    db = next(override_get_db())
+    try:
+        user = db.query(User).filter(User.email == "verify@example.com").one()
+        email_code = issue_code(db, user, "email")
+        phone_code = issue_code(db, user, "phone")
+    finally:
+        db.close()
+
+    verified = client.post(
+        "/auth/verify",
+        json={"email": "verify@example.com", "email_code": email_code, "phone_code": phone_code},
+    )
+    assert verified.status_code == 200
+    assert client.post(
+        "/auth/login",
+        json={"email": "verify@example.com", "password": "StrongPass123!"},
+    ).status_code == 200
+
+
+def test_password_reset_is_expiring_one_time_and_invalidates_sessions(client):
+    db = next(override_get_db())
+    user = User(email="reset@example.com", password_hash=hash_password("OldPass123!"))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    raw_token = "reset-token-for-security-test-1234567890"
+    db.add(PasswordResetToken(user_id=user.id, token_hash=_reset_hash(raw_token), expires_at=datetime.now(timezone.utc) + timedelta(minutes=5)))
+    db.commit()
+    old_token = create_access_token(user.id, user.token_version)
+    db.close()
+
+    response = client.post("/auth/password-reset/confirm", json={"token": raw_token, "new_password": "NewPass123!"})
+    assert response.status_code == 200
+    assert client.get("/auth/me", headers={"Authorization": f"Bearer {old_token}"}).status_code == 401
+    assert client.post("/auth/login", json={"email": "reset@example.com", "password": "NewPass123!"}).status_code == 200
+    assert client.post("/auth/password-reset/confirm", json={"token": raw_token, "new_password": "OtherPass123!"}).status_code == 400

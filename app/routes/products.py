@@ -48,6 +48,7 @@ def _product_response(product: Product, message: str | None = None):
         "description": product.description,
         "price": product.price,
         "stock": product.stock,
+        "reserved_stock": product.reserved_stock,
         "size": product.size,
         "color": product.color,
         "attributes": product.attributes or {},

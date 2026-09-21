@@ -42,6 +42,8 @@ def seller_orders_page(
 def seller_order_response(order):
     return {
         "id": order.id,
+        "tracking_number": order.tracking_number,
+        "invoice_number": order.invoice_number,
         "user_id": order.user_id,
         "store_id": order.store_id,
         "status": order.status,

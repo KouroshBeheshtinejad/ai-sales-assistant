@@ -125,6 +125,7 @@ def test_create_order_reduces_stock(db, test_data):
 
     db.refresh(test_data["product"])
     assert test_data["product"].stock == 6
+    assert test_data["product"].reserved_stock == 4
 
 
 def test_create_order_clears_cart(db, test_data):
@@ -244,6 +245,7 @@ def test_cancel_pending_order(db, test_data):
 
     db.refresh(test_data["product"])
     assert test_data["product"].stock == 7
+    assert test_data["product"].reserved_stock == 3
 
     cancelled = OrderService.cancel_order(
         db=db,
@@ -256,6 +258,7 @@ def test_cancel_pending_order(db, test_data):
 
     db.refresh(test_data["product"])
     assert test_data["product"].stock == 10
+    assert test_data["product"].reserved_stock == 0
 
 
 def test_reject_cancelled_order_cancellation(db, test_data):

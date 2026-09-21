@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+import secrets
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -11,6 +12,14 @@ from app.services.notification_service import notify_order_created
 class OrderService:
 
     @staticmethod
+    def _new_tracking_number(db: Session) -> str:
+        for _ in range(10):
+            tracking_number = str(secrets.randbelow(9_000_000_000) + 1_000_000_000)
+            if db.scalar(select(Order.id).where(Order.tracking_number == tracking_number)) is None:
+                return tracking_number
+        raise ValueError("Could not allocate a unique tracking number")
+
+    @staticmethod
     def create_order(
         db: Session,
         user_id: int | None,
@@ -18,6 +27,9 @@ class OrderService:
         customer_name: str,
         customer_phone: str,
         customer_address: str,
+        customer_first_name: str | None = None,
+        customer_last_name: str | None = None,
+        customer_email: str | None = None,
         guest_token: str | None = None,
         idempotency_key: str | None = None,
     ) -> Order:
@@ -112,11 +124,15 @@ class OrderService:
 
         # ایجاد سفارش
         order = Order(
+            tracking_number=OrderService._new_tracking_number(db),
             user_id=user_id,
             guest_token=guest_token,
             store_id=store_id,
             status="pending",
             customer_name=customer_name,
+            customer_first_name=customer_first_name,
+            customer_last_name=customer_last_name,
+            customer_email=customer_email,
             customer_phone=customer_phone,
             customer_address=customer_address,
             total_amount=total_amount,
@@ -125,6 +141,7 @@ class OrderService:
 
         db.add(order)
         db.flush()
+        order.invoice_number = f"INV-{datetime.now(timezone.utc):%Y%m%d}-{order.id:06d}"
 
         if guest_token:
             conversation.last_order_id = order.id
@@ -133,6 +150,7 @@ class OrderService:
         # کاهش موجودی و اتصال اقلام به سفارش
         for cart_item, order_item in zip(cart.items, order_items):
             cart_item.product.stock -= cart_item.quantity
+            cart_item.product.reserved_stock += cart_item.quantity
             order.items.append(order_item)
 
         # حذف اقلام سبد خرید
@@ -162,6 +180,19 @@ class OrderService:
                 Order.id == order_id,
                 Order.user_id == user_id,
             )
+        )
+
+    @staticmethod
+    def get_order_by_tracking_number(
+        db: Session,
+        tracking_number: str,
+    ) -> Order | None:
+        if len(tracking_number) != 10 or not tracking_number.isdigit():
+            return None
+        return db.scalar(
+            select(Order)
+            .options(joinedload(Order.store))
+            .where(Order.tracking_number == tracking_number)
         )
 
     @staticmethod
@@ -237,6 +268,7 @@ class OrderService:
 
                 if product is not None:
                     product.stock += item.quantity
+                    product.reserved_stock = max(0, product.reserved_stock - item.quantity)
 
         db.commit()
         db.refresh(order)

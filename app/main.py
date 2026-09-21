@@ -28,6 +28,8 @@ from app.routes.cart import router as cart_router
 from app.routes.order import router as order_router
 from app.routes.seller_orders import router as seller_orders_router
 from app.routes.conversations import router as conversations_router
+from app.routes.business_types import router as business_types_router
+from app.routes.payments import router as payments_router
 
 app = FastAPI(
     title="AI Sales Assistant",
@@ -92,6 +94,8 @@ app.include_router(cart_router)
 app.include_router(order_router)
 app.include_router(seller_orders_router)
 app.include_router(conversations_router)
+app.include_router(business_types_router)
+app.include_router(payments_router)
 
 if frontend_dist.is_dir():
     app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="frontend_assets")
@@ -187,6 +191,7 @@ async def react_seller_route():
 
 @app.get("/login", include_in_schema=False)
 @app.get("/register", include_in_schema=False)
+@app.get("/track", include_in_schema=False)
 @app.get("/seller/products", include_in_schema=False)
 @app.get("/seller/knowledge", include_in_schema=False)
 @app.get("/seller/orders", include_in_schema=False)

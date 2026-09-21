@@ -9,9 +9,14 @@ export const guestToken = () => localStorage.getItem('nava_guest_token')
 export const saveGuestToken = (token) => token && localStorage.setItem('nava_guest_token', token)
 export const guestHeaders = () => guestToken() ? { 'X-Guest-Token': guestToken() } : {}
 export const getCatalog = (id) => json(`/public/stores/${id}/catalog`)
+export const getBusinessTypes = () => json('/business-types')
+export const trackOrder = (trackingNumber) => json(`/orders/track/${trackingNumber}`)
 export const sendChat = async (id, question) => { const data = await json(`/public/stores/${id}/chat`, { method: 'POST', headers: guestHeaders(), body: JSON.stringify({ question, guest_token: guestToken() }) }); saveGuestToken(data.guest_token); return data }
 export const getCart = (id) => json(`/cart/stores/${id}`, { headers: guestHeaders() })
 export const checkout = (id, payload) => json(`/orders/stores/${id}`, { method: 'POST', headers: { ...guestHeaders(), 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify(payload) })
+export const createPayment = (orderId, idempotencyKey) => json(`/payments/orders/${orderId}`, { method: 'POST', headers: { ...guestHeaders(), 'Idempotency-Key': idempotencyKey } })
+export const verifyPayment = (paymentId, authority) => json(`/payments/${paymentId}/verify`, { method: 'POST', headers: guestHeaders(), body: JSON.stringify({ authority }) })
+export const invoiceUrl = (orderId) => `/orders/${orderId}/invoice`
 export const registerUser = (payload) => json('/auth/register', { method: 'POST', body: JSON.stringify(payload) })
 export const login = (payload) => json('/auth/login', { method: 'POST', body: JSON.stringify(payload) })
 export const getStores = (token) => json('/stores/', { headers: { Authorization: `Bearer ${token}` } })

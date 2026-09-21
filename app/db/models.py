@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+import secrets
 
 import json
 
@@ -26,6 +27,13 @@ from app.services.embedding_provider import DEFAULT_EMBEDDING_DIMENSION
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _tracking_number() -> str:
+    return str(secrets.randbelow(9_000_000_000) + 1_000_000_000)
+
+def _invoice_number() -> str:
+    return f"INV-{datetime.now(timezone.utc):%Y%m%d}-{secrets.randbelow(1_000_000):06d}"
 
 
 class _PostgresVector(UserDefinedType):
@@ -73,7 +81,10 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    phone: Mapped[str | None] = mapped_column(String(50), unique=True, index=True, nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="1")
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=_utcnow,
@@ -223,6 +234,8 @@ class Product(Base):
         Integer,
         default=0,
     )
+
+    reserved_stock: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     size: Mapped[str | None] = mapped_column(
         String(100),
@@ -538,6 +551,17 @@ class Order(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
+    tracking_number: Mapped[str] = mapped_column(
+        String(10),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=_tracking_number,
+    )
+    invoice_number: Mapped[str] = mapped_column(
+        String(40), unique=True, index=True, nullable=False, default=_invoice_number,
+    )
+
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=True,
@@ -569,6 +593,10 @@ class Order(Base):
         String(255),
         nullable=False,
     )
+
+    customer_first_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    customer_last_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    customer_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     customer_phone: Mapped[str] = mapped_column(
         String(50),
@@ -610,6 +638,11 @@ class Order(Base):
     )
 
     items: Mapped[list["OrderItem"]] = relationship(
+        back_populates="order",
+        cascade="all, delete-orphan",
+    )
+
+    payments: Mapped[list["Payment"]] = relationship(
         back_populates="order",
         cascade="all, delete-orphan",
     )
@@ -657,3 +690,61 @@ class OrderItem(Base):
     )
 
     product: Mapped["Product | None"] = relationship()
+
+
+class VerificationCode(Base):
+    __tablename__ = "verification_codes"
+    __table_args__ = (
+        Index("ix_verification_codes_user_channel", "user_id", "channel"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    target: Mapped[str] = mapped_column(String(255), nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship()
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship()
+
+
+class Payment(Base):
+    __tablename__ = "payments"
+    __table_args__ = (
+        UniqueConstraint("order_id", "idempotency_key", name="uq_payment_order_idempotency"),
+        UniqueConstraint("authority", name="uq_payments_authority"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(
+        ForeignKey("orders.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", index=True)
+    authority: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    transaction_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    payment_metadata: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    order: Mapped["Order"] = relationship(back_populates="payments")
