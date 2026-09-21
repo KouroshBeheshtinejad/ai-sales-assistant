@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /seller
+Disallow: /login
+Disallow: /register
 Sitemap: /sitemap.xml

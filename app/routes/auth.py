@@ -56,8 +56,17 @@ def _set_access_token_cookie(response: Response, access_token: str) -> None:
 
 class RegisterRequest(BaseModel):
     email: EmailStr
+    first_name: str | None = Field(None, min_length=1, max_length=120)
+    last_name: str | None = Field(None, min_length=1, max_length=120)
     phone: str | None = Field(None, min_length=5, max_length=50)
     password: str = Field(..., min_length=8)
+    confirm_password: str | None = Field(None, min_length=8)
+
+    @model_validator(mode="after")
+    def passwords_match(self):
+        if self.confirm_password is not None and self.password != self.confirm_password:
+            raise ValueError("Passwords do not match")
+        return self
 
 
 class LoginRequest(BaseModel):
@@ -165,6 +174,8 @@ def register(
 
     user = User(
         email=data.email,
+        first_name=data.first_name,
+        last_name=data.last_name,
         phone=data.phone,
         password_hash=hash_password(data.password),
         is_verified=False,
@@ -362,6 +373,9 @@ def get_me(
     return {
         "id": current_user.id,
         "email": current_user.email,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "phone": current_user.phone,
         "created_at": current_user.created_at,
     }
 
