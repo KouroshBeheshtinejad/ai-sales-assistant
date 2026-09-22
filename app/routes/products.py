@@ -1,14 +1,14 @@
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import Product, Store, User
 from app.routes.auth import get_current_user
+from app.services.cloudinary_service import delete_image, upload_image
 from app.services.semantic_index import (
     SOURCE_PRODUCT,
     safely_discard_semantic_document,
@@ -32,12 +32,17 @@ IMAGE_TYPES = {
 
 
 def _remove_product_image(image_url: str | None) -> None:
-    if not image_url or not image_url.startswith("/uploads/products/"):
+    if not image_url:
         return
-    filename = image_url.rsplit("/", 1)[-1]
-    path = PRODUCT_UPLOAD_DIR / filename
-    if path.is_file():
-        path.unlink()
+
+    if image_url.startswith("/uploads/products/"):
+        filename = image_url.rsplit("/", 1)[-1]
+        path = PRODUCT_UPLOAD_DIR / filename
+        if path.is_file():
+            path.unlink()
+        return
+
+    delete_image(image_url)
 
 
 class ProductCreateRequest(BaseModel):
@@ -132,28 +137,58 @@ async def upload_product_image(
     product = (
         db.query(Product)
         .join(Store)
-        .filter(Product.id == product_id, Store.owner_id == current_user.id)
+        .filter(
+            Product.id == product_id,
+            Store.owner_id == current_user.id,
+        )
         .first()
     )
-    if product is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
-    extension = IMAGE_TYPES.get(image.content_type)
-    if extension is None:
-        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Unsupported image type")
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found",
+        )
+
+    if image.content_type not in IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Unsupported image type",
+        )
 
     content = await image.read(MAX_IMAGE_SIZE + 1)
-    if len(content) > MAX_IMAGE_SIZE:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Image is too large")
 
-    PRODUCT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"{uuid4().hex}{extension}"
-    (PRODUCT_UPLOAD_DIR / filename).write_bytes(content)
-    _remove_product_image(product.image_url)
-    product.image_url = f"/uploads/products/{filename}"
+    if len(content) > MAX_IMAGE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Image is too large",
+        )
+
+    old_image_url = product.image_url
+
+    try:
+        image_url = upload_image(
+            content,
+            public_id=f"product_{product.id}",
+            folder="nava/products",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to upload product image",
+        ) from exc
+
+    product.image_url = image_url
     db.commit()
     db.refresh(product)
-    return _product_response(product, "Product image uploaded successfully")
+
+    if old_image_url and old_image_url.startswith("/uploads/products/"):
+        _remove_product_image(old_image_url)
+
+    return _product_response(
+        product,
+        "Product image uploaded successfully",
+    )
 
 
 @router.delete("/{product_id}/image")
@@ -165,17 +200,38 @@ def delete_product_image(
     product = (
         db.query(Product)
         .join(Store)
-        .filter(Product.id == product_id, Store.owner_id == current_user.id)
+        .filter(
+            Product.id == product_id,
+            Store.owner_id == current_user.id,
+        )
         .first()
     )
-    if product is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
-    _remove_product_image(product.image_url)
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found",
+        )
+
+    image_url = product.image_url
+
+    try:
+        _remove_product_image(image_url)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to remove product image",
+        ) from exc
+
     product.image_url = None
     db.commit()
     db.refresh(product)
-    return _product_response(product, "Product image removed successfully")
+
+    return _product_response(
+        product,
+        "Product image removed successfully",
+    )
+
 
 @router.get("/")
 def get_products(
@@ -209,6 +265,7 @@ def get_products(
         for product in products
     ]
 
+
 @router.get("/{product_id}")
 def get_product(
     product_id: int,
@@ -232,6 +289,7 @@ def get_product(
         )
 
     return _product_response(product)
+
 
 class ProductUpdateRequest(BaseModel):
     name: str | None = Field(None, max_length=255)
@@ -277,15 +335,23 @@ def update_product(
             detail="Product not found",
         )
 
-    safely_discard_semantic_document(db, SOURCE_PRODUCT, product.id, product.store_id)
+    safely_discard_semantic_document(
+        db,
+        SOURCE_PRODUCT,
+        product.id,
+        product.store_id,
+    )
+
     update_data = data.model_dump(exclude_unset=True)
 
     if "attributes" in update_data and update_data["attributes"] is not None:
         update_data["size"] = update_data["attributes"].get(
-            "size", update_data.get("size", product.size)
+            "size",
+            update_data.get("size", product.size),
         )
         update_data["color"] = update_data["attributes"].get(
-            "color", update_data.get("color", product.color)
+            "color",
+            update_data.get("color", product.color),
         )
 
     for field, value in update_data.items():
@@ -295,7 +361,11 @@ def update_product(
     db.refresh(product)
     safely_sync_semantic_document(db, product)
 
-    return _product_response(product, "Product updated successfully")
+    return _product_response(
+        product,
+        "Product updated successfully",
+    )
+
 
 @router.delete("/{product_id}")
 def delete_product(
@@ -319,7 +389,23 @@ def delete_product(
             detail="Product not found",
         )
 
-    safely_discard_semantic_document(db, SOURCE_PRODUCT, product.id, product.store_id)
+    image_url = product.image_url
+
+    safely_discard_semantic_document(
+        db,
+        SOURCE_PRODUCT,
+        product.id,
+        product.store_id,
+    )
+
+    try:
+        _remove_product_image(image_url)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to remove product image",
+        ) from exc
+
     db.delete(product)
     db.commit()
 

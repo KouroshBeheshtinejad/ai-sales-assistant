@@ -1,5 +1,4 @@
 from pathlib import Path
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
@@ -9,6 +8,7 @@ from app.core.business_types import get_business_type_label, normalize_business_
 from app.db.database import get_db
 from app.db.models import Store, User
 from app.routes.auth import get_current_user
+from app.services.cloudinary_service import delete_image, upload_image
 
 
 router = APIRouter(
@@ -27,11 +27,16 @@ LOGO_TYPES = {
 
 
 def _remove_store_logo(logo_url: str | None) -> None:
-    if not logo_url or not logo_url.startswith("/uploads/stores/"):
+    if not logo_url:
         return
-    path = STORE_UPLOAD_DIR / logo_url.rsplit("/", 1)[-1]
-    if path.is_file():
-        path.unlink()
+
+    if logo_url.startswith("/uploads/stores/"):
+        path = STORE_UPLOAD_DIR / logo_url.rsplit("/", 1)[-1]
+        if path.is_file():
+            path.unlink()
+        return
+
+    delete_image(logo_url)
 
 
 class StoreCreateRequest(BaseModel):
@@ -101,6 +106,7 @@ def get_my_stores(
         for store in stores
     ]
 
+
 @router.get("/{store_id}")
 def get_store(
     store_id: int,
@@ -131,6 +137,7 @@ def get_store(
         "business_type_label": get_business_type_label(store.business_type),
         "created_at": store.created_at,
     }
+
 
 class StoreUpdateRequest(BaseModel):
     name: str | None = Field(None, max_length=255)
@@ -199,24 +206,56 @@ async def upload_store_logo(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = (
+        db.query(Store)
+        .filter(
+            Store.id == store_id,
+            Store.owner_id == current_user.id,
+        )
+        .first()
+    )
+
     if store is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Store not found",
+        )
 
-    extension = LOGO_TYPES.get(logo.content_type)
-    if extension is None:
-        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Unsupported image type")
+    if logo.content_type not in LOGO_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Unsupported image type",
+        )
+
     content = await logo.read(MAX_LOGO_SIZE + 1)
-    if len(content) > MAX_LOGO_SIZE:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Image is too large")
 
-    STORE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"{uuid4().hex}{extension}"
-    (STORE_UPLOAD_DIR / filename).write_bytes(content)
-    _remove_store_logo(store.logo_url)
-    store.logo_url = f"/uploads/stores/{filename}"
+    if len(content) > MAX_LOGO_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Image is too large",
+        )
+
+    old_logo_url = store.logo_url
+
+    try:
+        logo_url = upload_image(
+            content,
+            public_id=f"store_{store.id}",
+            folder="nava/stores",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to upload store logo",
+        ) from exc
+
+    store.logo_url = logo_url
     db.commit()
     db.refresh(store)
+
+    if old_logo_url and old_logo_url.startswith("/uploads/stores/"):
+        _remove_store_logo(old_logo_url)
+
     return {
         "store_id": store.id,
         "logo_url": store.logo_url,
@@ -230,13 +269,40 @@ def delete_store_logo(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = (
+        db.query(Store)
+        .filter(
+            Store.id == store_id,
+            Store.owner_id == current_user.id,
+        )
+        .first()
+    )
+
     if store is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
-    _remove_store_logo(store.logo_url)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Store not found",
+        )
+
+    logo_url = store.logo_url
+
+    try:
+        _remove_store_logo(logo_url)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to remove store logo",
+        ) from exc
+
     store.logo_url = None
     db.commit()
-    return {"store_id": store.id, "logo_url": None, "message": "Store logo removed successfully"}
+
+    return {
+        "store_id": store.id,
+        "logo_url": None,
+        "message": "Store logo removed successfully",
+    }
+
 
 @router.delete("/{store_id}")
 def delete_store(
