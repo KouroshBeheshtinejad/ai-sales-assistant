@@ -21,7 +21,8 @@ function messageFrom(data) {
 
 async function request(path, { method = 'GET', body, auth = false, guest, headers, blob = false } = {}) {
   const requestHeaders = { Accept: blob ? 'application/pdf' : 'application/json', ...headers }
-  if (body !== undefined) requestHeaders['Content-Type'] = 'application/json'
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+  if (body !== undefined && !isFormData) requestHeaders['Content-Type'] = 'application/json'
   if (guest) requestHeaders['X-Guest-Token'] = guest
   if (auth) {
     const token = getToken()
@@ -30,7 +31,7 @@ async function request(path, { method = 'GET', body, auth = false, guest, header
 
   let response
   try {
-    response = await fetch(path, { method, headers: requestHeaders, body: body === undefined ? undefined : JSON.stringify(body) })
+    response = await fetch(path, { method, headers: requestHeaders, body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body) })
   } catch {
     throw new ApiError('Network error', 0)
   }
@@ -97,6 +98,11 @@ export const api = {
     products: (storeId) => seller(`/products/?store_id=${storeId}`),
     createProduct: (payload) => seller('/products/', { method: 'POST', body: payload }),
     updateProduct: (id, payload) => seller(`/products/${id}`, { method: 'PUT', body: payload }),
+    uploadProductImage: (id, file) => {
+      const body = new FormData()
+      body.append('image', file)
+      return seller(`/products/${id}/image`, { method: 'POST', body })
+    },
     deleteProduct: (id) => seller(`/products/${id}`, { method: 'DELETE' }),
 
     list: (storeId, kind) => seller(`/stores/${storeId}/${kind}`), // kind: 'knowledge' | 'faqs'

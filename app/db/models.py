@@ -230,6 +230,11 @@ class Product(Base):
         nullable=True,
     )
 
+    image_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
     price: Mapped[float] = mapped_column(Numeric(12, 2))
 
     stock: Mapped[int] = mapped_column(

@@ -194,6 +194,7 @@ def public_store_catalog(store_id: int, db: Session = Depends(get_db)):
                 "id": product.id,
                 "name": product.name,
                 "description": product.description,
+                "image_url": product.image_url,
                 "price": str(product.price),
                 "stock": product.stock,
                 "size": product.size,

@@ -37,6 +37,7 @@ function ProductForm({ product, store, businessType, onSaved, onClose }) {
     description: product?.description || '',
     price: product ? String(product.price) : '',
     stock: product ? String(product.stock) : '0',
+    image: null,
     // size/color also live in real columns; keep old rows editable.
     attributes: { ...(product?.size ? { size: product.size } : {}), ...(product?.color ? { color: product.color } : {}), ...(product?.attributes || {}) },
   })
@@ -69,8 +70,10 @@ function ProductForm({ product, store, businessType, onSaved, onClose }) {
     setBusy(true)
     setFormError('')
     try {
-      if (product) await api.seller.updateProduct(product.id, payload)
-      else await api.seller.createProduct({ ...payload, store_id: store.id })
+      const savedProduct = product
+        ? await api.seller.updateProduct(product.id, payload)
+        : await api.seller.createProduct({ ...payload, store_id: store.id })
+      if (form.image) await api.seller.uploadProductImage(savedProduct.id, form.image)
       await onSaved()
     } catch (e) {
       setFormError(err(e))
@@ -85,6 +88,7 @@ function ProductForm({ product, store, businessType, onSaved, onClose }) {
       <Field label={t('p.price')} error={errors.price}><input inputMode="decimal" dir="ltr" value={form.price} onChange={set('price')} /></Field>
       <Field label={t('p.stock')} error={errors.stock}><input inputMode="numeric" dir="ltr" value={form.stock} onChange={set('stock')} /></Field>
       <Field label={t('p.desc')} className="full"><textarea rows={3} maxLength={10000} value={form.description} onChange={set('description')} /></Field>
+      <Field label={t('p.image')} className="full"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => setForm({ ...form, image: e.target.files?.[0] || null })} /></Field>
       {fields.length > 0 && <h3 className="h4 full">{t('p.typeFields', { type: bizLabel(businessType.slug, businessType.label) })}</h3>}
       {fields.map((definition) => (
         <AttributeField key={definition.name} definition={definition} value={form.attributes[definition.name]}

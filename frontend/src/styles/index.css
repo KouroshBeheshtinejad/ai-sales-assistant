@@ -154,6 +154,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
 .product { display: grid; grid-template-rows: auto 1fr; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); overflow: hidden; }
 .product-media { display: block; }
+.product-media img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
 .swatch { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; overflow: hidden; }
 .swatch svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .swatch span { position: relative; font-size: 3rem; font-weight: 800; }
@@ -168,6 +169,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .product-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .product-page { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 32px; align-items: start; }
 .product-hero { border-radius: var(--r-l); aspect-ratio: 1; }
+.product-hero img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .product-hero span { font-size: 6rem; }
 .specs { display: grid; gap: 0; margin-top: 8px; }
 .specs div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }

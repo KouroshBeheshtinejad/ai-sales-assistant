@@ -10,6 +10,12 @@ export function StockBadge({ stock }) {
   return <Badge tone="ok">{t('shop.inStock', { n: stock })}</Badge>
 }
 
+export function ProductVisual({ product, className }) {
+  return product.image_url
+    ? <img className={className} src={product.image_url} alt={product.name} loading="lazy" />
+    : <Swatch className={className} seed={product.name} label={product.name} />
+}
+
 export default function ProductCard({ product, storeId, shop, onAsk }) {
   const { t, money, err } = useI18n()
   const toast = useToast()
@@ -31,7 +37,7 @@ export default function ProductCard({ product, storeId, shop, onAsk }) {
   return (
     <article className="product">
       <Link to={`/store/${storeId}/product/${product.id}`} className="product-media" aria-label={product.name} tabIndex={-1}>
-        <Swatch seed={product.name} label={product.name} />
+        <ProductVisual product={product} />
       </Link>
       <div className="product-body">
         <h3><Link to={`/store/${storeId}/product/${product.id}`}>{product.name}</Link></h3>

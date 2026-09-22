@@ -39,6 +39,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts())
 logger = logging.getLogger(__name__)
 templates = Jinja2Templates(directory="app/templates")
 frontend_dist = Path("frontend/dist")
+uploads_dir = Path("uploads")
 
 
 def react_html_with_metadata(request: Request, title: str, description: str, path: str) -> HTMLResponse:
@@ -100,6 +101,10 @@ app.include_router(payments_router)
 if frontend_dist.is_dir():
     app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="frontend_assets")
     app.mount("/app", StaticFiles(directory=frontend_dist, html=True), name="react_frontend")
+
+uploads_dir.mkdir(exist_ok=True)
+(uploads_dir / "products").mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 @app.get("/", include_in_schema=False)
 async def root(request: Request):

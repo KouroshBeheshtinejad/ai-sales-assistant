@@ -23,6 +23,7 @@ COPY --chown=app:app alembic.ini ./alembic.ini
 COPY --chown=app:app alembic ./alembic
 COPY --chown=app:app scripts ./scripts
 COPY --from=frontend-build --chown=app:app /frontend/dist ./frontend/dist
+RUN mkdir -p uploads/products && chown -R app:app uploads
 
 USER app
 

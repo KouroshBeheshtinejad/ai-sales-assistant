@@ -1,6 +1,8 @@
+from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -18,6 +20,24 @@ router = APIRouter(
     prefix="/products",
     tags=["Products"],
 )
+
+PRODUCT_UPLOAD_DIR = Path("uploads/products")
+MAX_IMAGE_SIZE = 5 * 1024 * 1024
+IMAGE_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
+
+
+def _remove_product_image(image_url: str | None) -> None:
+    if not image_url or not image_url.startswith("/uploads/products/"):
+        return
+    filename = image_url.rsplit("/", 1)[-1]
+    path = PRODUCT_UPLOAD_DIR / filename
+    if path.is_file():
+        path.unlink()
 
 
 class ProductCreateRequest(BaseModel):
@@ -46,6 +66,7 @@ def _product_response(product: Product, message: str | None = None):
         "store_id": product.store_id,
         "name": product.name,
         "description": product.description,
+        "image_url": product.image_url,
         "price": product.price,
         "stock": product.stock,
         "reserved_stock": product.reserved_stock,
@@ -99,6 +120,62 @@ def create_product(
     safely_sync_semantic_document(db, product)
 
     return _product_response(product, "Product created successfully")
+
+
+@router.post("/{product_id}/image")
+async def upload_product_image(
+    product_id: int,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    product = (
+        db.query(Product)
+        .join(Store)
+        .filter(Product.id == product_id, Store.owner_id == current_user.id)
+        .first()
+    )
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    extension = IMAGE_TYPES.get(image.content_type)
+    if extension is None:
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Unsupported image type")
+
+    content = await image.read(MAX_IMAGE_SIZE + 1)
+    if len(content) > MAX_IMAGE_SIZE:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Image is too large")
+
+    PRODUCT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid4().hex}{extension}"
+    (PRODUCT_UPLOAD_DIR / filename).write_bytes(content)
+    _remove_product_image(product.image_url)
+    product.image_url = f"/uploads/products/{filename}"
+    db.commit()
+    db.refresh(product)
+    return _product_response(product, "Product image uploaded successfully")
+
+
+@router.delete("/{product_id}/image")
+def delete_product_image(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    product = (
+        db.query(Product)
+        .join(Store)
+        .filter(Product.id == product_id, Store.owner_id == current_user.id)
+        .first()
+    )
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    _remove_product_image(product.image_url)
+    product.image_url = None
+    db.commit()
+    db.refresh(product)
+    return _product_response(product, "Product image removed successfully")
 
 @router.get("/")
 def get_products(

@@ -248,6 +248,7 @@ const D = {
   'p.price': ['قیمت (تومان)', 'Price (Toman)'],
   'p.stock': ['موجودی', 'Stock'],
   'p.desc': ['توضیحات', 'Description'],
+  'p.image': ['تصویر محصول', 'Product image'],
   'p.status': ['وضعیت', 'Status'],
   'p.reserved': ['{n} رزرو', '{n} reserved'],
   'p.empty': ['هنوز محصولی اضافه نکرده‌اید.', "You haven't added any products yet."],

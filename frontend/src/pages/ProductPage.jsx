@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
-import { StockBadge } from '../components/ProductCard'
-import { Button, Empty, Icon, Swatch, useToast } from '../components/ui'
+import { ProductVisual, StockBadge } from '../components/ProductCard'
+import { Button, Empty, Icon, useToast } from '../components/ui'
 import { useBusinessTypes, useSeo } from '../lib/hooks'
 import { useI18n } from '../lib/i18n'
 
@@ -44,7 +44,7 @@ export default function ProductPage() {
     <>
       {back}
       <article className="product-page">
-        <Swatch className="product-hero" seed={product.name} label={product.name} />
+        <ProductVisual product={product} className="product-hero" />
         <div className="stack">
           <h1>{product.name}</h1>
           <p className="price price-lg">{money(product.price)}</p>
