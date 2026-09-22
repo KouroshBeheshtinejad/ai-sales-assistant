@@ -23,7 +23,9 @@ export default function StoreHome() {
   return (
     <>
       <section className="store-hero">
-        <Swatch className="store-mark" seed={store.name} label={store.name} />
+        {store.logo_url
+          ? <img className="store-mark store-logo" src={store.logo_url} alt={store.name} />
+          : <Swatch className="store-mark" seed={store.name} label={store.name} />}
         <div>
           <p className="muted">{typeLabel}</p>
           <h1>{store.name}</h1>

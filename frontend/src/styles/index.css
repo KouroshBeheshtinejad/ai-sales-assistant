@@ -124,6 +124,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .topnav a:not(.btn):hover { color: var(--teal-ink); text-decoration: underline; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.25rem; color: var(--ink); text-decoration: none; }
 .locale { min-width: 44px; min-height: 36px; border: 1px solid var(--line-strong); border-radius: var(--r-s); background: var(--surface); font-weight: 700; }
+.seller-foot .locale { border-color: var(--teal); background: var(--teal); color: #fff; }
+.seller-foot .locale:hover { background: var(--teal-ink); border-color: var(--teal-ink); }
 .footer { border-top: 1px solid var(--line); padding-block: 28px; color: var(--muted); margin-top: 40px; }
 
 /* Landing */
@@ -149,6 +151,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .store-hero { display: flex; align-items: center; gap: 20px; margin-bottom: 24px; }
 .store-hero > div:last-child { display: grid; gap: 4px; }
 .store-mark { width: 84px; height: 84px; border-radius: var(--r-m); flex: none; }
+.store-logo { display: block; object-fit: cover; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 20px; }
 .toolbar input[type='search'] { flex: 1 1 240px; width: auto; }
 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }

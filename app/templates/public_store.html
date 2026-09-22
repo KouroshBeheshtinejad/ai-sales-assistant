@@ -4,7 +4,7 @@
 <main class="min-h-screen bg-paper px-5 py-8 md:px-10 md:py-12">
   <div class="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[.8fr_1.2fr] lg:items-start">
     <section class="grid-paper rounded-[2rem] border border-slate-200 bg-white p-7 shadow-soft md:p-10">
-      <div class="grid h-14 w-14 place-items-center rounded-2xl bg-mint text-xl font-extrabold text-ink">{{ store.name[0]|upper }}</div>
+      {% if store.logo_url %}<img src="{{ store.logo_url }}" alt="{{ store.name }}" class="h-14 w-14 rounded-2xl object-cover">{% else %}<div class="grid h-14 w-14 place-items-center rounded-2xl bg-mint text-xl font-extrabold text-ink">{{ store.name[0]|upper }}</div>{% endif %}
       <p class="mt-10 text-xs font-bold uppercase tracking-[.18em] text-coral">{{ store.business_type|replace('-', ' ') }}</p>
       <h1 class="display mt-3 text-4xl font-extrabold tracking-tight text-ink md:text-5xl">{{ store.name }}</h1>
       <p class="mt-5 max-w-md text-lg leading-8 text-slate-600">{{ store.description or 'Ask about products, delivery, policies, and more.' }}</p>

@@ -193,6 +193,7 @@ const D = {
   's.editStore': ['ویرایش فروشگاه', 'Edit store'],
   's.storeName': ['نام فروشگاه', 'Store name'],
   's.storeDesc': ['توضیحات', 'Description'],
+  's.logo': ['لوگوی فروشگاه', 'Store logo'],
   's.businessType': ['نوع کسب‌وکار', 'Business type'],
   's.deleteStore': ['حذف فروشگاه', 'Delete store'],
   's.deleteStoreNote': ['حذف فروشگاه، محصولات و دانش آن را هم پاک می‌کند. فروشگاهی که سفارش دارد قابل حذف نیست.', 'Deleting a store also removes its products and knowledge. A store that has orders cannot be deleted.'],

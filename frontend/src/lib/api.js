@@ -86,6 +86,11 @@ export const api = {
     stores: () => seller('/stores/'),
     createStore: (payload) => seller('/stores/', { method: 'POST', body: payload }),
     updateStore: (id, payload) => seller(`/stores/${id}`, { method: 'PUT', body: payload }),
+    uploadStoreLogo: (id, file) => {
+      const body = new FormData()
+      body.append('logo', file)
+      return seller(`/stores/${id}/logo`, { method: 'POST', body })
+    },
     deleteStore: (id) => seller(`/stores/${id}`, { method: 'DELETE' }),
 
     orders: (storeId) => seller(`/seller/orders/stores/${storeId}`),

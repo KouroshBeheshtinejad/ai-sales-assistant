@@ -11,7 +11,7 @@ import { useSeller } from './SellerContext'
 function StoreForm({ store, onSaved, onCancel }) {
   const { t, err, bizLabel } = useI18n()
   const { types } = useSeller()
-  const [form, setForm] = useState({ name: store?.name || '', description: store?.description || '', business_type: store?.business_type || 'clothing' })
+  const [form, setForm] = useState({ name: store?.name || '', description: store?.description || '', business_type: store?.business_type || 'clothing', logo: null })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const set = (name) => (e) => setForm({ ...form, [name]: e.target.value })
@@ -23,6 +23,7 @@ function StoreForm({ store, onSaved, onCancel }) {
     try {
       const payload = { name: form.name.trim(), description: form.description.trim() || null, business_type: form.business_type }
       const saved = store ? await api.seller.updateStore(store.id, payload) : await api.seller.createStore(payload)
+      if (form.logo) await api.seller.uploadStoreLogo(saved.store_id, form.logo)
       await onSaved(saved.store_id)
     } catch (e) {
       setError(err(e))
@@ -40,6 +41,7 @@ function StoreForm({ store, onSaved, onCancel }) {
         </select>
       </Field>
       <Field label={t('s.storeDesc')}><textarea rows={3} maxLength={10000} value={form.description} onChange={set('description')} /></Field>
+      <Field label={t('s.logo')}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => setForm({ ...form, logo: e.target.files?.[0] || null })} /></Field>
       {error && <p className="notice notice-danger" role="alert">{error}</p>}
       <div className="row">
         <Button type="submit" variant="primary" busy={busy}>{store ? t('save') : t('create')}</Button>

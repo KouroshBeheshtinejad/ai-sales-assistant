@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -12,6 +15,23 @@ router = APIRouter(
     prefix="/stores",
     tags=["Stores"],
 )
+
+STORE_UPLOAD_DIR = Path("uploads/stores")
+MAX_LOGO_SIZE = 5 * 1024 * 1024
+LOGO_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
+
+
+def _remove_store_logo(logo_url: str | None) -> None:
+    if not logo_url or not logo_url.startswith("/uploads/stores/"):
+        return
+    path = STORE_UPLOAD_DIR / logo_url.rsplit("/", 1)[-1]
+    if path.is_file():
+        path.unlink()
 
 
 class StoreCreateRequest(BaseModel):
@@ -51,6 +71,7 @@ def create_store(
         "store_id": store.id,
         "name": store.name,
         "description": store.description,
+        "logo_url": store.logo_url,
         "business_type": store.business_type,
         "business_type_label": get_business_type_label(store.business_type),
     }
@@ -72,6 +93,7 @@ def get_my_stores(
             "id": store.id,
             "name": store.name,
             "description": store.description,
+            "logo_url": store.logo_url,
             "business_type": store.business_type,
             "business_type_label": get_business_type_label(store.business_type),
             "created_at": store.created_at,
@@ -104,6 +126,7 @@ def get_store(
         "id": store.id,
         "name": store.name,
         "description": store.description,
+        "logo_url": store.logo_url,
         "business_type": store.business_type,
         "business_type_label": get_business_type_label(store.business_type),
         "created_at": store.created_at,
@@ -163,9 +186,57 @@ def update_store(
         "store_id": store.id,
         "name": store.name,
         "description": store.description,
+        "logo_url": store.logo_url,
         "business_type": store.business_type,
         "business_type_label": get_business_type_label(store.business_type),
     }
+
+
+@router.post("/{store_id}/logo")
+async def upload_store_logo(
+    store_id: int,
+    logo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
+
+    extension = LOGO_TYPES.get(logo.content_type)
+    if extension is None:
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Unsupported image type")
+    content = await logo.read(MAX_LOGO_SIZE + 1)
+    if len(content) > MAX_LOGO_SIZE:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Image is too large")
+
+    STORE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid4().hex}{extension}"
+    (STORE_UPLOAD_DIR / filename).write_bytes(content)
+    _remove_store_logo(store.logo_url)
+    store.logo_url = f"/uploads/stores/{filename}"
+    db.commit()
+    db.refresh(store)
+    return {
+        "store_id": store.id,
+        "logo_url": store.logo_url,
+        "message": "Store logo uploaded successfully",
+    }
+
+
+@router.delete("/{store_id}/logo")
+def delete_store_logo(
+    store_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    if store is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
+    _remove_store_logo(store.logo_url)
+    store.logo_url = None
+    db.commit()
+    return {"store_id": store.id, "logo_url": None, "message": "Store logo removed successfully"}
 
 @router.delete("/{store_id}")
 def delete_store(
