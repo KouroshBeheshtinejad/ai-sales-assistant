@@ -30,7 +30,7 @@ def client(monkeypatch):
     Base.metadata.create_all(bind=engine)
     app.dependency_overrides[get_db] = override_get_db
     monkeypatch.setattr(main, "engine", engine)
-    with TestClient(app) as test_client:
+    with TestClient(app, headers={"host": "localhost"}) as test_client:
         yield test_client
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
