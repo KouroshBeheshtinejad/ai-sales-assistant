@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -44,11 +44,19 @@ export default function AuthPage({ initial }) {
   const { t } = useI18n()
   const { signIn } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [params] = useSearchParams()
   const [step, setStep] = useState(initial === 'register' ? 'register' : params.get('mode') || 'login')
   const [info, setInfo] = useState('')
   const [account, setAccount] = useState({ email: params.get('email') || '', password: '', phone: '', channels: ['email'] })
   const next = safeNext(params.get('next'))
+
+  useEffect(() => {
+    if (location.pathname === '/login' || location.pathname === '/register') {
+      setStep(location.pathname.slice(1))
+      setInfo('')
+    }
+  }, [location.pathname])
 
   useSeo({ title: `${t(step === 'register' ? 'auth.registerTitle' : 'auth.loginTitle')} | NAVA` })
 
