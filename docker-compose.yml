@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       APP_ENV: ${APP_ENV:-development}
-      SECRET_KEY: ${SECRET_KEY:-change-this-development-secret}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
       APP_ALLOWED_HOSTS: ${APP_ALLOWED_HOSTS:-localhost,127.0.0.1}
       AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-disabled}
       AI_CHAT_API_KEY: ${AI_CHAT_API_KEY:-}
@@ -13,12 +13,40 @@ services:
       AI_RAG_ENABLED: ${AI_RAG_ENABLED:-false}
       AI_RAG_EMBEDDING_PROVIDER: ${AI_RAG_EMBEDDING_PROVIDER:-mock}
       DATABASE_URL: postgresql://${POSTGRES_USER:-nava}:${POSTGRES_PASSWORD:-nava-development-password}@db:5432/${POSTGRES_DB:-nava}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-10}
+      DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-30}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-disabled}
+      OTP_PROVIDER: ${OTP_PROVIDER:-disabled}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-disabled}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      AUTH_RATE_LIMIT_REQUESTS: ${AUTH_RATE_LIMIT_REQUESTS:-10}
+      AUTH_RATE_LIMIT_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:-60}
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "${APP_PORT:-8000}:8000"
-    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "${FORWARDED_ALLOW_IPS:-127.0.0.1}"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+  migrate:
+    build: .
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nava}:${POSTGRES_PASSWORD:-nava-development-password}@db:5432/${POSTGRES_DB:-nava}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
   db:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
