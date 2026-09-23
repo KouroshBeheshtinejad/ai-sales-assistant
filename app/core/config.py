@@ -95,24 +95,24 @@ def validate_production_configuration() -> None:
     if not os.getenv("REDIS_URL", "").strip():
         raise RuntimeError("REDIS_URL is required in production for distributed rate limiting")
     payment_provider = os.getenv("PAYMENT_PROVIDER", "disabled").strip().casefold()
-    if payment_provider in {"disabled", "mock"}:
-        raise RuntimeError("A real PAYMENT_PROVIDER is required in production")
+    if payment_provider not in {"disabled", "zarinpal"}:
+        raise RuntimeError("Unsupported PAYMENT_PROVIDER")
     if payment_provider == "zarinpal" and not all(
         os.getenv(name, "").strip()
         for name in ("PAYMENT_MERCHANT_ID", "PAYMENT_CALLBACK_URL")
     ):
         raise RuntimeError("PAYMENT_MERCHANT_ID and PAYMENT_CALLBACK_URL are required")
     email_provider = os.getenv("EMAIL_PROVIDER", "disabled").strip().casefold()
-    if email_provider == "disabled":
-        raise RuntimeError("EMAIL_PROVIDER is required in production when registration is enabled")
+    if email_provider not in {"disabled", "smtp"}:
+        raise RuntimeError("Unsupported EMAIL_PROVIDER")
     if email_provider == "smtp" and not all(
         os.getenv(name, "").strip()
         for name in ("SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM")
     ):
         raise RuntimeError("SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM are required")
     otp_provider = os.getenv("OTP_PROVIDER", "disabled").strip().casefold()
-    if otp_provider == "disabled":
-        raise RuntimeError("OTP_PROVIDER is required in production when registration is enabled")
+    if otp_provider not in {"disabled", "email", "sms"}:
+        raise RuntimeError("Unsupported OTP_PROVIDER")
     if otp_provider == "email" and email_provider != "smtp":
         raise RuntimeError("OTP_PROVIDER=email requires EMAIL_PROVIDER=smtp")
     if otp_provider == "sms" and not os.getenv("SMS_WEBHOOK_URL", "").strip():
