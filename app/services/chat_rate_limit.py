@@ -59,9 +59,46 @@ class InMemoryChatRateLimiter:
             self._events.clear()
 
 
-limiter = InMemoryChatRateLimiter()
-auth_limiter = InMemoryChatRateLimiter()
-tracking_limiter = InMemoryChatRateLimiter()
+class RedisRateLimiter:
+    def __init__(self, url: str):
+        try:
+            import redis
+            self.client = redis.Redis.from_url(url, decode_responses=True)
+            self.client.ping()
+        except Exception as exc:
+            raise RuntimeError("Redis rate limiter is unavailable") from exc
+
+    def allow(self, key: str, settings: RateLimitSettings, now: float | None = None) -> bool:
+        bucket = f"nava:rate:{key}"
+        try:
+            with self.client.pipeline() as pipeline:
+                pipeline.incr(bucket)
+                pipeline.expire(bucket, int(settings.window_seconds))
+                count, _ = pipeline.execute()
+            return int(count) <= settings.max_requests
+        except Exception as exc:
+            if os.getenv("APP_ENV", "development").casefold() in {"production", "prod"}:
+                raise RuntimeError("Redis rate limiter failed") from exc
+            return False
+
+    def clear(self) -> None:
+        return None
+
+
+def _limiter_for(name: str):
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if redis_url:
+        try:
+            return RedisRateLimiter(redis_url)
+        except RuntimeError:
+            if os.getenv("APP_ENV", "development").casefold() in {"production", "prod"}:
+                raise
+    return InMemoryChatRateLimiter()
+
+
+limiter = _limiter_for("chat")
+auth_limiter = _limiter_for("auth")
+tracking_limiter = _limiter_for("tracking")
 
 
 def enforce_chat_rate_limit(request: Request) -> None:

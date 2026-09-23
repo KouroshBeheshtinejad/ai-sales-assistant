@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import secrets
 import json
+import logging
 from urllib import request as urllib_request
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -142,6 +143,7 @@ def get_payment_provider() -> PaymentProvider:
 
 
 class PaymentService:
+    logger = logging.getLogger(__name__)
     @staticmethod
     def create_payment(
         db: Session,
@@ -177,6 +179,7 @@ class PaymentService:
         db.add(payment)
         db.commit()
         db.refresh(payment)
+        PaymentService.logger.info("payment_created payment_id=%s order_id=%s provider=%s", payment.id, order.id, provider.name)
         return payment
 
     @staticmethod
@@ -207,5 +210,6 @@ class PaymentService:
                     product.reserved_stock = max(0, product.reserved_stock - item.quantity)
         db.commit()
         db.refresh(payment)
+        PaymentService.logger.info("payment_verified payment_id=%s order_id=%s", payment.id, payment.order_id)
         notify_payment_success(payment.order, payment.transaction_id)
         return payment

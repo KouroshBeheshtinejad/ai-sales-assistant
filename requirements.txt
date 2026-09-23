@@ -64,6 +64,7 @@ python-multipart==0.0.32
 PyYAML==6.0.3
 referencing==0.37.0
 reportlab==5.0.1
+redis==5.2.1
 requests==2.33.0
 rfc3339-validator==0.1.4
 rfc3986-validator==0.1.1

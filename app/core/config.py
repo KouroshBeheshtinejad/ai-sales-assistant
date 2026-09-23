@@ -92,6 +92,8 @@ def validate_production_configuration() -> None:
     secret_key()
     database_url()
     allowed_hosts()
+    if not os.getenv("REDIS_URL", "").strip():
+        raise RuntimeError("REDIS_URL is required in production for distributed rate limiting")
     payment_provider = os.getenv("PAYMENT_PROVIDER", "disabled").strip().casefold()
     if payment_provider in {"disabled", "mock"}:
         raise RuntimeError("A real PAYMENT_PROVIDER is required in production")

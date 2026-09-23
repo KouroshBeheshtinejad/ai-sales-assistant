@@ -9,6 +9,12 @@
 `APP_ENV=production`، `DATABASE_URL`، `SECRET_KEY` قوی و `APP_ALLOWED_HOSTS` را الزامی کنید. پورت PostgreSQL را عمومی نکنید، provider key را فقط در secret manager/environment قرار دهید، لاگ‌ها را بدون password/API key نگه دارید و health checkهای `/health/live` و `/health/ready` را monitor کنید.
 
 اعلان سفارش از مرز `notification_service` عبور می‌کند. مقدار پیش‌فرض
+`CONVERSATION_RETENTION_DAYS=90` روز با job زیر پاک می‌شوند. سوابق سفارش و invoice
+برای نیازهای قانونی/عملیاتی حذف نمی‌شوند:
+
+```bash
+CONVERSATION_RETENTION_DAYS=90 python scripts/purge_conversation_messages.py
+```
 `SMS_PROVIDER=disabled` است؛ تا زمان انتخاب vendor واقعی، هیچ credential یا API
 فرضی اضافه نشده و شکست اعلان روی تراکنش سفارش اثر نمی‌گذارد.
 

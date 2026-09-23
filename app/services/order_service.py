@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 import secrets
+import logging
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload
@@ -10,6 +11,7 @@ from app.services.notification_service import notify_order_created
 
 
 class OrderService:
+    logger = logging.getLogger(__name__)
 
     @staticmethod
     def release_order_stock(db: Session, order: Order) -> None:
@@ -192,6 +194,7 @@ class OrderService:
 
         db.commit()
         db.refresh(order)
+        OrderService.logger.info("order_created order_id=%s store_id=%s", order.id, store_id)
         notify_order_created(order)
 
         return order

@@ -367,6 +367,11 @@ def chat(
             store_id=store_id,
             question=data.question,
             history=history,
+            context={
+                "conversation": conversation,
+                "guest_token": guest_token,
+                "user_id": None,
+            },
         )
         ConversationService.add_message(
             db,

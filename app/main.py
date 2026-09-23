@@ -1,5 +1,6 @@
 import logging
 import re
+import uuid
 from contextlib import asynccontextmanager
 from html import escape
 from pathlib import Path
@@ -77,6 +78,19 @@ async def csrf_cookie_middleware(request: Request, call_next):
     ensure_csrf_token(request)
     response = await call_next(request)
     set_csrf_cookie(request, response)
+    return response
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+    request.state.request_id = request_id
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception("request_failed request_id=%s path=%s", request_id, request.url.path)
+        raise
+    response.headers["X-Request-ID"] = request_id
     return response
 
 
@@ -263,6 +277,11 @@ async def database_health(_current_user=Depends(get_current_user)):
 
 @app.get("/health/live", include_in_schema=False)
 async def liveness_check():
+    return {"status": "ok"}
+
+
+@app.get("/health", include_in_schema=False)
+async def health_check():
     return {"status": "ok"}
 
 
