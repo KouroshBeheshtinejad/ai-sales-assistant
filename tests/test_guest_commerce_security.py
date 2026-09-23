@@ -54,10 +54,18 @@ def test_quantity_normalization_rejects_false_positive_and_signed_values():
     assert extract_quantity("دوتا") == 2
     assert extract_quantity("۳ عدد") == 3
     assert extract_quantity("٣ عدد") == 3
-    assert extract_quantity("2") == 2
+    assert extract_quantity("2") is None
     assert extract_quantity("دوست دارم") is None
-    assert extract_quantity("-2") == -2
-    assert extract_quantity("۰") == 0
+    assert extract_quantity("-2") is None
+    assert extract_quantity("۰") is None
+    assert extract_quantity("کتونی مشکی سایز 42 میخوام") is None
+
+
+def test_customer_name_requires_an_explicit_name_label():
+    from app.services.guest_commerce import extract_customer_fields
+
+    assert extract_customer_fields("آدرس: خیابان نامجو") .get("name") is None
+    assert extract_customer_fields("نام: علی احمدی") ["name"] == "علی احمدی"
 
 
 def test_resolver_uses_current_product_evidence_before_history(db):

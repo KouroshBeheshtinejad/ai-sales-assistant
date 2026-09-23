@@ -98,12 +98,12 @@ class ConversationService:
         messages = (
             db.query(Message)
             .filter(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at.asc(), Message.id.asc())
+            .order_by(Message.created_at.desc(), Message.id.desc())
             .limit(limit)
             .all()
         )
 
-        return messages
+        return list(reversed(messages))
 
     @staticmethod
     def create_conversation(

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 import secrets
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Cart, CartItem, Conversation, Order, OrderItem, Product
@@ -10,6 +10,19 @@ from app.services.notification_service import notify_order_created
 
 
 class OrderService:
+
+    @staticmethod
+    def release_order_stock(db: Session, order: Order) -> None:
+        """Release an unpaid order's reservation exactly once."""
+        if any(payment.status == "paid" for payment in order.payments):
+            raise ValueError("Paid orders require a refund before cancellation")
+        for item in order.items:
+            if item.product_id is None:
+                continue
+            product = db.get(Product, item.product_id)
+            if product is not None:
+                product.stock += item.quantity
+                product.reserved_stock -= item.quantity
 
     @staticmethod
     def _new_tracking_number(db: Session) -> str:
@@ -52,15 +65,17 @@ class OrderService:
 
         if idempotency_key:
             existing_order = db.scalar(
-                select(Order).where(Order.idempotency_key == idempotency_key)
+                select(Order).where(
+                    Order.store_id == store_id,
+                    Order.idempotency_key == idempotency_key,
+                    (
+                        Order.user_id == user_id
+                        if user_id is not None
+                        else Order.guest_token == guest_token
+                    ),
+                )
             )
             if existing_order is not None:
-                if existing_order.store_id != store_id or (
-                    user_id is not None and existing_order.user_id != user_id
-                ) or (
-                    user_id is None and existing_order.guest_token != guest_token
-                ):
-                    raise ValueError("Invalid idempotency key")
                 return existing_order
 
         identity_filters = [Cart.store_id == store_id]
@@ -84,7 +99,7 @@ class OrderService:
         order_items = []
 
         # بررسی محصولات و موجودی قبل از ایجاد سفارش
-        for cart_item in cart.items:
+        for cart_item in sorted(cart.items, key=lambda item: item.product_id):
             product = db.scalar(
                 select(Product)
                 .where(Product.id == cart_item.product_id)
@@ -148,9 +163,24 @@ class OrderService:
             conversation.checkout_state = "completed"
 
         # کاهش موجودی و اتصال اقلام به سفارش
-        for cart_item, order_item in zip(cart.items, order_items):
-            cart_item.product.stock -= cart_item.quantity
-            cart_item.product.reserved_stock += cart_item.quantity
+        for cart_item, order_item in zip(
+            sorted(cart.items, key=lambda item: item.product_id), order_items
+        ):
+            result = db.execute(
+                update(Product)
+                .where(
+                    Product.id == cart_item.product_id,
+                    Product.stock >= cart_item.quantity,
+                )
+                .values(
+                    stock=Product.stock - cart_item.quantity,
+                    reserved_stock=Product.reserved_stock + cart_item.quantity,
+                )
+            )
+            if result.rowcount != 1:
+                raise ValueError(
+                    f"Insufficient stock for product '{order_item.product_name}'"
+                )
             order.items.append(order_item)
 
         # حذف اقلام سبد خرید
@@ -261,14 +291,7 @@ class OrderService:
         order.status = "cancelled"
         order.cancelled_at = datetime.now(timezone.utc)
 
-        # بازگرداندن موجودی محصولات
-        for item in order.items:
-            if item.product_id is not None:
-                product = db.get(Product, item.product_id)
-
-                if product is not None:
-                    product.stock += item.quantity
-                    product.reserved_stock = max(0, product.reserved_stock - item.quantity)
+        OrderService.release_order_stock(db, order)
 
         db.commit()
         db.refresh(order)

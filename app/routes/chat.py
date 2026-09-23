@@ -1,4 +1,5 @@
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -265,9 +266,10 @@ def chat(
                     customer_name=conversation.checkout_customer_name or "",
                     customer_phone=conversation.checkout_customer_phone or "",
                     customer_address=conversation.checkout_customer_address or "",
-                    idempotency_key=f"conversation:{conversation.id}",
+                    idempotency_key=conversation.checkout_idempotency_key,
                 )
                 conversation.checkout_state = "completed"
+                conversation.checkout_idempotency_key = None
                 conversation.last_order_id = order.id
                 answer = _order_confirmation(order)
             else:
@@ -289,6 +291,7 @@ def chat(
                 conversation.checkout_customer_address,
             )):
                 conversation.checkout_state = "awaiting_confirmation"
+                conversation.checkout_idempotency_key = uuid.uuid4().hex
                 cart = get_cart(db, store_id=store_id, guest_token=guest_token)
                 answer = (
                     f"اطلاعات دریافت شد.\n{cart_summary(cart)}\n"
@@ -342,6 +345,7 @@ def chat(
                 conversation.checkout_customer_address = fields.get("address")
                 if all(fields.get(key) for key in ("name", "phone", "address")):
                     conversation.checkout_state = "awaiting_confirmation"
+                    conversation.checkout_idempotency_key = uuid.uuid4().hex
                     answer = f"{cart_summary(cart)}\nآیا سفارش را ثبت کنم؟"
                 else:
                     conversation.checkout_state = "awaiting_customer"

@@ -35,7 +35,7 @@ def extract_quantity(text: str) -> int | None:
     for phrase, quantity in sorted(_QUANTITY_WORDS.items(), key=lambda item: -len(item[0])):
         if re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", normalized):
             return quantity
-    match = re.search(r"(?<!\w)(-?\d{1,3})\s*(?:عدد|تا)?(?!\w)", normalized)
+    match = re.search(r"(?<!\w)(\d{1,3})\s*(?:عدد|تا|دانه)(?!\w)", normalized)
     if match:
         return int(match.group(1))
     return None
@@ -123,7 +123,11 @@ def extract_customer_fields(text: str) -> dict[str, str]:
     phone = re.search(r"(?:09|\+989)\d{9,10}", normalize_digits(normalized))
     if phone:
         fields["phone"] = phone.group(0)
-    name = re.search(r"(?:نام|اسم)\s*(?:من|:)?\s*([^,،\n]+)", normalized, re.IGNORECASE)
+    name = re.search(
+        r"(?:^|[,،\n])\s*(?:نام|اسم)\s*(?:من|:)?\s*([^,،\n]+)",
+        normalized,
+        re.IGNORECASE,
+    )
     if name:
         fields["name"] = name.group(1).strip()
     address = re.search(r"آدرس\s*(?:من|:)?\s*([^\n]+)", normalized, re.IGNORECASE)
@@ -133,5 +137,6 @@ def extract_customer_fields(text: str) -> dict[str, str]:
 
 
 def is_confirmation(text: str) -> bool:
-    normalized = " ".join(text.strip().lower().split())
+    normalized = re.sub(r"[،,!؟؟.!؛;:]", " ", text.strip().lower())
+    normalized = " ".join(normalized.split())
     return normalized in {"بله", "بله ثبت کن", "ثبت کن", "تایید", "تأیید", "yes", "confirm"}

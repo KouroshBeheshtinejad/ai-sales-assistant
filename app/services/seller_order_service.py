@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Order, Store
+from app.services.order_service import OrderService
 
 
 class SellerOrderService:
@@ -110,6 +111,8 @@ class SellerOrderService:
                 f"to '{new_status}'"
             )
 
+        if new_status == "cancelled":
+            OrderService.release_order_stock(db, order)
         order.status = new_status
 
         db.commit()

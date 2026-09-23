@@ -85,6 +85,8 @@ class PaymentService:
         order = db.scalar(select(Order).where(Order.id == order_id))
         if order is None or (user_id is not None and order.user_id != user_id) or (user_id is None and order.guest_token != guest_token):
             raise ValueError("Order not found")
+        if order.status != "pending":
+            raise ValueError("Only pending orders can be paid")
 
         existing = db.scalar(select(Payment).where(Payment.order_id == order_id, Payment.idempotency_key == idempotency_key))
         if existing is not None:
@@ -110,7 +112,12 @@ class PaymentService:
 
     @staticmethod
     def verify_payment(db: Session, payment_id: int, authority: str, user_id: int | None = None, guest_token: str | None = None) -> Payment:
-        payment = db.scalar(select(Payment).options(joinedload(Payment.order)).where(Payment.id == payment_id))
+        payment = db.scalar(
+            select(Payment)
+            .options(joinedload(Payment.order))
+            .where(Payment.id == payment_id)
+            .with_for_update()
+        )
         if payment is None or (user_id is not None and payment.order.user_id != user_id) or (user_id is None and payment.order.guest_token != guest_token):
             raise ValueError("Payment not found")
         if payment.authority != authority:
@@ -121,6 +128,7 @@ class PaymentService:
         provider = get_payment_provider()
         result = provider.verify_payment(amount=payment.amount, authority=authority)
         payment.status = "paid"
+        payment.order.status = "confirmed"
         payment.transaction_id = result["transaction_id"]
         payment.paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
         for item in payment.order.items:

@@ -142,6 +142,44 @@ def test_create_order_clears_cart(db, test_data):
     assert cart.items == []
 
 
+def test_same_checkout_key_does_not_reuse_order_after_cart_is_recreated(db, test_data):
+    add_product_to_cart(db, test_data, quantity=1)
+    first_order = OrderService.create_order(
+        db=db,
+        user_id=test_data["user"].id,
+        store_id=test_data["store"].id,
+        customer_name="Ali Ahmadi",
+        customer_phone="09120000000",
+        customer_address="Tehran, Iran",
+        idempotency_key="checkout-attempt-1",
+    )
+
+    add_product_to_cart(db, test_data, quantity=1)
+    second_order = OrderService.create_order(
+        db=db,
+        user_id=test_data["user"].id,
+        store_id=test_data["store"].id,
+        customer_name="Ali Ahmadi",
+        customer_phone="09120000000",
+        customer_address="Tehran, Iran",
+        idempotency_key="checkout-attempt-2",
+    )
+
+    assert second_order.id != first_order.id
+
+    retried_order = OrderService.create_order(
+        db=db,
+        user_id=test_data["user"].id,
+        store_id=test_data["store"].id,
+        customer_name="Ali Ahmadi",
+        customer_phone="09120000000",
+        customer_address="Tehran, Iran",
+        idempotency_key="checkout-attempt-2",
+    )
+
+    assert retried_order.id == second_order.id
+
+
 def test_reject_empty_cart(db, test_data):
     with pytest.raises(ValueError, match="Cart is empty"):
         create_order(db, test_data)

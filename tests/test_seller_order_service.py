@@ -247,6 +247,29 @@ def test_seller_can_update_order_status(db):
     assert updated_order.status == "confirmed"
 
 
+def test_seller_cancellation_releases_reserved_stock(db):
+    seller = create_user(db, "seller-cancel@example.com")
+    customer = create_user(db, "customer-cancel@example.com")
+    store = create_store(db, seller.id)
+    product = create_product(db, store.id)
+    product.stock = 9
+    product.reserved_stock = 1
+    db.commit()
+    order = create_order(db, customer.id, store.id, product)
+
+    cancelled = SellerOrderService.update_status(
+        db=db,
+        seller_id=seller.id,
+        order_id=order.id,
+        new_status="cancelled",
+    )
+
+    db.refresh(product)
+    assert cancelled.status == "cancelled"
+    assert product.stock == 10
+    assert product.reserved_stock == 0
+
+
 def test_seller_cannot_make_invalid_status_transition(db):
     seller = create_user(db, "seller@example.com")
     customer = create_user(db, "customer@example.com")

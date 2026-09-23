@@ -221,6 +221,13 @@ class KnowledgeBaseEntry(Base):
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = (
+        CheckConstraint("stock >= 0", name="ck_products_stock_nonnegative"),
+        CheckConstraint(
+            "reserved_stock >= 0",
+            name="ck_products_reserved_stock_nonnegative",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
@@ -384,6 +391,9 @@ class Conversation(Base):
     )
     checkout_customer_address: Mapped[str | None] = mapped_column(
         Text, nullable=True,
+    )
+    checkout_idempotency_key: Mapped[str | None] = mapped_column(
+        String(128), nullable=True,
     )
     last_order_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True,
@@ -550,7 +560,13 @@ class Order(Base):
     __tablename__ = "orders"
 
     __table_args__ = (
-        UniqueConstraint("idempotency_key", name="uq_orders_idempotency_key"),
+        UniqueConstraint(
+            "store_id",
+            "user_id",
+            "guest_token",
+            "idempotency_key",
+            name="uq_orders_scoped_idempotency",
+        ),
         CheckConstraint(
             "(user_id IS NOT NULL) OR (guest_token IS NOT NULL)",
             name="ck_orders_identity",
