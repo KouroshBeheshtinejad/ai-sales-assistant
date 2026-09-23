@@ -1,9 +1,9 @@
 # ai-sales-assistant
 AI-powered sales assistant for small businesses and online stores.
 
-## Public Store Chat MVP
+## Public Store Chat
 
-Each store has a public, read-only chat page at `/public/stores/{store_id}` and a
+Each store has a public chat page at `/public/stores/{store_id}` and a
 JSON endpoint at `POST /public/stores/{store_id}/chat`. The request body is:
 
 ```json
@@ -14,7 +14,7 @@ The response contains `success` and `answer`. Retrieval searches active FAQs,
 Knowledge Base entries, and products belonging only to the requested store. It
 uses lexical matching by default and can optionally use the hybrid embedding
 index described below. Product price and stock always come directly from the
-database. No chat history or customer account is used.
+database. Conversations retain recent history and can drive guest cart checkout.
 
 ### Optional hybrid retrieval
 
@@ -69,7 +69,7 @@ address and store per `60` seconds. They can be changed with
 is process-local, so it is not shared across workers or instances.
 
 The current Store schema has no publication or visibility field. Consequently,
-existing and new stores are public to the read-only chat page by design in this
+existing and new stores are public to the chat page by design in this
 MVP. Making a store private requires a separate reviewed schema migration and a
 default policy for existing stores; no such migration is applied here.
 
