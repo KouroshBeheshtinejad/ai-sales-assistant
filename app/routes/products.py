@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,7 @@ from app.db.database import get_db
 from app.db.models import Product, Store, User
 from app.routes.auth import get_current_user
 from app.services.cloudinary_service import delete_image, upload_image
+from app.services.image_validation import validate_image_content
 from app.services.semantic_index import (
     SOURCE_PRODUCT,
     safely_discard_semantic_document,
@@ -73,7 +75,7 @@ def _product_response(product: Product, message: str | None = None):
         "description": product.description,
         "image_url": product.image_url,
         "price": product.price,
-        "stock": product.stock,
+        "stock": product.stock - product.reserved_stock,
         "reserved_stock": product.reserved_stock,
         "size": product.size,
         "color": product.color,
@@ -164,10 +166,19 @@ async def upload_product_image(
             detail="Image is too large",
         )
 
+    try:
+        validate_image_content(content)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=str(exc),
+        ) from exc
+
     old_image_url = product.image_url
 
     try:
-        image_url = upload_image(
+        image_url = await run_in_threadpool(
+            upload_image,
             content,
             public_id=f"product_{product.id}",
             folder="nava/products",
@@ -183,7 +194,7 @@ async def upload_product_image(
     db.refresh(product)
 
     if old_image_url and old_image_url.startswith("/uploads/products/"):
-        _remove_product_image(old_image_url)
+        await run_in_threadpool(_remove_product_image, old_image_url)
 
     return _product_response(
         product,

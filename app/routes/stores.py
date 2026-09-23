@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,7 @@ from app.db.database import get_db
 from app.db.models import Store, User
 from app.routes.auth import get_current_user
 from app.services.cloudinary_service import delete_image, upload_image
+from app.services.image_validation import validate_image_content
 
 
 router = APIRouter(
@@ -235,10 +237,19 @@ async def upload_store_logo(
             detail="Image is too large",
         )
 
+    try:
+        validate_image_content(content)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=str(exc),
+        ) from exc
+
     old_logo_url = store.logo_url
 
     try:
-        logo_url = upload_image(
+        logo_url = await run_in_threadpool(
+            upload_image,
             content,
             public_id=f"store_{store.id}",
             folder="nava/stores",
@@ -254,7 +265,7 @@ async def upload_store_logo(
     db.refresh(store)
 
     if old_logo_url and old_logo_url.startswith("/uploads/stores/"):
-        _remove_store_logo(old_logo_url)
+        await run_in_threadpool(_remove_store_logo, old_logo_url)
 
     return {
         "store_id": store.id,

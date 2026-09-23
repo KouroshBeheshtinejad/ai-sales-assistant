@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import SECRET_KEY
 from app.db.models import User, VerificationCode
+from app.services.notification_service import get_email_provider, get_sms_provider
 
 
 OTP_EXPIRY_MINUTES = 10
@@ -42,8 +43,17 @@ def issue_code(db: Session, user: User, channel: str) -> str:
     db.add(record)
     db.commit()
     provider = os.getenv("OTP_PROVIDER", "disabled").casefold()
-    if provider == "log" and os.getenv("APP_ENV", "development").casefold() not in {"production", "prod"}:
-        print(f"OTP {channel} for {target}: {code}")
+    if provider == "email":
+        get_email_provider().send(
+            email=user.email,
+            subject="NAVA verification code",
+            message=f"Your NAVA verification code is {code}.",
+        )
+    elif provider == "sms" and user.phone:
+        get_sms_provider().send(
+            phone=user.phone,
+            message=f"NAVA verification code: {code}",
+        )
     return code
 
 

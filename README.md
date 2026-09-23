@@ -58,15 +58,14 @@ error and does not expose provider details. Existing stores are treated as publi
 in this MVP because the current schema has no publication flag; adding one is a
 separate product decision and migration.
 
-This MVP does not include distributed rate limiting. It limits question length,
-retrieved context size, and provider timeout, but production abuse protection
-should be added before exposing the endpoint at scale.
+The development fallback uses process-local rate limiting. Production deployments
+must add a shared gateway or Redis policy for multiple workers.
 
 The initial in-memory rate-limit settings are `20` requests per direct client
 address and store per `60` seconds. They can be changed with
 `AI_CHAT_RATE_LIMIT_REQUESTS`, `AI_CHAT_RATE_LIMIT_WINDOW_SECONDS`, and
-`AI_CHAT_RATE_LIMIT_MAX_KEYS`. The limiter does not trust forwarded headers and
-is process-local, so it is not shared across workers or instances.
+`AI_CHAT_RATE_LIMIT_MAX_KEYS`. Configure a shared edge limit for multi-worker
+deployments.
 
 The current Store schema has no publication or visibility field. Consequently,
 existing and new stores are public to the chat page by design in this
@@ -136,12 +135,10 @@ development and binds it to loopback. It requires database variables from the
 environment and is not a complete production deployment definition.
 
 Health endpoints are `/health/live` for process liveness and `/health/ready`
-for database readiness. The existing `/health/db` endpoint remains available
-for database diagnostics.
+for database readiness. Detailed `/health/db` diagnostics require authentication.
 
-The chat limiter remains process-local by design. For multiple workers or
-instances, enforce a shared limit at the reverse proxy or API gateway first; a
-shared store such as Redis requires separate approval and infrastructure work.
+The chat limiter remains process-local as the development fallback. For multiple
+workers or instances, enforce a shared limit at the reverse proxy or API gateway.
 
 ## NAVA product package
 

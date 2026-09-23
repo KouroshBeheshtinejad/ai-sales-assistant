@@ -242,7 +242,7 @@ def _has_conflicting_information(context: RetrievedContext) -> bool:
         for record in records:
             key = normalize_for_search(str(getattr(record, key_field) or ""))
             if isinstance(record, Product):
-                value = f"{record.price}|{record.stock}"
+                value = f"{record.price}|{record.stock - record.reserved_stock}"
             else:
                 value = str(getattr(record, value_field) or "").strip()
             values_by_key.setdefault(key, set()).add(value)
@@ -609,6 +609,6 @@ def format_context(context: RetrievedContext, max_chars: int = 5000) -> str:
             sections.append(
                 f"SOURCE: PRODUCT\n- {match.record.name}: "
                 f"{match.record.description or 'No description'}; "
-                f"price={match.record.price}; stock={match.record.stock}"
+                f"price={match.record.price}; stock={match.record.stock - match.record.reserved_stock}"
             )
     return "\n\n".join(sections)[:max_chars]

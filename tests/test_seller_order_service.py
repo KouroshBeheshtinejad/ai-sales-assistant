@@ -14,7 +14,6 @@ from app.db.models import (
     Store,
     User,
 )
-from app.services.order_service import OrderService
 from app.services.seller_order_service import SellerOrderService
 
 
@@ -252,7 +251,7 @@ def test_seller_cancellation_releases_reserved_stock(db):
     customer = create_user(db, "customer-cancel@example.com")
     store = create_store(db, seller.id)
     product = create_product(db, store.id)
-    product.stock = 9
+    product.stock = 10
     product.reserved_stock = 1
     db.commit()
     order = create_order(db, customer.id, store.id, product)

@@ -46,7 +46,7 @@ def dashboard(
 
     # Total stock across all user's stores
     total_stock_count = (
-        db.query(func.coalesce(func.sum(Product.stock), 0))
+        db.query(func.coalesce(func.sum(Product.stock - Product.reserved_stock), 0))
         .join(Store)
         .filter(Store.owner_id == current_user.id)
         .scalar()
@@ -72,7 +72,7 @@ def dashboard(
 
         # Total stock in this store
         store_total_stock = (
-            db.query(func.coalesce(func.sum(Product.stock), 0))
+            db.query(func.coalesce(func.sum(Product.stock - Product.reserved_stock), 0))
             .filter(Product.store_id == store.id)
             .scalar()
         )

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
@@ -7,6 +7,7 @@ from app.db.models import User
 from app.routes.auth import get_current_user, get_optional_user
 from app.services.order_service import OrderService
 from app.services.invoice_service import render_invoice_pdf
+from app.services.chat_rate_limit import enforce_tracking_rate_limit
 
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
@@ -64,8 +65,10 @@ def order_response(order):
 @router.get("/track/{tracking_number}")
 def track_order(
     tracking_number: str,
+    request: Request,
     db: Session = Depends(get_db),
 ):
+    enforce_tracking_rate_limit(request)
     order = OrderService.get_order_by_tracking_number(db, tracking_number)
     if order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")

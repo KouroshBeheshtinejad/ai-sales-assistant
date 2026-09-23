@@ -96,7 +96,7 @@ class CartService:
         if not product.is_active:
             raise ValueError("Product is not active.")
 
-        if product.stock < quantity:
+        if product.stock - product.reserved_stock < quantity:
             raise ValueError("Insufficient stock.")
 
         cart = CartService.get_or_create_cart(
@@ -129,7 +129,7 @@ class CartService:
                 raise ValueError(
                     f"Quantity must be between 1 and {MAX_CART_QUANTITY}."
                 )
-            if new_quantity > product.stock:
+            if new_quantity > product.stock - product.reserved_stock:
                 raise ValueError("Insufficient stock.")
 
             item.quantity = new_quantity
@@ -187,7 +187,7 @@ class CartService:
         if product.store_id != store_id or not product.is_active:
             raise ValueError("Product is not available in this store.")
 
-        if product.stock < quantity:
+        if product.stock - product.reserved_stock < quantity:
             raise ValueError("Insufficient stock.")
 
         item.quantity = quantity

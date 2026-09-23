@@ -569,6 +569,8 @@ async def update_product_from_form(
     product.name = name
     product.description = description
     product.price = price
+    if stock < product.reserved_stock:
+        raise HTTPException(status_code=400, detail="Stock cannot be below reserved inventory")
     product.stock = stock
     product.size = size
     product.color = color

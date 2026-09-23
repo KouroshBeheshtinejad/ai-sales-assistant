@@ -2,7 +2,7 @@
 
 ## محلی / Docker
 
-فایل `.env.example` را به `.env` تبدیل کنید و مقادیر امن بدهید، سپس `docker compose up -d --build` را اجرا کنید. سرویس application قبل از startup، `alembic upgrade head` را اجرا می‌کند. برای اجرای مستقیم برنامه: `uvicorn app.main:app --host 0.0.0.0 --port 8000`. برای production از `Dockerfile` بدون reload و پشت reverse proxy با HTTPS استفاده کنید.
+فایل `.env.example` را به `.env` تبدیل کنید و مقادیر امن بدهید، سپس `docker compose up -d --build` را اجرا کنید. سرویس `migrate` قبل از application، `alembic upgrade head` را اجرا می‌کند و application تا موفقیت آن منتظر می‌ماند. برای اجرای مستقیم برنامه: `uvicorn app.main:app --host 0.0.0.0 --port 8000`. برای production از `Dockerfile` بدون reload و پشت reverse proxy با HTTPS استفاده کنید.
 
 ## کنترل‌های production
 
@@ -16,4 +16,4 @@
 
 Migrationها در release step جداگانه با `alembic upgrade head` اجرا شوند. قبل از migration یا release از PostgreSQL dump بگیرید. دامنه، HTTPS، cookie امن و محدودیت rate در reverse proxy باید فعال باشد.
 
-این مخزن در محیط فعلی به اینترنت deploy نشده است و وضعیت آن `READY FOR DEPLOYMENT` است.
+این مخزن در محیط فعلی به اینترنت deploy نشده است؛ قبل از production باید credentialهای provider، backup/restore و migration smoke test محیط مقصد تأیید شوند.

@@ -105,6 +105,14 @@ def test_unauthenticated_guest_chat_to_order_and_seller_visibility(client):
     assert details.status_code == 200
     assert "آیا سفارش را ثبت کنم" in details.json()["answer"]
 
+    unrelated = client.post(
+        f"/public/stores/{store_id}/chat",
+        headers=headers,
+        json={"question": "قوانین ارسال چیست؟"},
+    )
+    assert unrelated.status_code == 200
+    assert "No matching information" in unrelated.json()["answer"]
+
     confirmed = client.post(
         f"/public/stores/{store_id}/chat",
         headers=headers,
@@ -125,7 +133,7 @@ def test_unauthenticated_guest_chat_to_order_and_seller_visibility(client):
     stored_product = db.get(models.Product, product_id)
     assert order.total_amount == Decimal("4900000.00")
     assert order.items[0].quantity == 2
-    assert stored_product.stock == 3
+    assert stored_product.stock == 5
     order_id = order.id
     db.close()
 

@@ -1,7 +1,6 @@
 import jwt
 import hashlib
 import hmac
-import logging
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -25,10 +24,8 @@ from app.core.security import (
     verify_password,
 )
 from app.services.chat_rate_limit import enforce_auth_rate_limit
+from app.services.notification_service import get_email_provider
 from app.services.verification_service import issue_code, verify_code
-
-
-logger = logging.getLogger(__name__)
 
 
 router = APIRouter(
@@ -263,8 +260,13 @@ def request_password_reset(data: PasswordResetRequest, request: Request, db: Ses
             expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=15),
         ))
         db.commit()
-        if os.getenv("PASSWORD_RESET_PROVIDER", "disabled").casefold() == "log" and os.getenv("APP_ENV", "development").casefold() not in {"production", "prod"}:
-            logger.info("Password reset token issued for %s: %s", user.email, raw_token)
+        if os.getenv("EMAIL_PROVIDER", "disabled").casefold() == "smtp":
+            public_url = os.getenv("APP_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+            get_email_provider().send(
+                email=user.email,
+                subject="NAVA password reset",
+                message=f"Reset your password at {public_url}/reset-password?token={raw_token}",
+            )
     return {"message": "If the account exists, reset instructions will be sent."}
 
 
@@ -341,22 +343,27 @@ def _user_from_token(token: str, db: Session) -> User:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),
     db: Session = Depends(get_db),
 ):
-    token = credentials.credentials
+    token = credentials.credentials if credentials else request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     return _user_from_token(token, db)
 
 
 def get_optional_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),
     db: Session = Depends(get_db),
 ):
-    if credentials is None:
+    token = credentials.credentials if credentials else request.cookies.get("access_token")
+    if not token:
         return None
 
-    return _user_from_token(credentials.credentials, db)
+    return _user_from_token(token, db)
 
 
 @router.get("/me")

@@ -77,7 +77,7 @@ def search_products(
                 "name": product.name,
                 "description": product.description,
                 "price": price_value,
-                "stock": product.stock,
+                "stock": product.stock - product.reserved_stock,
                 "size": product.size,
                 "color": product.color,
                 "attributes": product.attributes or {},

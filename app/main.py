@@ -1,9 +1,10 @@
 import logging
 import re
+from contextlib import asynccontextmanager
 from html import escape
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -11,10 +12,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.core.config import allowed_hosts
+from app.core.config import allowed_hosts, validate_production_configuration
 from app.core.csrf import ensure_csrf_token, set_csrf_cookie
 from app.db.database import SessionLocal, engine
-from app.db import models
 from app.db.models import Product, Store
 from app.routes.auth import router as auth_router
 from app.routes.store_management import router as store_management_router
@@ -30,10 +30,18 @@ from app.routes.seller_orders import router as seller_orders_router
 from app.routes.conversations import router as conversations_router
 from app.routes.business_types import router as business_types_router
 from app.routes.payments import router as payments_router
+from app.routes.auth import get_current_user
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    validate_production_configuration()
+    yield
+
 
 app = FastAPI(
     title="AI Sales Assistant",
     version="0.1.0",
+    lifespan=lifespan,
 )
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts())
 logger = logging.getLogger(__name__)
@@ -106,6 +114,25 @@ app.include_router(seller_orders_router)
 app.include_router(conversations_router)
 app.include_router(business_types_router)
 app.include_router(payments_router)
+
+# Versioned API surface. The unprefixed routes above remain compatibility
+# aliases for server-rendered forms and existing integrations.
+for api_router in (
+    auth_router,
+    store_management_router,
+    stores_router,
+    products_router,
+    faqs_router,
+    knowledge_base_router,
+    chat_router,
+    cart_router,
+    order_router,
+    seller_orders_router,
+    conversations_router,
+    business_types_router,
+    payments_router,
+):
+    app.include_router(api_router, prefix="/api")
 
 if frontend_dist.is_dir():
     app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="frontend_assets")
@@ -225,7 +252,7 @@ async def react_seller_detail_route():
 
 
 @app.get("/health/db")
-async def database_health():
+async def database_health(_current_user=Depends(get_current_user)):
     with engine.connect() as connection:
         result = connection.execute(text("SELECT 1"))
         return {

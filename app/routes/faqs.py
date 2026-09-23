@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import FAQ, Store, User
+from app.db.models import FAQ, User
 from app.routes.auth import get_current_user
 from app.services.knowledge_service import get_faq_for_store_or_404, get_store_or_404
 from app.services.semantic_index import (

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { clearToken, getToken, isTokenValid, setToken, subscribe, tokenExpiry } from './session'
+import { api } from './api'
 
 const AuthContext = createContext(null)
 
@@ -9,10 +10,14 @@ export function AuthProvider({ children }) {
   const token = isTokenValid(stored) ? stored : null
 
   useEffect(() => {
+    api.me().then(() => setToken()).catch(() => clearToken())
+  }, [])
+
+  useEffect(() => {
     if (stored && !token) { clearToken(); return undefined }
     const expiry = token && tokenExpiry(token)
     if (!expiry) return undefined
-    const timer = setTimeout(clearToken, Math.max(0, expiry - Date.now())) // tokens live 60 minutes
+    const timer = setTimeout(clearToken, Math.max(0, expiry - Date.now()))
     return () => clearTimeout(timer)
   }, [stored, token])
 

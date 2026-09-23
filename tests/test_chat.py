@@ -10,7 +10,6 @@ from app.core.security import hash_password
 from app.db import models
 from app.db.database import Base, get_db
 from app.main import app
-from app.routes import chat as chat_route
 from app.routes.chat import ChatRequest
 from app.services import chat_retrieval
 from app.services.chat_retrieval import format_context, retrieve_store_context

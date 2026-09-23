@@ -227,6 +227,10 @@ class Product(Base):
             "reserved_stock >= 0",
             name="ck_products_reserved_stock_nonnegative",
         ),
+        CheckConstraint(
+            "reserved_stock <= stock",
+            name="ck_products_reserved_lte_stock",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

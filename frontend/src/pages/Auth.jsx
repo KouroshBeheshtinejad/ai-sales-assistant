@@ -63,7 +63,7 @@ export default function AuthPage({ initial }) {
   const go = (nextStep, message = '') => { setStep(nextStep); setInfo(message) }
   const finishLogin = async (email, password) => {
     const data = await api.login({ email, password })
-    signIn(data.access_token)
+    signIn()
     navigate(next, { replace: true })
   }
 

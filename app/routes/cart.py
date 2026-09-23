@@ -41,6 +41,7 @@ def _cart_response(cart):
                 "product_name": item.product.name,
                 "unit_price": unit_price,
                 "quantity": item.quantity,
+                "stock": item.product.stock - item.product.reserved_stock,
                 "line_total": line_total,
             }
         )

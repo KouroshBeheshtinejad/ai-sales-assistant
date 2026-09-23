@@ -5,8 +5,12 @@
 روی میزبان PostgreSQL:
 
 ```bash
-pg_dump --format=custom --file=nava-$(date +%F).dump "$DATABASE_URL"
+pg_dump --format=custom --file=nava-$(date +%F).dump "$PGDUMP_DATABASE_URL"
 ```
+
+`pg_dump` و `pg_restore` به URL خام PostgreSQL نیاز دارند؛ URL SQLAlchemy با پسوند
+درایور مانند `postgresql+psycopg2://...` معتبر نیست. مقدار `PGDUMP_DATABASE_URL`
+را بدون `+psycopg2` یا با `-h/-U/-d` تنظیم کنید.
 
 فایل dump را خارج از سرور اصلی و با دسترسی محدود نگه دارید. `.env` را در مخزن commit نکنید؛ secretها را جداگانه و امن نگه دارید.
 

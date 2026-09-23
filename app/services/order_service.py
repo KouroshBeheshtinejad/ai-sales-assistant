@@ -21,7 +21,6 @@ class OrderService:
                 continue
             product = db.get(Product, item.product_id)
             if product is not None:
-                product.stock += item.quantity
                 product.reserved_stock -= item.quantity
 
     @staticmethod
@@ -62,6 +61,7 @@ class OrderService:
             )
             if conversation is None:
                 raise ValueError("Guest token is not valid for this store")
+            assert conversation is not None
 
         if idempotency_key:
             existing_order = db.scalar(
@@ -77,6 +77,9 @@ class OrderService:
             )
             if existing_order is not None:
                 return existing_order
+
+        if guest_token:
+            assert conversation is not None
 
         identity_filters = [Cart.store_id == store_id]
         if user_id is not None:
@@ -117,7 +120,7 @@ class OrderService:
                     f"Product '{product.name}' is inactive"
                 )
 
-            if product.stock < cart_item.quantity:
+            if product.stock - product.reserved_stock < cart_item.quantity:
                 raise ValueError(
                     f"Insufficient stock for product '{product.name}'"
                 )
@@ -159,6 +162,7 @@ class OrderService:
         order.invoice_number = f"INV-{datetime.now(timezone.utc):%Y%m%d}-{order.id:06d}"
 
         if guest_token:
+            assert conversation is not None
             conversation.last_order_id = order.id
             conversation.checkout_state = "completed"
 
@@ -170,14 +174,13 @@ class OrderService:
                 update(Product)
                 .where(
                     Product.id == cart_item.product_id,
-                    Product.stock >= cart_item.quantity,
+                    Product.stock - Product.reserved_stock >= cart_item.quantity,
                 )
                 .values(
-                    stock=Product.stock - cart_item.quantity,
                     reserved_stock=Product.reserved_stock + cart_item.quantity,
                 )
             )
-            if result.rowcount != 1:
+            if getattr(result, "rowcount", 0) != 1:
                 raise ValueError(
                     f"Insufficient stock for product '{order_item.product_name}'"
                 )

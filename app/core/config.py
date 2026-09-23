@@ -84,3 +84,42 @@ def cookie_settings() -> CookieSettings:
     if samesite == "none" and not secure:
         raise RuntimeError("SESSION_COOKIE_SAMESITE=none requires SESSION_COOKIE_SECURE=true")
     return CookieSettings(secure=secure, samesite=samesite, max_age_seconds=60 * 60)
+
+
+def validate_production_configuration() -> None:
+    if not is_production():
+        return
+    secret_key()
+    database_url()
+    allowed_hosts()
+    payment_provider = os.getenv("PAYMENT_PROVIDER", "disabled").strip().casefold()
+    if payment_provider in {"disabled", "mock"}:
+        raise RuntimeError("A real PAYMENT_PROVIDER is required in production")
+    if payment_provider == "zarinpal" and not all(
+        os.getenv(name, "").strip()
+        for name in ("PAYMENT_MERCHANT_ID", "PAYMENT_CALLBACK_URL")
+    ):
+        raise RuntimeError("PAYMENT_MERCHANT_ID and PAYMENT_CALLBACK_URL are required")
+    email_provider = os.getenv("EMAIL_PROVIDER", "disabled").strip().casefold()
+    if email_provider == "disabled":
+        raise RuntimeError("EMAIL_PROVIDER is required in production when registration is enabled")
+    if email_provider == "smtp" and not all(
+        os.getenv(name, "").strip()
+        for name in ("SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM")
+    ):
+        raise RuntimeError("SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM are required")
+    otp_provider = os.getenv("OTP_PROVIDER", "disabled").strip().casefold()
+    if otp_provider == "disabled":
+        raise RuntimeError("OTP_PROVIDER is required in production when registration is enabled")
+    if otp_provider == "email" and email_provider != "smtp":
+        raise RuntimeError("OTP_PROVIDER=email requires EMAIL_PROVIDER=smtp")
+    if otp_provider == "sms" and not os.getenv("SMS_WEBHOOK_URL", "").strip():
+        raise RuntimeError("OTP_PROVIDER=sms requires SMS_WEBHOOK_URL")
+    chat_provider = os.getenv("AI_CHAT_PROVIDER", "disabled").strip().casefold()
+    if chat_provider == "openai" and not os.getenv("AI_CHAT_API_KEY", "").strip():
+        raise RuntimeError("AI_CHAT_API_KEY is required when AI_CHAT_PROVIDER=openai")
+    if not all(
+        os.getenv(name, "").strip()
+        for name in ("CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET")
+    ):
+        raise RuntimeError("Cloudinary configuration is required for production uploads")

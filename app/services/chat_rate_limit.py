@@ -61,6 +61,7 @@ class InMemoryChatRateLimiter:
 
 limiter = InMemoryChatRateLimiter()
 auth_limiter = InMemoryChatRateLimiter()
+tracking_limiter = InMemoryChatRateLimiter()
 
 
 def enforce_chat_rate_limit(request: Request) -> None:
@@ -92,5 +93,28 @@ def enforce_auth_rate_limit(request: Request, action: str) -> None:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many authentication attempts. Please try again later.",
+            headers={"Retry-After": str(int(window_seconds))},
+        )
+
+
+def enforce_tracking_rate_limit(request: Request) -> None:
+    client_host = request.client.host if request.client else "unknown"
+    try:
+        max_requests = max(1, int(os.getenv("TRACKING_RATE_LIMIT_REQUESTS", "30")))
+    except ValueError:
+        max_requests = 30
+    try:
+        window_seconds = max(1.0, float(os.getenv("TRACKING_RATE_LIMIT_WINDOW_SECONDS", "60")))
+    except ValueError:
+        window_seconds = 60.0
+    settings = RateLimitSettings(
+        max_requests=max_requests,
+        window_seconds=window_seconds,
+        max_keys=10000,
+    )
+    if not tracking_limiter.allow(client_host, settings):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many tracking requests. Please try again later.",
             headers={"Retry-After": str(int(window_seconds))},
         )

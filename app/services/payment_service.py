@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import secrets
+import json
+from urllib import request as urllib_request
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Protocol
@@ -65,12 +67,77 @@ class UnconfiguredPaymentProvider:
         self._raise()
 
 
+class ZarinpalPaymentProvider:
+    name = "zarinpal"
+
+    def __init__(self) -> None:
+        try:
+            self.merchant_id = os.environ["PAYMENT_MERCHANT_ID"]
+            self.callback_url = os.environ["PAYMENT_CALLBACK_URL"]
+        except KeyError as exc:
+            raise PaymentProviderNotConfigured("Zarinpal payment configuration is incomplete") from exc
+        self.base_url = os.getenv(
+            "PAYMENT_API_URL",
+            "https://payment.zarinpal.com/pg/v4/payment",
+        ).rstrip("/")
+
+    def _post(self, path: str, payload: dict) -> dict:
+        request = urllib_request.Request(
+            f"{self.base_url}/{path}",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib_request.urlopen(request, timeout=15) as response:
+            return json.loads(response.read())
+
+    def create_payment(self, *, amount: Decimal, order_id: int, callback_url: str | None = None) -> dict:
+        result = self._post(
+            "request.json",
+            {
+                "merchant_id": self.merchant_id,
+                "amount": int(amount),
+                "callback_url": callback_url or self.callback_url,
+                "description": f"NAVA order {order_id}",
+            },
+        )
+        data = result.get("data") or {}
+        if result.get("code") != 100 or not data.get("authority"):
+            raise PaymentProviderNotConfigured("Payment gateway rejected the payment request")
+        authority = data["authority"]
+        return {
+            "authority": authority,
+            "payment_url": f"https://www.zarinpal.com/pg/StartPay/{authority}",
+        }
+
+    def verify_payment(self, *, amount: Decimal, authority: str) -> dict:
+        result = self._post(
+            "verify.json",
+            {
+                "merchant_id": self.merchant_id,
+                "amount": int(amount),
+                "authority": authority,
+            },
+        )
+        data = result.get("data") or {}
+        if result.get("code") not in {100, 101} or not data.get("ref_id"):
+            raise ValueError("Payment verification failed")
+        return {"transaction_id": str(data["ref_id"])}
+
+    def get_status(self, *, authority: str) -> str:
+        return "pending"
+
+    def refund(self, *, transaction_id: str, amount: Decimal) -> dict:
+        raise PaymentProviderNotConfigured("Zarinpal refund requires merchant-specific settlement configuration")
+
 def get_payment_provider() -> PaymentProvider:
     provider = os.getenv("PAYMENT_PROVIDER", "disabled").strip().casefold()
     if provider == "mock":
         if os.getenv("APP_ENV", "development").strip().casefold() in {"production", "prod"}:
             raise PaymentProviderNotConfigured("Mock payment provider is disabled in production")
         return MockPaymentProvider()
+    if provider == "zarinpal":
+        return ZarinpalPaymentProvider()
     return UnconfiguredPaymentProvider()
 
 

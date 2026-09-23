@@ -10,6 +10,7 @@ from app.core.security import create_access_token, hash_password
 from app.db.database import Base, get_db
 from app.db.models import Product, Store, User
 from app.main import app
+from app.services.payment_service import PaymentProviderNotConfigured, get_payment_provider
 
 
 @pytest.fixture()
@@ -77,6 +78,14 @@ def test_payment_requires_configured_provider(payment_context, monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Payment provider is not configured"
+
+
+def test_production_rejects_mock_payment_provider(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+
+    with pytest.raises(PaymentProviderNotConfigured):
+        get_payment_provider()
 
 
 def test_mock_payment_is_idempotent_and_server_verified(payment_context, monkeypatch):

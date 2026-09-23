@@ -63,6 +63,22 @@ def test_production_configuration_requires_explicit_allowed_hosts(monkeypatch):
         config.allowed_hosts()
 
 
+def test_production_configuration_rejects_incomplete_real_providers(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://nava:nava@localhost/nava")
+    monkeypatch.setenv("SECRET_KEY", "x" * 40)
+    monkeypatch.setenv("APP_ALLOWED_HOSTS", "example.com")
+    monkeypatch.setenv("PAYMENT_PROVIDER", "zarinpal")
+    monkeypatch.setenv("EMAIL_PROVIDER", "smtp")
+    monkeypatch.setenv("OTP_PROVIDER", "email")
+    monkeypatch.setenv("CLOUDINARY_CLOUD_NAME", "cloud")
+    monkeypatch.setenv("CLOUDINARY_API_KEY", "key")
+    monkeypatch.setenv("CLOUDINARY_API_SECRET", "secret")
+
+    with pytest.raises(RuntimeError, match="PAYMENT_MERCHANT_ID"):
+        config.validate_production_configuration()
+
+
 def test_cookie_policy_requires_secure_cookies_in_production(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
@@ -199,6 +215,7 @@ def test_logout_revokes_the_authenticated_token(client):
 def test_liveness_and_readiness_checks(client):
     assert client.get("/health/live").json() == {"status": "ok"}
     assert client.get("/health/ready").json() == {"status": "ready"}
+    assert client.get("/health/db").status_code == 401
 
 
 def test_security_headers_are_present(client):
@@ -250,6 +267,15 @@ def test_api_registration_requires_verification_before_login(client):
         "/auth/login",
         json={"email": "verify@example.com", "password": "StrongPass123!"},
     ).status_code == 200
+
+
+def test_versioned_api_alias_is_available(client):
+    response = client.post(
+        "/api/auth/login",
+        json={"email": "missing@example.com", "password": "StrongPass123!"},
+    )
+
+    assert response.status_code == 401
 
 
 def test_password_reset_is_expiring_one_time_and_invalidates_sessions(client):

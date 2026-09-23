@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from decimal import Decimal
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.db.models import Cart, Product
 from app.services.cart_service import CartService

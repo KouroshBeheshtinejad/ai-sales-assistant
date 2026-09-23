@@ -20,18 +20,19 @@ function messageFrom(data) {
 }
 
 async function request(path, { method = 'GET', body, auth = false, guest, headers, blob = false } = {}) {
+  const apiPath = path.startsWith('/api/') ? path : `/api${path}`
   const requestHeaders = { Accept: blob ? 'application/pdf' : 'application/json', ...headers }
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
   if (body !== undefined && !isFormData) requestHeaders['Content-Type'] = 'application/json'
   if (guest) requestHeaders['X-Guest-Token'] = guest
   if (auth) {
     const token = getToken()
-    if (token) requestHeaders.Authorization = `Bearer ${token}`
+    if (token && token !== 'cookie-session') requestHeaders.Authorization = `Bearer ${token}`
   }
 
   let response
   try {
-    response = await fetch(path, { method, headers: requestHeaders, body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body) })
+    response = await fetch(apiPath, { method, headers: requestHeaders, body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body) })
   } catch {
     throw new ApiError('Network error', 0)
   }
@@ -77,6 +78,7 @@ export const api = {
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
   verify: (payload) => request('/auth/verify', { method: 'POST', body: payload }),
   login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
+  me: () => request('/auth/me', { auth: true }),
   requestReset: (email) => request('/auth/password-reset/request', { method: 'POST', body: { email } }),
   confirmReset: (token, newPassword) =>
     request('/auth/password-reset/confirm', { method: 'POST', body: { token, new_password: newPassword } }),

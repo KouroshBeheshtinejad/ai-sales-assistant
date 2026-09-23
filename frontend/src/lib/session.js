@@ -1,11 +1,10 @@
-// Seller session: JWT kept in localStorage (the API only accepts Bearer tokens).
-import { safeStorage } from './util'
-
-const KEY = 'nava_seller_token'
+// The access token is HttpOnly cookie state. Only an in-memory session marker is kept.
+const COOKIE_SESSION = 'cookie-session'
+let active = false
 const listeners = new Set()
 const emit = () => listeners.forEach((fn) => fn())
 
-export const getToken = () => safeStorage.get(KEY)
+export const getToken = () => active ? COOKIE_SESSION : null
 
 export function subscribe(fn) {
   listeners.add(fn)
@@ -16,10 +15,11 @@ export function subscribe(fn) {
   }
 }
 
-export function setToken(token) { safeStorage.set(KEY, token); emit() }
-export function clearToken() { safeStorage.remove(KEY); emit() }
+export function setToken() { active = true; emit() }
+export function clearToken() { active = false; emit() }
 
 export function tokenExpiry(token) {
+  if (token === COOKIE_SESSION) return null
   try {
     const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
     const { exp } = JSON.parse(atob(payload))

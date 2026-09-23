@@ -9,12 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import Product, Store
-from app.services.chat_retrieval import (
-    RetrievedContext,
-    format_context,
-    normalize_for_search,
-    retrieve_store_context,
-)
+from app.services.chat_retrieval import RetrievedContext, normalize_for_search
 from app.services.chat_rate_limit import enforce_chat_rate_limit
 from app.services.sales_agent import SalesAgentService
 from app.services.conversation_service import ConversationService
@@ -31,7 +26,6 @@ from app.services.guest_commerce import (
     resolve_product,
 )
 from app.services.llm_provider import (
-    SYSTEM_PROMPT,
     LLMProvider,
     LLMProviderError,
     get_llm_provider,
@@ -199,7 +193,7 @@ def public_store_catalog(store_id: int, db: Session = Depends(get_db)):
                 "description": product.description,
                 "image_url": product.image_url,
                 "price": str(product.price),
-                "stock": product.stock,
+                "stock": product.stock - product.reserved_stock,
                 "size": product.size,
                 "color": product.color,
                 "attributes": product.attributes or {},

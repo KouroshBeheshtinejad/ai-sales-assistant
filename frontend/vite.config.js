@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // FastAPI serves frontend/dist in production (see app/main.py), so the dev server
 // mirrors that: API calls are proxied, page navigations stay inside the SPA.
 const backend = process.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
-const apiPrefixes = ['/auth', '/stores', '/products', '/cart', '/orders', '/payments', '/public', '/business-types', '/seller', '/health']
+const apiPrefixes = ['/api']
 
 const proxy = Object.fromEntries(
   apiPrefixes.map((prefix) => [
@@ -22,4 +22,7 @@ const proxy = Object.fromEntries(
 export default defineConfig({
   plugins: [react()],
   server: { port: 5173, proxy },
+  test: {
+    environment: 'jsdom',
+  },
 })
