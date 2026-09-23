@@ -40,6 +40,16 @@ def database_url() -> str:
 def secret_key() -> str:
     value = os.getenv("SECRET_KEY")
     if value:
+        if is_production() and (
+            len(value) < 32
+            or value.casefold() in {
+                "replace-with-a-long-random-secret",
+                "replace-with-secret",
+                "change-this-development-secret",
+            }
+            or value.casefold().startswith("replace-with-")
+        ):
+            raise RuntimeError("SECRET_KEY must be a random value of at least 32 characters")
         return value
     if is_production():
         raise RuntimeError("SECRET_KEY must be configured when APP_ENV is production")

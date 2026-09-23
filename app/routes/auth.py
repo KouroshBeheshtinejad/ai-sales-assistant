@@ -1,5 +1,6 @@
 import jwt
 import hashlib
+import hmac
 import logging
 import os
 import secrets
@@ -40,6 +41,11 @@ templates = Jinja2Templates(directory="app/templates")
 
 security = HTTPBearer()
 optional_security = HTTPBearer(auto_error=False)
+_DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing-only")
+
+
+def _normalized_email(email: str) -> str:
+    return email.strip().casefold()
 
 
 def _set_access_token_cookie(response: Response, access_token: str) -> None:
@@ -111,8 +117,14 @@ def login_form(
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf_token),
 ):
-    user = db.query(User).filter(User.email == email).first()
-    if not user or not verify_password(password, user.password_hash):
+    enforce_auth_rate_limit(request, "login-form")
+    normalized_email = _normalized_email(email)
+    user = db.query(User).filter(User.email == normalized_email).first()
+    password_valid = verify_password(
+        password,
+        user.password_hash if user is not None else _DUMMY_PASSWORD_HASH,
+    )
+    if user is None or not password_valid:
         return templates.TemplateResponse(
             request=request,
             name="auth_login.html",
@@ -133,21 +145,34 @@ def register_form(
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf_token),
 ):
+    enforce_auth_rate_limit(request, "register-form")
+    email = _normalized_email(email)
     if len(password) < 8:
         return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": "Password must be at least 8 characters."}, status_code=422)
     if db.query(User).filter(User.email == email).first():
         return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": "An account with this email already exists."}, status_code=400)
-    user = User(email=email, password_hash=hash_password(password))
+    user = User(email=email, password_hash=hash_password(password), is_verified=False)
     db.add(user)
     db.commit()
-    access_token = create_access_token(user.id, user.token_version)
-    redirect = RedirectResponse(url="/dashboard", status_code=303)
-    _set_access_token_cookie(redirect, access_token)
+    issue_code(db, user, "email")
+    redirect = RedirectResponse(url="/auth/login", status_code=303)
     return redirect
 
 
 @router.post("/logout", include_in_schema=False)
-def logout(_: None = Depends(require_csrf_token)):
+def logout(
+    request: Request,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf_token),
+):
+    """Revoke the current session before clearing its browser cookie."""
+    try:
+        user = get_current_user_from_cookie(request=request, db=db)
+    except HTTPException:
+        user = None
+    if user is not None:
+        user.token_version += 1
+        db.commit()
     response = RedirectResponse(url="/auth/login", status_code=303)
     response.delete_cookie("access_token")
     return response
@@ -160,9 +185,10 @@ def register(
     db: Session = Depends(get_db),
 ):
     enforce_auth_rate_limit(request, "register")
+    normalized_email = _normalized_email(str(data.email))
     existing_user = (
         db.query(User)
-        .filter(User.email == data.email)
+        .filter(User.email == normalized_email)
         .first()
     )
 
@@ -173,7 +199,7 @@ def register(
         )
 
     user = User(
-        email=data.email,
+        email=normalized_email,
         first_name=data.first_name,
         last_name=data.last_name,
         phone=data.phone,
@@ -199,8 +225,9 @@ def register(
 
 
 @router.post("/verify")
-def verify_account(data: VerifyAccountRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == data.email).first()
+def verify_account(request: Request, data: VerifyAccountRequest, db: Session = Depends(get_db)):
+    enforce_auth_rate_limit(request, "verify")
+    user = db.query(User).filter(User.email == _normalized_email(str(data.email))).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification request")
     email_valid = verify_code(db, user, "email", data.email_code)
@@ -213,13 +240,17 @@ def verify_account(data: VerifyAccountRequest, db: Session = Depends(get_db)):
 
 
 def _reset_hash(token: str) -> str:
-    return hashlib.sha256(f"{token}:{SECRET_KEY}".encode()).hexdigest()
+    return hmac.new(
+        SECRET_KEY.encode(),
+        token.encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 @router.post("/password-reset/request")
 def request_password_reset(data: PasswordResetRequest, request: Request, db: Session = Depends(get_db)):
     enforce_auth_rate_limit(request, "password-reset")
-    user = db.query(User).filter(User.email == data.email).first()
+    user = db.query(User).filter(User.email == _normalized_email(str(data.email))).first()
     if user is not None:
         db.query(PasswordResetToken).filter(
             PasswordResetToken.user_id == user.id,
@@ -238,7 +269,8 @@ def request_password_reset(data: PasswordResetRequest, request: Request, db: Ses
 
 
 @router.post("/password-reset/confirm")
-def confirm_password_reset(data: PasswordResetConfirmRequest, db: Session = Depends(get_db)):
+def confirm_password_reset(request: Request, data: PasswordResetConfirmRequest, db: Session = Depends(get_db)):
+    enforce_auth_rate_limit(request, "password-reset-confirm")
     record = db.query(PasswordResetToken).filter(
         PasswordResetToken.token_hash == _reset_hash(data.token),
         PasswordResetToken.used_at.is_(None),
@@ -263,7 +295,7 @@ def login(
     enforce_auth_rate_limit(request, "login")
     user = (
         db.query(User)
-        .filter(User.email == data.email)
+        .filter(User.email == _normalized_email(str(data.email)))
         .first()
     )
 
@@ -293,46 +325,28 @@ def login(
     }
 
 
+def _user_from_token(token: str, db: Session) -> User:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload["sub"])
+    except (jwt.PyJWTError, KeyError, TypeError, ValueError, OverflowError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if payload.get("token_version", 0) != user.token_version:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
+    return user
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ):
     token = credentials.credentials
 
-    try:
-        payload = jwt.decode(
-            token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM],
-        )
-
-        user_id = payload.get("sub")
-
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
-            )
-        user_id = int(user_id)
-
-    except (jwt.PyJWTError, TypeError, ValueError, OverflowError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    user = db.get(User, user_id)
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-
-    if payload.get("token_version", 0) != user.token_version:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
-
-    return user
+    return _user_from_token(token, db)
 
 
 def get_optional_user(
@@ -342,28 +356,7 @@ def get_optional_user(
     if credentials is None:
         return None
 
-    try:
-        payload = jwt.decode(
-            credentials.credentials,
-            SECRET_KEY,
-            algorithms=[ALGORITHM],
-        )
-        user_id = int(payload["sub"])
-    except (jwt.PyJWTError, KeyError, TypeError, ValueError, OverflowError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    user = db.get(User, user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-    if payload.get("token_version", 0) != user.token_version:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
-    return user
+    return _user_from_token(credentials.credentials, db)
 
 
 @router.get("/me")
@@ -398,34 +391,4 @@ def get_current_user_from_cookie(
             detail="Not authenticated",
         )
 
-    try:
-        payload = jwt.decode(
-            token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM],
-        )
-
-        user_id = payload.get("sub")
-
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
-            )
-        user_id = int(user_id)
-
-    except (jwt.PyJWTError, TypeError, ValueError, OverflowError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    user = db.get(User, user_id)
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-
-    return user
+    return _user_from_token(token, db)

@@ -85,7 +85,7 @@ class User(Base):
     last_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), unique=True, index=True, nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255))
-    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="1")
+    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

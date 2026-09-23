@@ -107,11 +107,12 @@ def test_form_csrf_rejects_missing_token_and_accepts_matching_token(client):
 
     assert missing.status_code == 403
     assert valid.status_code == 303
-    assert "access_token" in valid.headers["set-cookie"]
+    assert valid.headers["location"] == "/auth/login"
 
 
 def test_cookie_authenticated_store_form_requires_csrf_token(client):
-    csrf_token = client.get("/auth/register").cookies.get(CSRF_COOKIE_NAME)
+    client.get("/auth/register")
+    csrf_token = client.cookies.get(CSRF_COOKIE_NAME)
     client.post(
         "/auth/register-form",
         data={
@@ -137,12 +138,13 @@ def test_cookie_authenticated_store_form_requires_csrf_token(client):
         follow_redirects=False,
     )
 
-    assert missing.status_code == 403
-    assert valid.status_code == 303
+    assert missing.status_code == 401
+    assert valid.status_code == 401
 
 
 def test_logout_requires_csrf_token(client):
-    csrf_token = client.get("/auth/register").cookies.get(CSRF_COOKIE_NAME)
+    client.get("/auth/register")
+    csrf_token = client.cookies.get(CSRF_COOKIE_NAME)
     client.post(
         "/auth/register-form",
         data={
@@ -162,6 +164,36 @@ def test_logout_requires_csrf_token(client):
 
     assert missing.status_code == 403
     assert valid.status_code == 303
+
+
+def test_logout_revokes_the_authenticated_token(client):
+    db = next(override_get_db())
+    user = User(
+        email="logout-revoke@example.com",
+        password_hash=hash_password("StrongPass123!"),
+        is_verified=True,
+    )
+    db.add(user)
+    db.commit()
+    db.close()
+    login = client.post(
+        "/auth/login",
+        json={"email": "logout-revoke@example.com", "password": "StrongPass123!"},
+    )
+    token = login.json()["access_token"]
+    client.get("/auth/register")
+    csrf_token = client.cookies.get(CSRF_COOKIE_NAME)
+
+    response = client.post(
+        "/auth/logout",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {token}"}
+    ).status_code == 401
 
 
 def test_liveness_and_readiness_checks(client):
@@ -222,7 +254,7 @@ def test_api_registration_requires_verification_before_login(client):
 
 def test_password_reset_is_expiring_one_time_and_invalidates_sessions(client):
     db = next(override_get_db())
-    user = User(email="reset@example.com", password_hash=hash_password("OldPass123!"))
+    user = User(email="reset@example.com", password_hash=hash_password("OldPass123!"), is_verified=True)
     db.add(user)
     db.commit()
     db.refresh(user)
