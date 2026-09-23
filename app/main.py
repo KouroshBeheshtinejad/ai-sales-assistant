@@ -78,7 +78,7 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers.setdefault(
     "Content-Security-Policy",
     "default-src 'self'; "
-    "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
+    "script-src 'self' https://cdn.jsdelivr.net; "
     "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; "
     "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self' https://res.cloudinary.com data:; "

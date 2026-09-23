@@ -26,6 +26,7 @@ from app.services.guest_commerce import (
     extract_customer_fields,
     extract_quantity,
     get_cart,
+    is_checkout_cancellation,
     is_confirmation,
     resolve_product,
 )
@@ -272,42 +273,57 @@ def chat(
                 conversation.checkout_idempotency_key = None
                 conversation.last_order_id = order.id
                 answer = _order_confirmation(order)
+                _persist_chat_turn(db, conversation, data.question, answer)
+                return ChatResponse(success=True, answer=answer, guest_token=guest_token)
+            if is_checkout_cancellation(data.question):
+                conversation.checkout_state = "idle"
+                conversation.checkout_idempotency_key = None
+                answer = "ثبت سفارش لغو شد. هر زمان خواستید دوباره شروع می‌کنیم."
+                _persist_chat_turn(db, conversation, data.question, answer)
+                return ChatResponse(success=True, answer=answer, guest_token=guest_token)
             else:
                 answer = "برای ثبت سفارش، لطفاً «بله» یا «ثبت کن» را ارسال کنید."
-            _persist_chat_turn(db, conversation, data.question, answer)
-            return ChatResponse(success=True, answer=answer, guest_token=guest_token)
 
         if guest_token and conversation.checkout_state == "awaiting_customer":
+            if is_checkout_cancellation(data.question):
+                conversation.checkout_state = "idle"
+                conversation.checkout_idempotency_key = None
+                answer = "ثبت سفارش لغو شد. هر زمان خواستید دوباره شروع می‌کنیم."
+                _persist_chat_turn(db, conversation, data.question, answer)
+                return ChatResponse(success=True, answer=answer, guest_token=guest_token)
             fields = extract_customer_fields(data.question)
-            if fields.get("name"):
-                conversation.checkout_customer_name = fields["name"]
-            if fields.get("phone"):
-                conversation.checkout_customer_phone = fields["phone"]
-            if fields.get("address"):
-                conversation.checkout_customer_address = fields["address"]
-            if all((
-                conversation.checkout_customer_name,
-                conversation.checkout_customer_phone,
-                conversation.checkout_customer_address,
-            )):
-                conversation.checkout_state = "awaiting_confirmation"
-                conversation.checkout_idempotency_key = uuid.uuid4().hex
-                cart = get_cart(db, store_id=store_id, guest_token=guest_token)
-                answer = (
-                    f"اطلاعات دریافت شد.\n{cart_summary(cart)}\n"
-                    "آیا سفارش را ثبت کنم؟"
-                )
+            if not fields:
+                pass
             else:
-                missing = []
-                if not conversation.checkout_customer_name:
-                    missing.append("نام")
-                if not conversation.checkout_customer_phone:
-                    missing.append("شماره تلفن")
-                if not conversation.checkout_customer_address:
-                    missing.append("آدرس")
-                answer = "لطفاً این موارد را ارسال کنید: " + "، ".join(missing)
-            _persist_chat_turn(db, conversation, data.question, answer)
-            return ChatResponse(success=True, answer=answer, guest_token=guest_token)
+                if fields.get("name"):
+                    conversation.checkout_customer_name = fields["name"]
+                if fields.get("phone"):
+                    conversation.checkout_customer_phone = fields["phone"]
+                if fields.get("address"):
+                    conversation.checkout_customer_address = fields["address"]
+                if all((
+                    conversation.checkout_customer_name,
+                    conversation.checkout_customer_phone,
+                    conversation.checkout_customer_address,
+                )):
+                    conversation.checkout_state = "awaiting_confirmation"
+                    conversation.checkout_idempotency_key = uuid.uuid4().hex
+                    cart = get_cart(db, store_id=store_id, guest_token=guest_token)
+                    answer = (
+                        f"اطلاعات دریافت شد.\n{cart_summary(cart)}\n"
+                        "آیا سفارش را ثبت کنم؟"
+                    )
+                else:
+                    missing = []
+                    if not conversation.checkout_customer_name:
+                        missing.append("نام")
+                    if not conversation.checkout_customer_phone:
+                        missing.append("شماره تلفن")
+                    if not conversation.checkout_customer_address:
+                        missing.append("آدرس")
+                    answer = "لطفاً این موارد را ارسال کنید: " + "، ".join(missing)
+                _persist_chat_turn(db, conversation, data.question, answer)
+                return ChatResponse(success=True, answer=answer, guest_token=guest_token)
 
         if guest_token and intent == SalesIntent.CART_ADD:
             product = resolve_product(db, store_id, data.question, history)

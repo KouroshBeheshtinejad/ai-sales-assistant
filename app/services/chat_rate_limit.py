@@ -1,4 +1,5 @@
 from collections import deque
+from collections import OrderedDict
 from dataclasses import dataclass
 import os
 from threading import Lock
@@ -35,7 +36,7 @@ def get_rate_limit_settings() -> RateLimitSettings:
 
 class InMemoryChatRateLimiter:
     def __init__(self):
-        self._events: dict[str, deque[float]] = {}
+        self._events: OrderedDict[str, deque[float]] = OrderedDict()
         self._lock = Lock()
 
     def allow(self, key: str, settings: RateLimitSettings, now: float | None = None) -> bool:
@@ -43,20 +44,14 @@ class InMemoryChatRateLimiter:
         cutoff = current_time - settings.window_seconds
         with self._lock:
             events = self._events.setdefault(key, deque())
+            self._events.move_to_end(key)
             while events and events[0] <= cutoff:
                 events.popleft()
             if len(events) >= settings.max_requests:
                 return False
             events.append(current_time)
             if len(self._events) > settings.max_keys:
-                oldest_key = min(
-                    self._events,
-                    key=lambda candidate: self._events[candidate][-1]
-                    if self._events[candidate]
-                    else current_time,
-                )
-                if oldest_key != key:
-                    self._events.pop(oldest_key, None)
+                self._events.popitem(last=False)
             return True
 
     def clear(self) -> None:

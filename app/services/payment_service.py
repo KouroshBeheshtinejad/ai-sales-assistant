@@ -68,6 +68,8 @@ class UnconfiguredPaymentProvider:
 def get_payment_provider() -> PaymentProvider:
     provider = os.getenv("PAYMENT_PROVIDER", "disabled").strip().casefold()
     if provider == "mock":
+        if os.getenv("APP_ENV", "development").strip().casefold() in {"production", "prod"}:
+            raise PaymentProviderNotConfigured("Mock payment provider is disabled in production")
         return MockPaymentProvider()
     return UnconfiguredPaymentProvider()
 

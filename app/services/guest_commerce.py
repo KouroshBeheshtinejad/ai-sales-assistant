@@ -140,3 +140,9 @@ def is_confirmation(text: str) -> bool:
     normalized = re.sub(r"[،,!؟؟.!؛;:]", " ", text.strip().lower())
     normalized = " ".join(normalized.split())
     return normalized in {"بله", "بله ثبت کن", "ثبت کن", "تایید", "تأیید", "yes", "confirm"}
+
+
+def is_checkout_cancellation(text: str) -> bool:
+    normalized = re.sub(r"[،,!؟؟.!؛;:]", " ", text.strip().lower())
+    normalized = " ".join(normalized.split())
+    return normalized in {"نه", "لغو", "انصراف", "cancel", "no"}
