@@ -9,7 +9,7 @@ from app.db.models import Product, Store, User
 from app.services.sales_agent import SalesAgentService
 from app.services import sales_tools
 from app.services.privacy_retention import purge_expired_conversation_messages
-from app.db.models import Conversation, Message, Order
+from app.db.models import Conversation, Message
 
 
 class ToolLoopProvider:
