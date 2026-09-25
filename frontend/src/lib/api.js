@@ -52,6 +52,8 @@ export const api = {
   // Public
   businessTypes: () => request('/business-types'),
   catalog: (storeId) => request(`/public/stores/${storeId}/catalog`),
+  // Random live stores and products for the landing page.
+  showcase: (stores = 6, products = 8) => request(`/public/showcase?stores=${stores}&products=${products}`),
   chat: (storeId, question, guest) =>
     request(`/public/stores/${storeId}/chat`, { method: 'POST', guest, body: { question, guest_token: guest || undefined } }),
   track: (number) => request(`/orders/track/${encodeURIComponent(number)}`),

@@ -42,3 +42,18 @@ export function useSeo({ title, description }) {
     setMeta('meta[property="og:description"]', 'content', description)
   }, [title, description])
 }
+
+// Random stores and products for the landing page. `shuffle()` asks for a new sample.
+export function useShowcase(stores = 6, products = 8) {
+  const [state, setState] = useState({ data: null, error: null, loading: true })
+  const [round, setRound] = useState(0)
+  useEffect(() => {
+    let live = true
+    setState((current) => ({ ...current, loading: true }))
+    api.showcase(stores, products)
+      .then((data) => { if (live) setState({ data, error: null, loading: false }) })
+      .catch((error) => { if (live) setState((current) => ({ data: current.data, error, loading: false })) })
+    return () => { live = false }
+  }, [stores, products, round])
+  return { ...state, shuffle: () => setRound((n) => n + 1) }
+}

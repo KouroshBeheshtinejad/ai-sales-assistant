@@ -18,4 +18,16 @@ describe('versioned API client', () => {
       expect.objectContaining({ method: 'GET' }),
     )
   })
+
+  it('requests the landing showcase with explicit limits', async () => {
+    const response = { ok: true, json: async () => ({ stores: [], products: [] }) }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response)
+
+    await api.showcase(3, 5)
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/public/showcase?stores=3&products=5',
+      expect.objectContaining({ method: 'GET' }),
+    )
+  })
 })

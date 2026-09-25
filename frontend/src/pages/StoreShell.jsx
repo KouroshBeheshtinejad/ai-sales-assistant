@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { Link, Outlet, useParams } from 'react-router-dom'
 import CartDrawer from '../components/CartDrawer'
 import ChatDock from '../components/ChatDock'
-import { Brand, LocaleToggle, SkipLink } from '../components/Layout'
+import { Brand, LocaleToggle, SkipLink, StoreFooter } from '../components/Layout'
 import { ErrorNote, Icon, Loading } from '../components/ui'
 import { useSeo } from '../lib/hooks'
 import { useI18n } from '../lib/i18n'
@@ -39,7 +39,8 @@ export default function StoreShell() {
       <header className="topbar">
         <div className="wrap topbar-in">
           <Brand />
-          <nav className="topnav" aria-label="Main">
+          {store && <Link className="store-crumb" to={`/store/${store.id}`}>{store.name}</Link>}
+          <nav className="topnav" aria-label={t('nav.main')}>
             <Link to="/track" className="hide-sm">{t('nav.track')}</Link>
             <button type="button" className="btn btn-sm cart-btn" onClick={() => setCartOpen(true)} aria-label={t('cart.open', { n: shop.cartCount })}>
               <Icon name="cart" />
@@ -55,6 +56,7 @@ export default function StoreShell() {
         <ChatDock key={id} shop={shop} storeName={store?.name} open={chatOpen} onClose={() => setChatOpen(false)} draft={draft} onDraftUsed={clearDraft} />
       </div>
 
+      <StoreFooter />
       <button type="button" className="btn btn-primary chat-fab" onClick={() => setChatOpen(true)}><Icon name="chat" />{t('chat.open')}</button>
       {cartOpen && <CartDrawer shop={shop} onClose={() => setCartOpen(false)} />}
     </>

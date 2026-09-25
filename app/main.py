@@ -31,6 +31,7 @@ from app.routes.seller_orders import router as seller_orders_router
 from app.routes.conversations import router as conversations_router
 from app.routes.business_types import router as business_types_router
 from app.routes.payments import router as payments_router
+from app.routes.showcase import router as showcase_router
 from app.routes.auth import get_current_user
 
 @asynccontextmanager
@@ -128,6 +129,7 @@ app.include_router(seller_orders_router)
 app.include_router(conversations_router)
 app.include_router(business_types_router)
 app.include_router(payments_router)
+app.include_router(showcase_router)
 
 # Versioned API surface. The unprefixed routes above remain compatibility
 # aliases for server-rendered forms and existing integrations.
@@ -145,6 +147,7 @@ for api_router in (
     conversations_router,
     business_types_router,
     payments_router,
+    showcase_router,
 ):
     app.include_router(api_router, prefix="/api")
 
