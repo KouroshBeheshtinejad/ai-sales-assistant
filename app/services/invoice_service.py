@@ -253,3 +253,5 @@ def render_invoice_pdf(order) -> bytes:
 
     document.build(story, onFirstPage=_footer, onLaterPages=_footer)
     return output.getvalue()
+
+
