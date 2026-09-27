@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+import itertools
+from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -42,6 +44,15 @@ def override_get_db():
         yield db
     finally:
         db.close()
+
+
+def _solved_captcha(client, digits="12345"):
+    """Issues a real captcha challenge and returns (token, correct_code), using a
+    patched RNG so the test knows the code without parsing the PNG image."""
+    cycle = itertools.cycle(int(d) for d in digits)
+    with mock.patch("app.services.captcha_service.secrets.randbelow", side_effect=lambda _n: next(cycle)):
+        response = client.get("/api/captcha")
+    return response.json()["captcha_token"], digits
 
 
 def test_production_configuration_requires_database_url_and_secret_key(monkeypatch):
@@ -193,9 +204,10 @@ def test_logout_revokes_the_authenticated_token(client):
     db.add(user)
     db.commit()
     db.close()
+    token, code = _solved_captcha(client)
     login = client.post(
         "/auth/login",
-        json={"email": "logout-revoke@example.com", "password": "StrongPass123!"},
+        json={"email": "logout-revoke@example.com", "password": "StrongPass123!", "captcha_token": token, "captcha_answer": code},
     )
     token = login.json()["access_token"]
     client.get("/auth/register")
@@ -231,23 +243,27 @@ def test_security_headers_are_present(client):
 
 def test_login_rate_limit_can_be_configured(client, monkeypatch):
     monkeypatch.setenv("AUTH_RATE_LIMIT_REQUESTS", "1")
-    client.post("/auth/login", json={"email": "missing@example.com", "password": "StrongPass123!"})
-    response = client.post("/auth/login", json={"email": "missing@example.com", "password": "StrongPass123!"})
+    token1, code1 = _solved_captcha(client)
+    client.post("/auth/login", json={"email": "missing@example.com", "password": "StrongPass123!", "captcha_token": token1, "captcha_answer": code1})
+    token2, code2 = _solved_captcha(client)
+    response = client.post("/auth/login", json={"email": "missing@example.com", "password": "StrongPass123!", "captcha_token": token2, "captcha_answer": code2})
 
     assert response.status_code == 429
 
 
 def test_api_registration_requires_verification_before_login(client):
+    reg_token, reg_code = _solved_captcha(client)
     registered = client.post(
         "/auth/register",
-        json={"email": "verify@example.com", "password": "StrongPass123!", "phone": "09120000000"},
+        json={"email": "verify@example.com", "password": "StrongPass123!", "phone": "09120000000", "captcha_token": reg_token, "captcha_answer": reg_code},
     )
     assert registered.status_code == 200
     assert registered.json()["verification_required"] is True
 
+    blocked_token, blocked_code = _solved_captcha(client)
     blocked = client.post(
         "/auth/login",
-        json={"email": "verify@example.com", "password": "StrongPass123!"},
+        json={"email": "verify@example.com", "password": "StrongPass123!", "captcha_token": blocked_token, "captcha_answer": blocked_code},
     )
     assert blocked.status_code == 403
 
@@ -264,16 +280,18 @@ def test_api_registration_requires_verification_before_login(client):
         json={"email": "verify@example.com", "email_code": email_code, "phone_code": phone_code},
     )
     assert verified.status_code == 200
+    login_token, login_code = _solved_captcha(client)
     assert client.post(
         "/auth/login",
-        json={"email": "verify@example.com", "password": "StrongPass123!"},
+        json={"email": "verify@example.com", "password": "StrongPass123!", "captcha_token": login_token, "captcha_answer": login_code},
     ).status_code == 200
 
 
 def test_versioned_api_alias_is_available(client):
+    token, code = _solved_captcha(client)
     response = client.post(
         "/api/auth/login",
-        json={"email": "missing@example.com", "password": "StrongPass123!"},
+        json={"email": "missing@example.com", "password": "StrongPass123!", "captcha_token": token, "captcha_answer": code},
     )
 
     assert response.status_code == 401
@@ -294,5 +312,6 @@ def test_password_reset_is_expiring_one_time_and_invalidates_sessions(client):
     response = client.post("/auth/password-reset/confirm", json={"token": raw_token, "new_password": "NewPass123!"})
     assert response.status_code == 200
     assert client.get("/auth/me", headers={"Authorization": f"Bearer {old_token}"}).status_code == 401
-    assert client.post("/auth/login", json={"email": "reset@example.com", "password": "NewPass123!"}).status_code == 200
+    login_token, login_code = _solved_captcha(client)
+    assert client.post("/auth/login", json={"email": "reset@example.com", "password": "NewPass123!", "captcha_token": login_token, "captcha_answer": login_code}).status_code == 200
     assert client.post("/auth/password-reset/confirm", json={"token": raw_token, "new_password": "OtherPass123!"}).status_code == 400

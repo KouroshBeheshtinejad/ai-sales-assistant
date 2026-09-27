@@ -50,6 +50,9 @@ err.m.image = Das Bild wird nicht unterstützt oder ist zu groß.
 err.m.paid = Diese Bestellung ist bereits bezahlt.
 err.m.notPending = Nur offene Bestellungen können bezahlt werden.
 err.m.guest = Ihre Einkaufssitzung ist abgelaufen. Bitte versuchen Sie es erneut.
+err.m.captcha = Der Sicherheitscode war falsch oder ist abgelaufen. Bitte versuchen Sie es erneut.
+err.m.phoneTaken = Diese Telefonnummer ist bereits registriert.
+err.m.nationalIdTaken = Diese nationale ID ist bereits registriert.
 
 # ---- navigation and header
 nav.main = Hauptnavigation
@@ -62,6 +65,7 @@ nav.track = Bestellung verfolgen
 nav.login = Anmelden
 nav.register = Loslegen
 nav.panel = Verkäuferbereich
+nav.account = Mein Konto
 nav.langName = Sprache
 nav.menu = Menü
 nav.openMenu = Menü öffnen
@@ -205,6 +209,8 @@ footer.trust4.d = Preise und Bestände direkt aus der Datenbank.
 # ---- auth
 auth.loginTitle = Anmelden
 auth.registerTitle = Verkäuferkonto erstellen
+auth.firstName = Vorname
+auth.lastName = Nachname
 auth.email = E-Mail
 auth.password = Passwort
 auth.passwordHint = Mindestens 8 Zeichen.
@@ -241,6 +247,31 @@ form.price = Geben Sie einen gültigen Preis ein.
 form.stock = Der Bestand muss eine ganze Zahl sein, null oder mehr.
 form.otp = Geben Sie den 8-stelligen Code ein.
 form.tracking = Geben Sie die 10-stellige Sendungsnummer ein.
+
+# ---- captcha
+captcha.label = Sicherheitscode
+captcha.alt = Bild des Sicherheitscodes
+captcha.refresh = Neuen Code anzeigen
+captcha.placeholder = Code oben eingeben
+
+# ---- seller account page
+account.title = Mein Konto
+account.complete = Profil vollständig
+account.incomplete = Profil unvollständig
+account.personal = Persönliche Daten
+account.business = Geschäftsdaten
+account.security = Passwort
+account.nationalId = Nationale ID
+account.nationalIdHint = Genau 10 Ziffern.
+account.nationalIdInvalid = Geben Sie eine 10-stellige nationale ID ein.
+account.businessAddress = Geschäftsadresse
+account.businessPhone = Geschäftliche Telefonnummer
+account.confirmPassword = Passwort bestätigen
+account.passwordHint = Lassen Sie beide Passwortfelder leer, um Ihr aktuelles Passwort zu behalten.
+account.passwordMismatch = Die Passwörter stimmen nicht überein.
+account.captchaHint = Lösen Sie den Sicherheitscode, um Ihre Änderungen zu speichern.
+account.saved = Ihr Konto wurde aktualisiert.
+account.savedNeedsVerify = Ihr Konto wurde aktualisiert. Da Sie Ihre E-Mail-Adresse geändert haben, bestätigen Sie sie bitte erneut.
 
 # ---- storefront
 shop.search = Produkte suchen…

@@ -50,6 +50,9 @@ err.m.image = L'image n'est pas prise en charge ou est trop volumineuse.
 err.m.paid = Cette commande est déjà payée.
 err.m.notPending = Seules les commandes en attente peuvent être payées.
 err.m.guest = Votre session d'achat a expiré. Veuillez réessayer.
+err.m.captcha = Le code de sécurité était incorrect ou a expiré. Veuillez réessayer.
+err.m.phoneTaken = Ce numéro de téléphone est déjà enregistré.
+err.m.nationalIdTaken = Ce numéro d'identité national est déjà enregistré.
 
 # ---- navigation and header
 nav.main = Navigation principale
@@ -62,6 +65,7 @@ nav.track = Suivre une commande
 nav.login = Connexion
 nav.register = Commencer
 nav.panel = Espace vendeur
+nav.account = Mon compte
 nav.langName = Langue
 nav.menu = Menu
 nav.openMenu = Ouvrir le menu
@@ -205,6 +209,8 @@ footer.trust4.d = Prix et stock directement issus de la base de données.
 # ---- auth
 auth.loginTitle = Connexion
 auth.registerTitle = Créez votre compte vendeur
+auth.firstName = Prénom
+auth.lastName = Nom
 auth.email = E-mail
 auth.password = Mot de passe
 auth.passwordHint = Au moins 8 caractères.
@@ -241,6 +247,31 @@ form.price = Saisissez un prix valide.
 form.stock = Le stock doit être un nombre entier, zéro ou plus.
 form.otp = Saisissez le code à 8 chiffres.
 form.tracking = Saisissez le numéro de suivi à 10 chiffres.
+
+# ---- captcha
+captcha.label = Code de sécurité
+captcha.alt = Image du code de sécurité
+captcha.refresh = Obtenir un autre code
+captcha.placeholder = Saisissez le code ci-dessus
+
+# ---- seller account page
+account.title = Mon compte
+account.complete = Profil complet
+account.incomplete = Profil incomplet
+account.personal = Informations personnelles
+account.business = Informations sur l'entreprise
+account.security = Mot de passe
+account.nationalId = Numéro d'identité national
+account.nationalIdHint = Exactement 10 chiffres.
+account.nationalIdInvalid = Saisissez un numéro d'identité national à 10 chiffres.
+account.businessAddress = Adresse de l'entreprise
+account.businessPhone = Téléphone de l'entreprise
+account.confirmPassword = Confirmer le mot de passe
+account.passwordHint = Laissez les deux champs de mot de passe vides pour conserver le mot de passe actuel.
+account.passwordMismatch = Les mots de passe ne correspondent pas.
+account.captchaHint = Résolvez le code de sécurité pour enregistrer vos modifications.
+account.saved = Votre compte a été mis à jour.
+account.savedNeedsVerify = Votre compte a été mis à jour. Comme vous avez changé votre e-mail, veuillez le vérifier à nouveau.
 
 # ---- storefront
 shop.search = Rechercher des produits…

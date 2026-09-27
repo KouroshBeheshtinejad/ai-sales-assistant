@@ -56,6 +56,9 @@ const SERVER_MESSAGES = [
   [/already paid/i, 'err.m.paid'],
   [/only pending orders/i, 'err.m.notPending'],
   [/guest token/i, 'err.m.guest'],
+  [/invalid or expired captcha/i, 'err.m.captcha'],
+  [/phone already registered/i, 'err.m.phoneTaken'],
+  [/national id already registered/i, 'err.m.nationalIdTaken'],
 ]
 
 function createTranslator(code) {

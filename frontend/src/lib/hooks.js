@@ -57,3 +57,27 @@ export function useShowcase(stores = 6, products = 8) {
   }, [stores, products, round])
   return { ...state, shuffle: () => setRound((n) => n + 1) }
 }
+
+// The small "type the number you see" human check used on login, registration, and
+// the seller account form. A challenge is single-use: get a fresh one after every
+// submit attempt (successful or not), never reuse a solved/failed token.
+export function useCaptcha() {
+  const [token, setToken] = useState(null)
+  const [image, setImage] = useState(null)
+  const [answer, setAnswer] = useState('')
+  const [loading, setLoading] = useState(true)
+  const ticket = useRef(0)
+
+  const refresh = useCallback(() => {
+    const mine = ++ticket.current
+    setLoading(true)
+    setAnswer('')
+    api.captcha()
+      .then((data) => { if (mine === ticket.current) { setToken(data.captcha_token); setImage(data.image); setLoading(false) } })
+      .catch(() => { if (mine === ticket.current) setLoading(false) })
+  }, [])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  return { token, image, answer, setAnswer, loading, refresh }
+}

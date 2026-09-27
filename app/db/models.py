@@ -84,6 +84,9 @@ class User(Base):
     first_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), unique=True, index=True, nullable=True)
+    national_id: Mapped[str | None] = mapped_column(String(10), unique=True, index=True, nullable=True)
+    business_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    business_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
@@ -750,6 +753,25 @@ class PasswordResetToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
     user: Mapped["User"] = relationship()
+
+
+class CaptchaChallenge(Base):
+    """A short-lived, single-use human-verification challenge.
+
+    Issued anonymously (no user_id: it must be solvable before login/registration,
+    when there is no authenticated identity yet) and also reused for the seller
+    account form, where a fresh challenge is required before profile edits save.
+    """
+
+    __tablename__ = "captcha_challenges"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    code_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
 class Payment(Base):

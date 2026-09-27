@@ -212,6 +212,7 @@ const ICONS = {
   bolt: 'M13 3L5 13h6l-1 8 8-10h-6z',
   lock: 'M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3',
   users: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20c.5-3.5 3.2-5.5 6.5-5.5s6 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 6.5M18 14.8c2 .7 3.2 2.5 3.5 5',
+  user: 'M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zM4 20.5c.8-4.5 4-7 8-7s7.2 2.5 8 7',
   clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2',
   search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4',
   layers: 'M12 3l9 5-9 5-9-5zM3 12.5l9 5 9-5M3 17l9 5 9-5',
@@ -221,7 +222,44 @@ const ICONS = {
   tag: 'M3 12V4h8l10 10-8 8zM7.5 8.5h.01',
   code: 'M8 7l-5 5 5 5M16 7l5 5-5 5',
   truck: 'M2 6h11v10H2zM13 9h4l3 3v4h-7M6 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM17 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
+  refresh: 'M4 4v6h6M20 20v-6h-6M4.5 15a8 8 0 0 0 14.6 2.5M19.5 9a8 8 0 0 0-14.6-2.5',
 }
 export function Icon({ name, size = 20, className }) {
   return <svg className={cx('icon', className)} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONS[name]} /></svg>
+}
+
+// The "type the digits you see" human check, backed by useCaptcha(). Shared by login,
+// registration and the seller account form so all three look and behave identically.
+export function CaptchaField({ captcha, label, hint }) {
+  const { t } = useI18n()
+  const id = useId()
+  const describedBy = hint ? `${id}-h` : undefined
+  return (
+    <div className="field captcha-field">
+      <label htmlFor={id}>{label}</label>
+      <div className="captcha-box">
+        {captcha.image
+          ? <img className="captcha-img" src={captcha.image} alt={t('captcha.alt')} />
+          : <div className="captcha-img captcha-img-loading" role="img" aria-label={t('loading')}><Spinner /></div>}
+        <button type="button" className="captcha-refresh" onClick={captcha.refresh} disabled={captcha.loading} aria-label={t('captcha.refresh')}>
+          <Icon name="refresh" size={18} />
+        </button>
+      </div>
+      <input
+        id={id}
+        inputMode="numeric"
+        autoComplete="off"
+        autoCapitalize="off"
+        autoCorrect="off"
+        required
+        maxLength={8}
+        dir="ltr"
+        placeholder={t('captcha.placeholder')}
+        value={captcha.answer}
+        onChange={(e) => captcha.setAnswer(e.target.value)}
+        aria-describedby={describedBy}
+      />
+      {hint && <p id={describedBy} className="field-hint">{hint}</p>}
+    </div>
+  )
 }

@@ -18,6 +18,7 @@ from app.core.csrf import ensure_csrf_token, set_csrf_cookie
 from app.db.database import SessionLocal, engine
 from app.db.models import Product, Store
 from app.routes.auth import router as auth_router
+from app.routes.captcha import router as captcha_router
 from app.routes.store_management import router as store_management_router
 from app.routes.stores import router as stores_router
 from app.routes.products import router as products_router
@@ -130,6 +131,7 @@ app.include_router(conversations_router)
 app.include_router(business_types_router)
 app.include_router(payments_router)
 app.include_router(showcase_router)
+app.include_router(captcha_router)
 
 # Versioned API surface. The unprefixed routes above remain compatibility
 # aliases for server-rendered forms and existing integrations.
@@ -148,6 +150,7 @@ for api_router in (
     business_types_router,
     payments_router,
     showcase_router,
+    captcha_router,
 ):
     app.include_router(api_router, prefix="/api")
 
@@ -254,6 +257,7 @@ async def react_seller_route():
 @app.get("/seller/knowledge", include_in_schema=False)
 @app.get("/seller/orders", include_in_schema=False)
 @app.get("/seller/conversations", include_in_schema=False)
+@app.get("/seller/account", include_in_schema=False)
 async def react_frontend_route():
     if (frontend_dist / "index.html").is_file():
         return FileResponse(frontend_dist / "index.html")

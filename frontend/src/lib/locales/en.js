@@ -50,6 +50,9 @@ err.m.image = The image is not supported or is too large.
 err.m.paid = This order is already paid.
 err.m.notPending = Only pending orders can be paid.
 err.m.guest = Your shopping session expired. Please try again.
+err.m.captcha = The security code was incorrect or expired. Please try again.
+err.m.phoneTaken = This phone number is already registered.
+err.m.nationalIdTaken = This national ID is already registered.
 
 # ---- navigation and header
 nav.main = Main navigation
@@ -62,6 +65,7 @@ nav.track = Track order
 nav.login = Sign in
 nav.register = Get started
 nav.panel = Seller panel
+nav.account = My account
 nav.langName = Language
 nav.menu = Menu
 nav.openMenu = Open menu
@@ -205,6 +209,8 @@ footer.trust4.d = Prices and stock straight from the database.
 # ---- auth
 auth.loginTitle = Sign in
 auth.registerTitle = Create your seller account
+auth.firstName = First name
+auth.lastName = Last name
 auth.email = Email
 auth.password = Password
 auth.passwordHint = At least 8 characters.
@@ -241,6 +247,31 @@ form.price = Enter a valid price.
 form.stock = Stock must be a whole number, zero or more.
 form.otp = Enter the 8-digit code.
 form.tracking = Enter the 10-digit tracking number.
+
+# ---- captcha
+captcha.label = Security code
+captcha.alt = Security code image
+captcha.refresh = Get a new code
+captcha.placeholder = Enter the code above
+
+# ---- seller account page
+account.title = My account
+account.complete = Profile complete
+account.incomplete = Profile incomplete
+account.personal = Personal details
+account.business = Business details
+account.security = Password
+account.nationalId = National ID
+account.nationalIdHint = Exactly 10 digits.
+account.nationalIdInvalid = Enter a 10-digit national ID.
+account.businessAddress = Business address
+account.businessPhone = Business phone
+account.confirmPassword = Confirm password
+account.passwordHint = Leave both password fields blank to keep your current password.
+account.passwordMismatch = Passwords do not match.
+account.captchaHint = Solve the security code to save your changes.
+account.saved = Your account was updated.
+account.savedNeedsVerify = Your account was updated. Since you changed your email, please verify it again.
 
 # ---- storefront
 shop.search = Search products…

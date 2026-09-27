@@ -90,6 +90,13 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .input-affix { position: relative; display: block; }
 .input-affix input { padding-inline-end: 72px; }
 .affix-btn { position: absolute; inset-inline-end: 6px; top: 50%; translate: 0 -50%; border: 0; background: none; padding: 6px 8px; color: var(--teal-ink); font-size: .85rem; }
+
+.captcha-box { display: flex; align-items: stretch; gap: 8px; }
+.captcha-img { width: 160px; height: 60px; border: 1px solid var(--line-strong); border-radius: var(--r-s); object-fit: cover; background: #f1f6f5; }
+.captcha-img-loading { display: grid; place-items: center; color: var(--muted); }
+.captcha-refresh { flex: none; display: grid; place-items: center; width: 44px; height: 60px; border: 1px solid var(--line-strong); border-radius: var(--r-s); background: var(--surface); color: var(--teal-ink); padding: 0; }
+.captcha-refresh:hover:not(:disabled) { background: var(--teal-soft); }
+.captcha-field input { margin-top: 8px; max-width: 220px; }
 .switch { position: relative; width: 44px; height: 26px; border-radius: 13px; border: 0; background: var(--line-strong); padding: 0; transition: background .15s; }
 .switch span { position: absolute; top: 3px; inset-inline-start: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: inset-inline-start .15s; }
 .switch[aria-checked='true'] { background: var(--teal-ink); }
@@ -257,6 +264,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .seller-foot .btn-ghost { color: #d3e2e4; }
 .seller-foot .btn-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, .08); color: #fff; }
 .seller-main { padding: 32px clamp(16px, 3vw, 40px) 64px; display: grid; gap: 20px; align-content: start; min-width: 0; }
+
+/* Mobile-only chrome for the seller panel: a slim top bar and a fixed bottom tab bar.
+   Both stay hidden on desktop, where the sidebar already covers this. */
+.seller-topbar, .seller-tabbar { display: none; }
+.seller-topbar-store { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-weight: 600; text-align: center; }
+.seller-sheet { align-items: stretch; }
+.seller-sheet .field label { font-weight: 600; }
+.seller-sheet a, .seller-sheet .btn-ghost { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--r-s); color: var(--ink); text-decoration: none; justify-content: flex-start; }
+.seller-sheet a:hover, .seller-sheet .btn-ghost:hover:not(:disabled) { background: var(--teal-soft); }
 .page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .page-head h1 { font-size: 1.8rem; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
@@ -432,12 +448,16 @@ img.store-mark { display: block; object-fit: cover; }
   .product-hero { aspect-ratio: 16 / 9; }
 }
 @media (max-width: 820px) {
-  .seller { grid-template-columns: 1fr; }
-  .seller-nav { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 12px 16px; gap: 12px; }
-  .seller-nav .field { flex: 1 1 160px; }
-  .seller-nav nav { display: flex; overflow-x: auto; order: 3; flex: 1 1 100%; }
-  .seller-nav nav a { white-space: nowrap; }
-  .seller-foot { margin: 0; display: flex; align-items: center; gap: 4px; }
+  /* Sidebar becomes a top bar (brand + store name + "more" sheet) and a fixed bottom
+     tab bar for the 5 sections, instead of squeezing the desktop sidebar sideways. */
+  .seller { display: block; min-height: 0; }
+  .seller-nav { display: none; }
+  .seller-topbar { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px clamp(12px, 4vw, 20px); padding-top: max(8px, env(safe-area-inset-top)); background: var(--surface); border-bottom: 1px solid var(--line); }
+  .seller-main { padding: 20px clamp(12px, 4vw, 20px) calc(84px + env(safe-area-inset-bottom)); }
+  .seller-tabbar { position: fixed; inset-inline: 0; bottom: 0; z-index: 40; display: flex; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -6px 20px rgba(15, 37, 48, .08); }
+  .seller-tab { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 58px; padding: 6px 2px; color: var(--muted); text-decoration: none; font-size: .72rem; font-weight: 600; text-align: center; }
+  .seller-tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seller-tab.active { color: var(--teal-ink); }
   .two-col, .split { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
 }

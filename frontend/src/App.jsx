@@ -20,6 +20,7 @@ const Conversations = lazy(() => import('./pages/seller/Conversations'))
 const ConversationDetail = lazy(() => import('./pages/seller/Conversations').then((m) => ({ default: m.ConversationDetail })))
 const Products = lazy(() => import('./pages/seller/Products'))
 const Knowledge = lazy(() => import('./pages/seller/Knowledge'))
+const Account = lazy(() => import('./pages/seller/Account'))
 
 // Paths mirror the routes FastAPI serves index.html for (see app/main.py).
 export default function App() {
@@ -52,6 +53,7 @@ export default function App() {
                   <Route path="conversation/:conversationId" element={<ConversationDetail />} />
                   <Route path="products" element={<Products />} />
                   <Route path="knowledge" element={<Knowledge />} />
+                  <Route path="account" element={<Account />} />
                 </Route>
               </Routes>
             </Suspense>

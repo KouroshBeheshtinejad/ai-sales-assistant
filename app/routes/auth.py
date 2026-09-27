@@ -24,6 +24,7 @@ from app.core.security import (
     verify_password,
 )
 from app.services.chat_rate_limit import enforce_auth_rate_limit
+from app.services.captcha_service import verify_captcha
 from app.services.notification_service import get_email_provider
 from app.services.verification_service import issue_code, verify_code
 
@@ -64,6 +65,8 @@ class RegisterRequest(BaseModel):
     phone: str | None = Field(None, min_length=5, max_length=50)
     password: str = Field(..., min_length=8)
     confirm_password: str | None = Field(None, min_length=8)
+    captcha_token: str = Field(..., min_length=1)
+    captcha_answer: str = Field(..., min_length=1, max_length=16)
 
     @model_validator(mode="after")
     def passwords_match(self):
@@ -75,6 +78,33 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
+    captcha_token: str = Field(..., min_length=1)
+    captcha_answer: str = Field(..., min_length=1, max_length=16)
+
+
+class ProfileUpdateRequest(BaseModel):
+    """The seller "complete your account" form. Every field here is required once the
+    seller is filling this form in, even though most of them are optional at plain
+    registration time (see RegisterRequest) — this is a deliberate, later step.
+    """
+
+    first_name: str = Field(..., min_length=1, max_length=120)
+    last_name: str = Field(..., min_length=1, max_length=120)
+    email: EmailStr
+    phone: str = Field(..., min_length=5, max_length=50)
+    national_id: str = Field(..., pattern=r"^\d{10}$")
+    business_address: str = Field(..., min_length=1, max_length=1000)
+    business_phone: str = Field(..., min_length=5, max_length=50)
+    password: str | None = Field(None, min_length=8)
+    confirm_password: str | None = Field(None, min_length=8)
+    captcha_token: str = Field(..., min_length=1)
+    captcha_answer: str = Field(..., min_length=1, max_length=16)
+
+    @model_validator(mode="after")
+    def passwords_match(self):
+        if (self.password or self.confirm_password) and self.password != self.confirm_password:
+            raise ValueError("Passwords do not match")
+        return self
 
 
 class VerifyAccountRequest(BaseModel):
@@ -182,6 +212,8 @@ def register(
     db: Session = Depends(get_db),
 ):
     enforce_auth_rate_limit(request, "register")
+    if not verify_captcha(db, data.captcha_token, data.captcha_answer):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired captcha")
     normalized_email = _normalized_email(str(data.email))
     existing_user = (
         db.query(User)
@@ -295,6 +327,8 @@ def login(
     db: Session = Depends(get_db),
 ):
     enforce_auth_rate_limit(request, "login")
+    if not verify_captcha(db, data.captcha_token, data.captcha_answer):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired captcha")
     user = (
         db.query(User)
         .filter(User.email == _normalized_email(str(data.email)))
@@ -376,7 +410,99 @@ def get_me(
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
         "phone": current_user.phone,
+        "national_id": current_user.national_id,
+        "business_address": current_user.business_address,
+        "business_phone": current_user.business_phone,
+        "profile_complete": bool(
+            current_user.first_name
+            and current_user.last_name
+            and current_user.phone
+            and current_user.national_id
+            and current_user.business_address
+            and current_user.business_phone
+        ),
         "created_at": current_user.created_at,
+    }
+
+
+@router.patch("/me")
+def update_me(
+    data: ProfileUpdateRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    enforce_auth_rate_limit(request, "profile-update")
+    if not verify_captcha(db, data.captcha_token, data.captcha_answer):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired captcha")
+
+    normalized_email = _normalized_email(str(data.email))
+    if normalized_email != current_user.email:
+        email_taken = (
+            db.query(User)
+            .filter(User.email == normalized_email, User.id != current_user.id)
+            .first()
+        )
+        if email_taken:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    if data.phone != current_user.phone:
+        phone_taken = (
+            db.query(User)
+            .filter(User.phone == data.phone, User.id != current_user.id)
+            .first()
+        )
+        if phone_taken:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone already registered")
+
+    national_id_taken = (
+        db.query(User)
+        .filter(User.national_id == data.national_id, User.id != current_user.id)
+        .first()
+    )
+    if national_id_taken:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="National ID already registered")
+
+    email_changed = normalized_email != current_user.email
+    current_user.first_name = data.first_name
+    current_user.last_name = data.last_name
+    current_user.email = normalized_email
+    current_user.phone = data.phone
+    current_user.national_id = data.national_id
+    current_user.business_address = data.business_address
+    current_user.business_phone = data.business_phone
+
+    password_changed = False
+    if data.password:
+        current_user.password_hash = hash_password(data.password)
+        current_user.token_version += 1
+        password_changed = True
+
+    if email_changed:
+        # A changed email is unverified until proven again, exactly like a brand new
+        # registration — the account keeps working, but re-verification is required.
+        current_user.is_verified = False
+
+    db.commit()
+    db.refresh(current_user)
+
+    if email_changed:
+        issue_code(db, current_user, "email")
+
+    new_access_token = None
+    if password_changed:
+        # The password change just bumped token_version, which would otherwise log
+        # the very session that made this request out immediately. Reissue a token
+        # for the same (now newer) token_version and refresh the cookie in place.
+        new_access_token = create_access_token(current_user.id, current_user.token_version)
+        _set_access_token_cookie(response, new_access_token)
+
+    return {
+        "message": "Profile updated",
+        "email": current_user.email,
+        "verification_required": email_changed,
+        "access_token": new_access_token,
     }
 
 def get_current_user_from_cookie(

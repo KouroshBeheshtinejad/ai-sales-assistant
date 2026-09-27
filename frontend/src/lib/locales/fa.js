@@ -50,6 +50,9 @@ err.m.image = تصویر پشتیبانی نمی‌شود یا حجمش زیاد
 err.m.paid = این سفارش قبلاً پرداخت شده است.
 err.m.notPending = فقط سفارش‌های در انتظار قابل پرداخت هستند.
 err.m.guest = نشست خرید شما منقضی شده است. لطفاً دوباره تلاش کنید.
+err.m.captcha = کد امنیتی اشتباه بود یا منقضی شده است. لطفاً دوباره تلاش کنید.
+err.m.phoneTaken = این شماره تماس قبلاً ثبت شده است.
+err.m.nationalIdTaken = این کد ملی قبلاً ثبت شده است.
 
 # ---- navigation and header
 nav.main = منوی اصلی
@@ -62,6 +65,7 @@ nav.track = پیگیری سفارش
 nav.login = ورود
 nav.register = شروع کنید
 nav.panel = پنل فروشنده
+nav.account = حساب کاربری
 nav.langName = زبان
 nav.menu = منو
 nav.openMenu = باز کردن منو
@@ -204,6 +208,8 @@ footer.trust4.d = قیمت و موجودی مستقیم از پایگاه داد
 # ---- auth
 auth.loginTitle = ورود
 auth.registerTitle = ساخت حساب فروشنده
+auth.firstName = نام
+auth.lastName = نام خانوادگی
 auth.email = ایمیل
 auth.password = رمز عبور
 auth.passwordHint = حداقل ۸ نویسه.
@@ -240,6 +246,31 @@ form.price = یک قیمت معتبر وارد کنید.
 form.stock = موجودی باید یک عدد صحیح و صفر یا بیشتر باشد.
 form.otp = کد ۸ رقمی را وارد کنید.
 form.tracking = کد رهگیری ۱۰ رقمی را وارد کنید.
+
+# ---- captcha
+captcha.label = کد امنیتی
+captcha.alt = تصویر کد امنیتی
+captcha.refresh = دریافت کد جدید
+captcha.placeholder = کد بالا را وارد کنید
+
+# ---- seller account page
+account.title = حساب کاربری
+account.complete = پروفایل کامل است
+account.incomplete = پروفایل ناقص است
+account.personal = اطلاعات فردی
+account.business = اطلاعات کسب‌وکار
+account.security = رمز عبور
+account.nationalId = کد ملی
+account.nationalIdHint = دقیقاً ۱۰ رقم.
+account.nationalIdInvalid = کد ملی باید دقیقاً ۱۰ رقم باشد.
+account.businessAddress = آدرس کسب‌وکار
+account.businessPhone = شماره تماس کسب‌وکار
+account.confirmPassword = تکرار رمز عبور
+account.passwordHint = اگر نمی‌خواهید رمز عبور را تغییر دهید، هر دو فیلد را خالی بگذارید.
+account.passwordMismatch = رمز عبور و تکرار آن یکسان نیستند.
+account.captchaHint = برای ذخیره تغییرات، کد امنیتی را وارد کنید.
+account.saved = اطلاعات حساب شما به‌روزرسانی شد.
+account.savedNeedsVerify = اطلاعات حساب شما به‌روزرسانی شد. چون ایمیل خود را تغییر دادید، لطفاً دوباره آن را تأیید کنید.
 
 # ---- storefront
 shop.search = جست‌وجوی محصولات…

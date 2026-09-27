@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, Field } from '../components/ui'
+import { Button, CaptchaField, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { useSeo } from '../lib/hooks'
+import { useCaptcha, useSeo } from '../lib/hooks'
 import { useI18n } from '../lib/i18n'
 import { safeNext, toLatinDigits } from '../lib/util'
 
@@ -48,7 +48,7 @@ export default function AuthPage({ initial }) {
   const [params] = useSearchParams()
   const [step, setStep] = useState(initial === 'register' ? 'register' : params.get('mode') || 'login')
   const [info, setInfo] = useState('')
-  const [account, setAccount] = useState({ email: params.get('email') || '', password: '', phone: '', channels: ['email'] })
+  const [account, setAccount] = useState({ email: params.get('email') || '', password: '', phone: '', firstName: '', lastName: '', channels: ['email'] })
   const next = safeNext(params.get('next'))
 
   useEffect(() => {
@@ -61,8 +61,8 @@ export default function AuthPage({ initial }) {
   useSeo({ title: `${t(step === 'register' ? 'auth.registerTitle' : 'auth.loginTitle')} | NAVA` })
 
   const go = (nextStep, message = '') => { setStep(nextStep); setInfo(message) }
-  const finishLogin = async (email, password) => {
-    const data = await api.login({ email, password })
+  const finishLogin = async (email, password, captchaToken, captchaAnswer) => {
+    await api.login({ email, password, captcha_token: captchaToken, captcha_answer: captchaAnswer })
     signIn()
     navigate(next, { replace: true })
   }
@@ -82,9 +82,11 @@ export default function AuthPage({ initial }) {
 
 function LoginForm({ account, setAccount, info, go, finishLogin }) {
   const { t } = useI18n()
-  const { busy, error, submit } = useSubmit(() => finishLogin(account.email.trim(), account.password))
+  const captcha = useCaptcha()
+  const { busy, error, submit } = useSubmit(() => finishLogin(account.email.trim(), account.password, captcha.token, captcha.answer))
   const onSubmit = async (event) => {
     const failure = await submit(event)
+    if (failure) captcha.refresh() // the challenge is single-use; get a new one after any failed attempt
     if (failure?.status === 403) go('verify', t('auth.unverified')) // registered but never verified
   }
   return (
@@ -93,6 +95,7 @@ function LoginForm({ account, setAccount, info, go, finishLogin }) {
       <Notice info={info} error={error} />
       <Field label={t('auth.email')}><input type="email" required autoComplete="email" dir="ltr" value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} /></Field>
       <Field label={t('auth.password')}><PasswordInput autoComplete="current-password" value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })} /></Field>
+      <CaptchaField captcha={captcha} label={t('captcha.label')} />
       <Button type="submit" variant="primary" busy={busy}>{t('auth.loginSubmit')}</Button>
       <button type="button" className="link-btn" onClick={() => go('forgot')}>{t('auth.forgot')}</button>
       <p className="muted">{t('auth.noAccount')} <Link to="/register">{t('nav.register')}</Link></p>
@@ -102,19 +105,37 @@ function LoginForm({ account, setAccount, info, go, finishLogin }) {
 
 function RegisterForm({ account, setAccount, go }) {
   const { t } = useI18n()
+  const captcha = useCaptcha()
   const { busy, error, submit } = useSubmit(async () => {
     const phone = toLatinDigits(account.phone).trim()
-    const res = await api.register({ email: account.email.trim(), password: account.password, phone: phone || undefined })
+    const res = await api.register({
+      email: account.email.trim(),
+      password: account.password,
+      phone: phone || undefined,
+      first_name: account.firstName.trim() || undefined,
+      last_name: account.lastName.trim() || undefined,
+      captcha_token: captcha.token,
+      captcha_answer: captcha.answer,
+    })
     setAccount({ ...account, phone, channels: res.channels || ['email'] })
     go('verify')
   })
+  const onSubmit = async (event) => {
+    const failure = await submit(event)
+    if (failure) captcha.refresh()
+  }
   return (
-    <form className="stack" onSubmit={submit}>
+    <form className="stack" onSubmit={onSubmit}>
       <h1>{t('auth.registerTitle')}</h1>
       <Notice error={error} />
+      <div className="form-grid">
+        <Field label={t('auth.firstName')}><input required autoComplete="given-name" maxLength={120} value={account.firstName} onChange={(e) => setAccount({ ...account, firstName: e.target.value })} /></Field>
+        <Field label={t('auth.lastName')}><input required autoComplete="family-name" maxLength={120} value={account.lastName} onChange={(e) => setAccount({ ...account, lastName: e.target.value })} /></Field>
+      </div>
       <Field label={t('auth.email')}><input type="email" required autoComplete="email" dir="ltr" value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} /></Field>
       <Field label={`${t('auth.phone')} (${t('optional')})`} hint={t('auth.phoneHint')}><input type="tel" inputMode="tel" minLength={5} maxLength={50} autoComplete="tel" dir="ltr" value={account.phone} onChange={(e) => setAccount({ ...account, phone: e.target.value })} /></Field>
       <Field label={t('auth.password')} hint={t('auth.passwordHint')}><PasswordInput autoComplete="new-password" value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })} /></Field>
+      <CaptchaField captcha={captcha} label={t('captcha.label')} />
       <Button type="submit" variant="primary" busy={busy}>{t('auth.registerSubmit')}</Button>
       <p className="muted">{t('auth.haveAccount')} <Link to="/login">{t('nav.login')}</Link></p>
     </form>
@@ -126,23 +147,29 @@ function VerifyForm({ account, go, finishLogin, info }) {
   const needsPhone = account.channels.includes('phone')
   const [codes, setCodes] = useState({ email: '', phone: '' })
   const [localError, setLocalError] = useState('')
+  const captcha = useCaptcha()
   const { busy, error, submit } = useSubmit(async () => {
     const emailCode = toLatinDigits(codes.email).trim()
     const phoneCode = toLatinDigits(codes.phone).trim()
     if (!/^\d{8}$/.test(emailCode) || (needsPhone && !/^\d{8}$/.test(phoneCode))) { setLocalError(t('form.otp')); return }
     setLocalError('')
     await api.verify({ email: account.email.trim(), email_code: emailCode, phone_code: needsPhone ? phoneCode : undefined })
-    if (account.password) await finishLogin(account.email.trim(), account.password) // still in memory after sign-up
+    if (account.password) await finishLogin(account.email.trim(), account.password, captcha.token, captcha.answer) // still in memory after sign-up
     else go('login', t('auth.verified'))
   })
+  const onSubmit = async (event) => {
+    const failure = await submit(event)
+    if (failure && account.password) captcha.refresh()
+  }
   const digits = (name) => (e) => setCodes({ ...codes, [name]: e.target.value })
   return (
-    <form className="stack" onSubmit={submit}>
+    <form className="stack" onSubmit={onSubmit}>
       <h1>{t('auth.verifyTitle')}</h1>
       <p className="muted">{t('auth.verifyLead', { email: account.email })}</p>
       <Notice info={info} error={localError || error} />
       <Field label={t('auth.emailCode')}><input required inputMode="numeric" autoComplete="one-time-code" maxLength={8} dir="ltr" className="otp" value={codes.email} onChange={digits('email')} data-autofocus /></Field>
       {needsPhone && <Field label={t('auth.phoneCode')}><input required inputMode="numeric" maxLength={8} dir="ltr" className="otp" value={codes.phone} onChange={digits('phone')} /></Field>}
+      {account.password && <CaptchaField captcha={captcha} label={t('captcha.label')} />}
       <Button type="submit" variant="primary" busy={busy}>{t('auth.verifySubmit')}</Button>
       {import.meta.env.DEV && <p className="field-hint">{t('auth.devHint')}</p>}
       <button type="button" className="link-btn" onClick={() => go('login')}>{t('auth.backToLogin')}</button>

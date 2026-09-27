@@ -50,6 +50,9 @@ err.m.image = La imagen no es compatible o es demasiado grande.
 err.m.paid = Este pedido ya está pagado.
 err.m.notPending = Solo se pueden pagar los pedidos pendientes.
 err.m.guest = Tu sesión de compra ha caducado. Inténtalo de nuevo.
+err.m.captcha = El código de seguridad era incorrecto o ha caducado. Inténtalo de nuevo.
+err.m.phoneTaken = Este número de teléfono ya está registrado.
+err.m.nationalIdTaken = Este documento de identidad ya está registrado.
 
 # ---- navigation and header
 nav.main = Navegación principal
@@ -62,6 +65,7 @@ nav.track = Seguir pedido
 nav.login = Iniciar sesión
 nav.register = Empezar
 nav.panel = Panel de vendedor
+nav.account = Mi cuenta
 nav.langName = Idioma
 nav.menu = Menú
 nav.openMenu = Abrir menú
@@ -205,6 +209,8 @@ footer.trust4.d = Precios y stock directamente de la base de datos.
 # ---- auth
 auth.loginTitle = Iniciar sesión
 auth.registerTitle = Crea tu cuenta de vendedor
+auth.firstName = Nombre
+auth.lastName = Apellidos
 auth.email = Correo electrónico
 auth.password = Contraseña
 auth.passwordHint = Al menos 8 caracteres.
@@ -241,6 +247,31 @@ form.price = Introduce un precio válido.
 form.stock = El stock debe ser un número entero, cero o más.
 form.otp = Introduce el código de 8 dígitos.
 form.tracking = Introduce el número de seguimiento de 10 dígitos.
+
+# ---- captcha
+captcha.label = Código de seguridad
+captcha.alt = Imagen del código de seguridad
+captcha.refresh = Obtener otro código
+captcha.placeholder = Introduce el código de arriba
+
+# ---- seller account page
+account.title = Mi cuenta
+account.complete = Perfil completo
+account.incomplete = Perfil incompleto
+account.personal = Datos personales
+account.business = Datos del negocio
+account.security = Contraseña
+account.nationalId = Documento nacional de identidad
+account.nationalIdHint = Exactamente 10 dígitos.
+account.nationalIdInvalid = Introduce un documento de identidad de 10 dígitos.
+account.businessAddress = Dirección del negocio
+account.businessPhone = Teléfono del negocio
+account.confirmPassword = Confirmar contraseña
+account.passwordHint = Deja ambos campos de contraseña en blanco para mantener la actual.
+account.passwordMismatch = Las contraseñas no coinciden.
+account.captchaHint = Resuelve el código de seguridad para guardar los cambios.
+account.saved = Tu cuenta se ha actualizado.
+account.savedNeedsVerify = Tu cuenta se ha actualizado. Como cambiaste tu correo, verifícalo de nuevo.
 
 # ---- storefront
 shop.search = Buscar productos…

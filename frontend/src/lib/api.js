@@ -77,10 +77,12 @@ export const api = {
     request(`/payments/${paymentId}/verify`, { method: 'POST', guest, body: { authority } }),
 
   // Auth
+  captcha: () => request('/captcha'),
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
   verify: (payload) => request('/auth/verify', { method: 'POST', body: payload }),
   login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
   me: () => request('/auth/me', { auth: true }),
+  updateProfile: (payload) => request('/auth/me', { method: 'PATCH', auth: true, body: payload }),
   requestReset: (email) => request('/auth/password-reset/request', { method: 'POST', body: { email } }),
   confirmReset: (token, newPassword) =>
     request('/auth/password-reset/confirm', { method: 'POST', body: { token, new_password: newPassword } }),
