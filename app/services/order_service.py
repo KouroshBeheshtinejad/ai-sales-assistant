@@ -7,7 +7,6 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Cart, CartItem, Conversation, Order, OrderItem, Product
-from app.services.notification_service import notify_order_created
 
 
 class OrderService:
@@ -220,7 +219,6 @@ class OrderService:
                 conversation.last_order_id = order.id
                 conversation.checkout_state = "completed"
                 conversation.checkout_idempotency_key = None
-        notify_order_created(order)
 
     @staticmethod
     def get_order_by_id(

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Button, Field, Loading, StatusBadge } from '../components/ui'
 import { api } from '../lib/api'
 import { getGuest } from '../lib/guest'
-import { LOCALES, useI18n } from '../lib/i18n'
+import { LOCALES, useI18n, getBrowserTimezone } from '../lib/i18n'
 import { downloadBlob } from '../lib/util'
 
 export default function PaymentResult() {
@@ -24,7 +24,7 @@ export default function PaymentResult() {
   const invoice = async () => {
     setBusy(true)
     try {
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+      const timezone = getBrowserTimezone()
       downloadBlob(await api.guestInvoice(storeId, orderId, getGuest(storeId), locale, timezone), `${order.invoice_number}-${locale}.pdf`)
     } catch (cause) {
       setError(err(cause))

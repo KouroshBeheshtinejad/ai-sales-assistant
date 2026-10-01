@@ -115,6 +115,7 @@ def create_order(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Guest token and idempotency key are required",
         )
+    assert payload.customer_name is not None
     try:
         order = OrderService.create_order(
             db=db,

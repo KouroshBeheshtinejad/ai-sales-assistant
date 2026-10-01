@@ -8,9 +8,10 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.security import create_access_token, hash_password
 from app.db.database import Base, get_db
-from app.db.models import Product, Store, StoreMembership, User
+from app.db.models import Order, Payment, Product, Store, StoreMembership, User
 from app.main import app
 from app.services.payment_service import PaymentProviderNotConfigured, get_payment_provider
+from app.services.payment_service import MockPaymentProvider
 
 
 @pytest.fixture()
@@ -251,6 +252,12 @@ def test_mock_payment_is_idempotent_and_server_verified(payment_context, monkeyp
     repeated = client.post(f"/payments/orders/{order['id']}", headers=headers)
     assert repeated.status_code == 201
     assert repeated.json()["id"] == payment["id"]
+    alternate_key = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "payment-mock-alternate"},
+    )
+    assert alternate_key.status_code == 201
+    assert alternate_key.json()["id"] == payment["id"]
 
     verified = client.post(
         f"/payments/{payment['id']}/verify",
@@ -260,6 +267,14 @@ def test_mock_payment_is_idempotent_and_server_verified(payment_context, monkeyp
     assert verified.status_code == 200
     assert verified.json()["status"] == "paid"
     assert verified.json()["transaction_id"].startswith("mock-tx-")
+    first_transaction_id = verified.json()["transaction_id"]
+    repeated_verification = client.post(
+        f"/payments/{payment['id']}/verify",
+        headers=auth_headers(context),
+        json={"authority": payment["authority"]},
+    )
+    assert repeated_verification.status_code == 200
+    assert repeated_verification.json()["transaction_id"] == first_transaction_id
     finalized = client.get(f"/orders/{order['id']}", headers=auth_headers(context))
     assert finalized.status_code == 200
     assert finalized.json()["tracking_number"]
@@ -275,12 +290,14 @@ def test_mock_payment_is_idempotent_and_server_verified(payment_context, monkeyp
     invoice = client.get(f"/orders/{order['id']}/invoice", headers=auth_headers(context))
     assert invoice.status_code == 200
     assert invoice.headers["content-type"] == "application/pdf"
-    localized_invoice = client.get(
-        f"/orders/{order['id']}/invoice?locale=de&timezone=Europe%2FBerlin",
-        headers=auth_headers(context),
-    )
-    assert localized_invoice.status_code == 200
-    assert localized_invoice.headers["content-disposition"].endswith("-de.pdf\"")
+    for locale in ("fa", "en", "es", "de", "fr"):
+        localized_invoice = client.get(
+            f"/orders/{order['id']}/invoice?locale={locale}&timezone=Europe%2FBerlin",
+            headers=auth_headers(context),
+        )
+        assert localized_invoice.status_code == 200
+        assert localized_invoice.content.startswith(b"%PDF")
+        assert localized_invoice.headers["content-disposition"].endswith(f"-{locale}.pdf\"")
     invalid_locale = client.get(
         f"/orders/{order['id']}/invoice?locale=it",
         headers=auth_headers(context),
@@ -291,6 +308,7 @@ def test_mock_payment_is_idempotent_and_server_verified(payment_context, monkeyp
     try:
         product = db.get(Product, context["product_id"])
         assert product.reserved_stock == 0
+        assert product.stock == 1
     finally:
         db.close()
 
@@ -319,6 +337,148 @@ def test_gateway_callback_verifies_payment_on_server(payment_context, monkeypatc
     )
     assert callback.status_code == 303
     assert "payment=success" in callback.headers["location"]
+    duplicate_callback = client.get(
+        "/api/payments/callback",
+        params={"Authority": created.json()["authority"], "Status": "OK"},
+        follow_redirects=False,
+    )
+    assert duplicate_callback.status_code == 303
+    assert "payment=success" in duplicate_callback.headers["location"]
     finalized = client.get(f"/orders/{order['id']}", headers=auth_headers(context))
     assert finalized.status_code == 200
     assert finalized.json()["tracking_number"]
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        product = db.get(Product, context["product_id"])
+        assert product.stock == 1
+        assert product.reserved_stock == 0
+    finally:
+        db.close()
+
+
+def test_failed_gateway_verification_never_finalizes_or_deducts_stock(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+    order = create_order(client, context)
+    created = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "payment-failed-verify"},
+    )
+    payment = created.json()
+
+    def fail_verification(self, *, amount, authority):
+        raise ValueError("Payment verification failed")
+
+    monkeypatch.setattr(MockPaymentProvider, "verify_payment", fail_verification)
+    response = client.post(
+        f"/payments/{payment['id']}/verify",
+        headers=auth_headers(context),
+        json={"authority": payment["authority"]},
+    )
+    assert response.status_code == 400
+    assert client.get(f"/orders/{order['id']}", headers=auth_headers(context)).status_code == 404
+    assert client.get(f"/orders/{order['id']}/invoice", headers=auth_headers(context)).status_code == 404
+    assert client.get("/orders/track/1234567890").status_code == 404
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        stored_order = db.get(Order, order["id"])
+        stored_payment = db.get(Payment, payment["id"])
+        product = db.get(Product, context["product_id"])
+        assert stored_order.status == "pending"
+        assert stored_order.tracking_number is None
+        assert stored_order.invoice_number is None
+        assert stored_payment.status == "failed"
+        assert product.stock == 2
+        assert product.reserved_stock == 1
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(
+    ("gateway_status", "expected_payment_status"),
+    [("Cancelled", "cancelled"), ("Expired", "expired"), ("Failed", "failed")],
+)
+def test_unsuccessful_gateway_outcomes_cannot_finalize_or_be_verified_later(
+    payment_context,
+    monkeypatch,
+    gateway_status,
+    expected_payment_status,
+):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+    order = create_order(client, context)
+    created = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "payment-cancelled"},
+    )
+    payment = created.json()
+    callback = client.get(
+        "/api/payments/callback",
+        params={"Authority": payment["authority"], "Status": gateway_status},
+        follow_redirects=False,
+    )
+    assert callback.status_code == 303
+    assert "payment=failed" in callback.headers["location"]
+    assert client.post(
+        f"/payments/{payment['id']}/verify",
+        headers=auth_headers(context),
+        json={"authority": payment["authority"]},
+    ).status_code == 400
+    assert client.get(f"/orders/{order['id']}", headers=auth_headers(context)).status_code == 404
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        stored_order = db.get(Order, order["id"])
+        stored_payment = db.get(Payment, payment["id"])
+        assert stored_order.tracking_number is None
+        assert stored_order.invoice_number is None
+        assert stored_payment.status == expected_payment_status
+    finally:
+        db.close()
+
+
+def test_invalid_gateway_callback_does_not_change_payment_or_order(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+    order = create_order(client, context)
+    created = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "payment-invalid-callback"},
+    )
+    callback = client.get(
+        "/api/payments/callback",
+        params={"Authority": "not-a-real-authority", "Status": "OK"},
+        follow_redirects=False,
+    )
+    assert callback.status_code == 303
+    assert "payment=failed" in callback.headers["location"]
+    assert client.get(f"/orders/{order['id']}", headers=auth_headers(context)).status_code == 404
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        assert db.get(Payment, created.json()["id"]).status == "pending"
+    finally:
+        db.close()
+
+
+def test_missing_reserved_stock_prevents_finalization(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+    order = create_order(client, context)
+    created = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "payment-stock-conflict"},
+    )
+    payment = created.json()
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        product = db.get(Product, context["product_id"])
+        product.reserved_stock = 0
+        db.commit()
+    finally:
+        db.close()
+    response = client.post(
+        f"/payments/{payment['id']}/verify",
+        headers=auth_headers(context),
+        json={"authority": payment["authority"]},
+    )
+    assert response.status_code == 400
+    assert client.get(f"/orders/{order['id']}", headers=auth_headers(context)).status_code == 404

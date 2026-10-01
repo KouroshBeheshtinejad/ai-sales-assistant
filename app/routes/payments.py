@@ -74,15 +74,22 @@ def verify_payment(
 @router.get("/callback", include_in_schema=False)
 def payment_callback(request: Request, db: Session = Depends(get_db)):
     authority = request.query_params.get("Authority") or request.query_params.get("authority")
-    payment_status = (request.query_params.get("Status") or "").casefold()
+    raw_status = request.query_params.get("Status") or ""
+    payment_status = raw_status.casefold()
+    if not authority:
+        return RedirectResponse("/payment-result?payment=failed", status_code=303)
     payment = db.scalar(
         select(Payment)
         .where(Payment.authority == authority)
-    ) if authority else None
+    )
     if payment is None:
         return RedirectResponse("/payment-result?payment=failed", status_code=303)
 
     order = payment.order
+    if payment_status != "ok":
+        PaymentService.record_gateway_outcome(db, authority, raw_status)
+        return RedirectResponse("/payment-result?payment=failed", status_code=303)
+
     if payment_status == "ok":
         try:
             PaymentService.verify_payment(

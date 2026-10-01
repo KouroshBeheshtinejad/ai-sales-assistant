@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Order, Payment, Product
@@ -154,7 +154,7 @@ class PaymentService:
         guest_token: str | None = None,
         callback_url: str | None = None,
     ) -> Payment:
-        order = db.scalar(select(Order).where(Order.id == order_id))
+        order = db.scalar(select(Order).where(Order.id == order_id).with_for_update())
         if order is None or (user_id is not None and order.user_id != user_id) or (user_id is None and order.guest_token != guest_token):
             raise ValueError("Order not found")
         if order.status != "pending":
@@ -165,6 +165,13 @@ class PaymentService:
             return existing
         if any(payment.status == "paid" for payment in order.payments):
             raise ValueError("Order is already paid")
+        pending_payment = db.scalar(
+            select(Payment)
+            .where(Payment.order_id == order_id, Payment.status == "pending")
+            .order_by(Payment.id)
+        )
+        if pending_payment is not None:
+            return pending_payment
 
         provider = get_payment_provider()
         details = provider.create_payment(amount=Decimal(str(order.total_amount)), order_id=order.id, callback_url=callback_url)
@@ -197,20 +204,64 @@ class PaymentService:
             raise ValueError("Invalid payment authority")
         if payment.status == "paid":
             return payment
+        if payment.status != "pending":
+            raise ValueError("Payment is no longer pending")
+
+        order = db.scalar(select(Order).where(Order.id == payment.order_id).with_for_update())
+        if order is None:
+            raise ValueError("Order not found")
+        if order.status != "pending" or order.paid_at is not None:
+            raise ValueError("Order is no longer awaiting payment")
 
         provider = get_payment_provider()
-        result = provider.verify_payment(amount=payment.amount, authority=authority)
+        try:
+            result = provider.verify_payment(amount=payment.amount, authority=authority)
+        except ValueError:
+            payment.status = "failed"
+            db.commit()
+            raise
         payment.status = "paid"
         payment.transaction_id = result["transaction_id"]
         payment.paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
-        OrderService.finalize_paid_order(db, payment.order, payment.paid_at)
-        for item in payment.order.items:
+        OrderService.finalize_paid_order(db, order, payment.paid_at)
+        for item in order.items:
             if item.product_id is not None:
-                product = db.get(Product, item.product_id)
-                if product is not None:
-                    product.reserved_stock = max(0, product.reserved_stock - item.quantity)
+                inventory_result = db.execute(
+                    update(Product)
+                    .where(
+                        Product.id == item.product_id,
+                        Product.stock >= item.quantity,
+                        Product.reserved_stock >= item.quantity,
+                    )
+                    .values(
+                        stock=Product.stock - item.quantity,
+                        reserved_stock=Product.reserved_stock - item.quantity,
+                    )
+                )
+                if getattr(inventory_result, "rowcount", 0) != 1:
+                    db.rollback()
+                    raise ValueError("Reserved stock is no longer available")
         db.commit()
         db.refresh(payment)
-        PaymentService.logger.info("payment_verified payment_id=%s order_id=%s", payment.id, payment.order_id)
-        notify_payment_success(payment.order, payment.transaction_id)
+        PaymentService.logger.info("payment_verified payment_id=%s order_id=%s", payment.id, order.id)
+        notify_payment_success(order, payment.transaction_id)
         return payment
+
+    @staticmethod
+    def record_gateway_outcome(db: Session, authority: str, status: str) -> None:
+        normalized = status.casefold()
+        payment_state = {
+            "cancel": "cancelled",
+            "cancelled": "cancelled",
+            "canceled": "cancelled",
+            "expired": "expired",
+            "failed": "failed",
+            "nok": "failed",
+        }.get(normalized)
+        if payment_state is None:
+            return
+        payment = db.scalar(select(Payment).where(Payment.authority == authority).with_for_update())
+        if payment is None or payment.status == "paid":
+            return
+        payment.status = payment_state
+        db.commit()

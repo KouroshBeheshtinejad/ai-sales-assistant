@@ -19,12 +19,43 @@ export const LOCALES = [
 
 export const DEFAULT_LOCALE = 'fa'
 const STORAGE_KEY = 'nava_locale'
+const EXPLICIT_STORAGE_KEY = 'nava_locale_explicit'
 const MESSAGES = { fa, en, es, de, fr }
 const byCode = (code) => LOCALES.find((item) => item.code === code)
 
-const storedLocale = () => {
-  const value = safeStorage.get(STORAGE_KEY)
-  return byCode(value) ? value : DEFAULT_LOCALE
+export function detectLocale({ explicit, stored, languages = [] } = {}) {
+  if (byCode(explicit)) return explicit
+  if (byCode(stored)) return stored
+
+  for (const language of languages) {
+    const normalized = String(language).trim().replaceAll('_', '-').toLowerCase()
+    const exact = LOCALES.find((item) => item.tag.toLowerCase() === normalized || item.code === normalized)
+    if (exact) return exact.code
+    const base = normalized.split('-')[0]
+    const matched = LOCALES.find((item) => item.code === base || item.tag.toLowerCase().split('-')[0] === base)
+    if (matched) return matched.code
+  }
+  return 'en'
+}
+
+const browserLanguages = () => {
+  if (typeof navigator === 'undefined') return []
+  return navigator.languages?.length ? navigator.languages : [navigator.language].filter(Boolean)
+}
+
+const storedLocale = () => detectLocale({
+  explicit: safeStorage.get(EXPLICIT_STORAGE_KEY),
+  stored: safeStorage.get(STORAGE_KEY),
+  languages: browserLanguages(),
+})
+
+export function getBrowserTimezone() {
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    return timezone || 'UTC'
+  } catch {
+    return 'UTC'
+  }
 }
 
 // Sets <html lang dir> straight away (module load, before React renders) so a stored
@@ -138,6 +169,7 @@ export function I18nProvider({ children }) {
   const setLocale = (code) => {
     if (!byCode(code)) return
     safeStorage.set(STORAGE_KEY, code)
+    safeStorage.set(EXPLICIT_STORAGE_KEY, code)
     setLocaleState(code)
   }
   const context = useMemo(() => ({ ...value, setLocale }), [value]) // eslint-disable-line react-hooks/exhaustive-deps

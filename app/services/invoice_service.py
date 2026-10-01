@@ -62,15 +62,25 @@ STATUS_LABELS_FA = {
     "delivered": "تحویل شد",
     "cancelled": "لغو شد",
 }
+STATUS_LABELS = {
+    "fa": STATUS_LABELS_FA,
+    "en": {"pending": "Pending", "confirmed": "Confirmed", "preparing": "Preparing", "shipped": "Shipped", "delivered": "Delivered", "cancelled": "Cancelled"},
+    "es": {"pending": "Pendiente", "confirmed": "Confirmado", "preparing": "En preparación", "shipped": "Enviado", "delivered": "Entregado", "cancelled": "Cancelado"},
+    "de": {"pending": "Ausstehend", "confirmed": "Bestätigt", "preparing": "In Vorbereitung", "shipped": "Versendet", "delivered": "Zugestellt", "cancelled": "Storniert"},
+    "fr": {"pending": "En attente", "confirmed": "Confirmée", "preparing": "En préparation", "shipped": "Expédiée", "delivered": "Livrée", "cancelled": "Annulée"},
+}
 
 SUPPORTED_LOCALES = {"fa", "en", "es", "de", "fr"}
 INVOICE_TEXT = {
-    "fa": {"title": "فاکتور فروش", "invoice": "شماره فاکتور", "tracking": "کد رهگیری", "issued": "تاریخ صدور", "status": "وضعیت سفارش", "seller": "فروشنده", "customer": "مشخصات مشتری", "items": "اقلام سفارش", "row": "ردیف", "product": "کالا", "quantity": "تعداد", "unit": "قیمت واحد", "sum": "جمع", "total": "جمع کل", "email": "ایمیل", "phone": "تلفن", "address": "آدرس", "footer": "این فاکتور توسط ناوا صادر شده است — دستیار فروش هوشمند فروشگاه‌های آنلاین", "currency": "تومان"},
-    "en": {"title": "Sales Invoice", "invoice": "Invoice number", "tracking": "Tracking number", "issued": "Issued", "status": "Order status", "seller": "Seller", "customer": "Customer details", "items": "Order items", "row": "No.", "product": "Product", "quantity": "Qty", "unit": "Unit price", "sum": "Amount", "total": "Total", "email": "Email", "phone": "Phone", "address": "Address", "footer": "Issued by NAVA, the intelligent sales assistant for online stores", "currency": "Toman"},
-    "es": {"title": "Factura de venta", "invoice": "Número de factura", "tracking": "Número de seguimiento", "issued": "Fecha de emisión", "status": "Estado del pedido", "seller": "Vendedor", "customer": "Datos del cliente", "items": "Artículos del pedido", "row": "N.º", "product": "Producto", "quantity": "Cant.", "unit": "Precio unitario", "sum": "Importe", "total": "Total", "email": "Correo", "phone": "Teléfono", "address": "Dirección", "footer": "Emitida por NAVA, el asistente inteligente de ventas para tiendas online", "currency": "tomanes"},
-    "de": {"title": "Verkaufsrechnung", "invoice": "Rechnungsnummer", "tracking": "Sendungsnummer", "issued": "Ausgestellt am", "status": "Bestellstatus", "seller": "Verkäufer", "customer": "Kundendaten", "items": "Bestellpositionen", "row": "Nr.", "product": "Produkt", "quantity": "Anz.", "unit": "Einzelpreis", "sum": "Betrag", "total": "Gesamtbetrag", "email": "E-Mail", "phone": "Telefon", "address": "Adresse", "footer": "Ausgestellt von NAVA, dem intelligenten Verkaufsassistenten für Online-Shops", "currency": "Toman"},
-    "fr": {"title": "Facture de vente", "invoice": "Numéro de facture", "tracking": "Numéro de suivi", "issued": "Date d’émission", "status": "État de la commande", "seller": "Vendeur", "customer": "Coordonnées du client", "items": "Articles commandés", "row": "N°", "product": "Produit", "quantity": "Qté", "unit": "Prix unitaire", "sum": "Montant", "total": "Total", "email": "E-mail", "phone": "Téléphone", "address": "Adresse", "footer": "Émise par NAVA, l’assistant commercial intelligent pour les boutiques en ligne", "currency": "tomans"},
+    "fa": {"title": "فاکتور فروش", "invoice": "شماره فاکتور", "order": "شماره سفارش", "tracking": "کد رهگیری", "issued": "تاریخ صدور", "timezone": "منطقه زمانی", "status": "وضعیت سفارش", "payment": "وضعیت پرداخت", "paid": "پرداخت‌شده", "seller": "فروشنده", "customer": "مشخصات مشتری", "items": "اقلام سفارش", "row": "ردیف", "product": "کالا", "quantity": "تعداد", "unit": "قیمت واحد", "sum": "جمع", "subtotal": "جمع جزء", "total": "جمع کل", "email": "ایمیل", "phone": "تلفن", "address": "آدرس", "footer": "این فاکتور توسط ناوا صادر شده است — دستیار فروش هوشمند فروشگاه‌های آنلاین", "currency": "تومان"},
+    "en": {"title": "Sales Invoice", "invoice": "Invoice number", "order": "Order number", "tracking": "Tracking number", "issued": "Issued", "timezone": "Time zone", "status": "Order status", "payment": "Payment status", "paid": "Paid", "seller": "Seller", "customer": "Customer details", "items": "Order items", "row": "No.", "product": "Product", "quantity": "Qty", "unit": "Unit price", "sum": "Amount", "subtotal": "Subtotal", "total": "Total", "email": "Email", "phone": "Phone", "address": "Address", "footer": "Issued by NAVA, the intelligent sales assistant for online stores", "currency": "Toman"},
+    "es": {"title": "Factura de venta", "invoice": "Número de factura", "order": "Número de pedido", "tracking": "Número de seguimiento", "issued": "Fecha de emisión", "timezone": "Zona horaria", "status": "Estado del pedido", "payment": "Estado del pago", "paid": "Pagado", "seller": "Vendedor", "customer": "Datos del cliente", "items": "Artículos del pedido", "row": "N.º", "product": "Producto", "quantity": "Cant.", "unit": "Precio unitario", "sum": "Importe", "subtotal": "Subtotal", "total": "Total", "email": "Correo", "phone": "Teléfono", "address": "Dirección", "footer": "Emitida por NAVA, el asistente inteligente de ventas para tiendas online", "currency": "tomanes"},
+    "de": {"title": "Verkaufsrechnung", "invoice": "Rechnungsnummer", "order": "Bestellnummer", "tracking": "Sendungsnummer", "issued": "Ausgestellt am", "timezone": "Zeitzone", "status": "Bestellstatus", "payment": "Zahlungsstatus", "paid": "Bezahlt", "seller": "Verkäufer", "customer": "Kundendaten", "items": "Bestellpositionen", "row": "Nr.", "product": "Produkt", "quantity": "Anz.", "unit": "Einzelpreis", "sum": "Betrag", "subtotal": "Zwischensumme", "total": "Gesamtbetrag", "email": "E-Mail", "phone": "Telefon", "address": "Adresse", "footer": "Ausgestellt von NAVA, dem intelligenten Verkaufsassistenten für Online-Shops", "currency": "Toman"},
+    "fr": {"title": "Facture de vente", "invoice": "Numéro de facture", "order": "Numéro de commande", "tracking": "Numéro de suivi", "issued": "Date d’émission", "timezone": "Fuseau horaire", "status": "État de la commande", "payment": "État du paiement", "paid": "Payé", "seller": "Vendeur", "customer": "Coordonnées du client", "items": "Articles commandés", "row": "N°", "product": "Produit", "quantity": "Qté", "unit": "Prix unitaire", "sum": "Montant", "subtotal": "Sous-total", "total": "Total", "email": "E-mail", "phone": "Téléphone", "address": "Adresse", "footer": "Émise par NAVA, l’assistant commercial intelligent pour les boutiques en ligne", "currency": "tomans"},
 }
+
+
+LOCALE_TAGS = {"fa": "fa_IR", "en": "en_US", "es": "es_ES", "de": "de_DE", "fr": "fr_FR"}
 
 
 def _register_fonts() -> None:
@@ -118,8 +128,7 @@ def money(value, locale="fa") -> str:
     amount = amount.quantize(Decimal("1")) if amount == amount.to_integral_value() else amount.quantize(Decimal("0.01"))
     if locale == "fa":
         return f"{amount:,} تومان"
-    locale_tags = {"fa": "fa_IR", "en": "en_US", "es": "es_ES", "de": "de_DE", "fr": "fr_FR"}
-    return f"{format_decimal(amount, locale=locale_tags[locale])} {INVOICE_TEXT[locale]['currency']}"
+    return f"{format_decimal(amount, locale=LOCALE_TAGS[locale])} {INVOICE_TEXT[locale]['currency']}"
 
 
 def _style(name, font=FONT_REGULAR, size=10, leading=None, align=TA_RIGHT, color=INK, **extra):
@@ -150,28 +159,33 @@ def _p(text, style, locale="fa"):
     return Paragraph(rtl(text) if locale == "fa" else str(text), paragraph_style)
 
 
-def _meta_row(pairs, locale="fa"):
-    """A right-aligned label/value grid, e.g. 'شماره فاکتور  INV-000123'."""
-    cells = []
+def _meta_row(pairs, width, locale="fa"):
+    """A compact label/value list that remains readable as metadata fields grow."""
+    rows = []
     for label, value in pairs:
-        cells.append([_p(value, "meta_value", locale), _p(label, "meta_label", locale)])
-    table = Table([[c for pair in cells for c in pair]], colWidths=None, hAlign="RIGHT" if locale == "fa" else "LEFT")
+        values = [_p(value, "meta_value", locale), _p(label, "meta_label", locale)]
+        rows.append(values if locale == "fa" else list(reversed(values)))
+    table = Table(
+        rows,
+        colWidths=[width * 0.62, width * 0.38],
+        hAlign="RIGHT" if locale == "fa" else "LEFT",
+    )
     table.setStyle(TableStyle([
         ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
     return table
 
 
-def _items_table(items, width, locale="fa"):
+def _items_table(items, width, locale="fa", header_labels=None):
     # Physical column order is left-to-right; the *last* column ends up on the right
     # edge of the page, which is where a right-to-left reader expects the row number.
     labels = INVOICE_TEXT[locale]
-    header_labels = [labels[key] for key in (("sum", "unit", "quantity", "product", "row") if locale == "fa" else ("row", "product", "quantity", "unit", "sum"))]
+    header_labels = header_labels or [labels[key] for key in (("sum", "unit", "quantity", "product", "row") if locale == "fa" else ("row", "product", "quantity", "unit", "sum"))]
     header = [_p(label, "th", locale) for label in header_labels]
     rows = [header]
     for index, item in enumerate(items, start=1):
@@ -198,25 +212,63 @@ def _items_table(items, width, locale="fa"):
     return table
 
 
+def _effective_timezone(locale: str, timezone_name: str) -> str:
+    if locale == "fa":
+        return "Asia/Tehran"
+    try:
+        ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return "UTC"
+    return timezone_name
+
+
 def _issued_at(order, locale: str, timezone_name: str) -> str:
     issued = getattr(order, "paid_at", None) or order.created_at
     if issued is None:
         return "-"
     issued = issued.replace(tzinfo=timezone.utc) if issued.tzinfo is None else issued
     if locale == "fa":
-        tehran_time = issued.astimezone(ZoneInfo("Asia/Tehran")).replace(tzinfo=None)
+        tehran_time = issued.astimezone(ZoneInfo(_effective_timezone(locale, timezone_name))).replace(tzinfo=None)
         return jdatetime.datetime.fromgregorian(datetime=tehran_time).strftime("%Y/%m/%d %H:%M")
-    try:
-        local_zone = ZoneInfo(timezone_name)
-    except (ZoneInfoNotFoundError, ValueError):
-        local_zone = ZoneInfo("UTC")
-    tags = {"en": "en_US", "es": "es_ES", "de": "de_DE", "fr": "fr_FR"}
-    return format_datetime(issued.astimezone(local_zone), format="medium", locale=tags[locale])
+    timezone_name = _effective_timezone(locale, timezone_name)
+    local_zone = ZoneInfo(timezone_name)
+    local_time = issued.astimezone(local_zone)
+    clock_zone = format_datetime(local_time, format="zzz", locale=LOCALE_TAGS[locale])
+    return f"{format_datetime(local_time, format='medium', locale=LOCALE_TAGS[locale])} ({timezone_name}, {clock_zone})"
+
+
+def invoice_fields(order, locale="fa", timezone_name="UTC") -> dict:
+    locale = locale if locale in SUPPORTED_LOCALES else "fa"
+    labels = INVOICE_TEXT[locale]
+    subtotal = sum((Decimal(str(item.line_total)) for item in order.items), Decimal("0.00"))
+    payment_status = labels["paid"]
+    customer_lines = [order.customer_name]
+    if order.customer_email:
+        customer_lines.append(f"{labels['email']}: {order.customer_email}")
+    customer_lines.extend((f"{labels['phone']}: {order.customer_phone}", f"{labels['address']}: {order.customer_address}"))
+    return {
+        "locale": locale,
+        "labels": labels,
+        "table_headers": [labels[key] for key in (("sum", "unit", "quantity", "product", "row") if locale == "fa" else ("row", "product", "quantity", "unit", "sum"))],
+        "order_number": str(order.id),
+        "invoice_number": order.invoice_number,
+        "tracking_number": order.tracking_number,
+        "issued_at": _issued_at(order, locale, timezone_name),
+        "timezone": _effective_timezone(locale, timezone_name),
+        "order_status": STATUS_LABELS[locale].get(order.status, order.status),
+        "payment_status": payment_status,
+        "subtotal": money(subtotal, locale),
+        "total": money(order.total_amount, locale),
+        "store_name": order.store.name,
+        "customer_lines": customer_lines,
+        "items": order.items,
+    }
 
 
 def render_invoice_pdf(order, locale="fa", timezone_name="UTC") -> bytes:
-    locale = locale if locale in SUPPORTED_LOCALES else "fa"
-    labels = INVOICE_TEXT[locale]
+    fields = invoice_fields(order, locale, timezone_name)
+    locale = fields["locale"]
+    labels = fields["labels"]
     output = BytesIO()
     page_width, _ = A4
     margin = 16 * mm
@@ -244,46 +296,47 @@ def render_invoice_pdf(order, locale="fa", timezone_name="UTC") -> bytes:
     story.append(HRFlowable(width="100%", thickness=1, color=LINE))
     story.append(Spacer(1, 5 * mm))
 
-    status_label = STATUS_LABELS_FA.get(order.status, order.status) if locale == "fa" else order.status.replace("_", " ").title()
     story.append(_meta_row([
-        (labels["invoice"], order.invoice_number),
-        (labels["tracking"], order.tracking_number),
-        (labels["issued"], _issued_at(order, locale, timezone_name)),
-        (labels["status"], status_label),
-    ], locale))
+        (labels["invoice"], fields["invoice_number"]),
+        (labels["order"], fields["order_number"]),
+        (labels["tracking"], fields["tracking_number"]),
+        (labels["issued"], fields["issued_at"]),
+        (labels["timezone"], fields["timezone"]),
+        (labels["status"], fields["order_status"]),
+        (labels["payment"], fields["payment_status"]),
+    ], content_width, locale))
     story.append(Spacer(1, 6 * mm))
 
     story.append(_p(labels["seller"], "section", locale))
-    story.append(_p(order.store.name, "body", locale))
+    story.append(_p(fields["store_name"], "body", locale))
     story.append(Spacer(1, 5 * mm))
 
     story.append(_p(labels["customer"], "section", locale))
-    customer_lines = [order.customer_name]
-    if order.customer_email:
-        customer_lines.append(f"{labels['email']}: {order.customer_email}")
-    customer_lines.append(f"{labels['phone']}: {order.customer_phone}")
-    customer_lines.append(f"{labels['address']}: {order.customer_address}")
-    for line in customer_lines:
+    for line in fields["customer_lines"]:
         story.append(_p(line, "body", locale))
     story.append(Spacer(1, 6 * mm))
 
     story.append(_p(labels["items"], "section", locale))
-    story.append(_items_table(order.items, content_width, locale))
+    story.append(_items_table(fields["items"], content_width, locale, fields["table_headers"]))
     story.append(Spacer(1, 6 * mm))
 
-    total_row = Table(
-        [[_p(money(order.total_amount, locale), "total_value", locale), _p(labels["total"], "total_label", locale)]],
+    totals = [
+        [labels["subtotal"], fields["subtotal"]],
+        [labels["total"], fields["total"]],
+    ]
+    totals_table = Table(
+        [[_p(value, "total_value" if index == 1 else "meta_value", locale), _p(label, "total_label" if index == 1 else "meta_label", locale)] for index, (label, value) in enumerate(totals)],
         colWidths=[content_width * 0.5, content_width * 0.5],
         hAlign="RIGHT" if locale == "fa" else "LEFT",
     )
-    total_row.setStyle(TableStyle([
+    totals_table.setStyle(TableStyle([
         ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
-        ("LINEABOVE", (0, 0), (-1, 0), 0.8, TEAL_INK),
+        ("LINEABOVE", (0, 1), (-1, 1), 0.8, TEAL_INK),
         ("TOPPADDING", (0, 0), (-1, -1), 6),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
     ]))
-    story.append(total_row)
+    story.append(totals_table)
 
     def _footer(canvas, doc_):
         canvas.saveState()

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
-import { LOCALES, useI18n } from '../lib/i18n'
+import { LOCALES, useI18n, getBrowserTimezone } from '../lib/i18n'
 import { copyText, downloadBlob, safeStorage, toLatinDigits, uuid } from '../lib/util'
 import { Button, Empty, Field, Icon, Modal, StatusBadge, useToast } from './ui'
 
@@ -119,7 +119,7 @@ function DoneView({ shop, order, onClose, onPaid }) {
     toast(t('order.paid'))
   })
   const invoice = guarded('invoice', async () => {
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    const timezone = getBrowserTimezone()
     downloadBlob(await api.guestInvoice(shop.storeId, order.id, guest, invoiceLocale, timezone), `${paidOrder.invoice_number}.pdf`)
   })
 
