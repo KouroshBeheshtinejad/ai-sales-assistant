@@ -76,7 +76,7 @@ export default function App() {
                   <Route path="knowledge" element={<RequireStorePermission permission="knowledge.read"><Knowledge /></RequireStorePermission>} />
                   <Route path="team" element={<RequireStorePermission permission="member.read"><Team /></RequireStorePermission>} />
                   <Route path="contact-support" element={<RequireStorePermission permission="support.contact"><StoreSupportDashboard /></RequireStorePermission>} />
-                  <Route path="account"><Account /></Route>
+                  <Route path="account" element={<RequireRoles roles={['store_owner', 'store_admin', 'support', 'god']}><Account /></RequireRoles>} />
                   <Route path="support" element={<RequireRoles roles={['support', 'god']}><SupportDashboard /></RequireRoles>} />
                   <Route path="customer" element={<RequireRoles roles={['customer']}><CustomerDashboard /></RequireRoles>} />
                   <Route path="platform" element={<RequireRoles roles={['god']}><GodDashboard /></RequireRoles>} />
