@@ -15,11 +15,16 @@ in the correct visual (right-to-left) order before it reaches reportlab.
 
 from __future__ import annotations
 
+from datetime import timezone
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import arabic_reshaper
+import jdatetime
+from babel.dates import format_datetime
+from babel.numbers import format_decimal
 from bidi.algorithm import get_display
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -58,6 +63,15 @@ STATUS_LABELS_FA = {
     "cancelled": "لغو شد",
 }
 
+SUPPORTED_LOCALES = {"fa", "en", "es", "de", "fr"}
+INVOICE_TEXT = {
+    "fa": {"title": "فاکتور فروش", "invoice": "شماره فاکتور", "tracking": "کد رهگیری", "issued": "تاریخ صدور", "status": "وضعیت سفارش", "seller": "فروشنده", "customer": "مشخصات مشتری", "items": "اقلام سفارش", "row": "ردیف", "product": "کالا", "quantity": "تعداد", "unit": "قیمت واحد", "sum": "جمع", "total": "جمع کل", "email": "ایمیل", "phone": "تلفن", "address": "آدرس", "footer": "این فاکتور توسط ناوا صادر شده است — دستیار فروش هوشمند فروشگاه‌های آنلاین", "currency": "تومان"},
+    "en": {"title": "Sales Invoice", "invoice": "Invoice number", "tracking": "Tracking number", "issued": "Issued", "status": "Order status", "seller": "Seller", "customer": "Customer details", "items": "Order items", "row": "No.", "product": "Product", "quantity": "Qty", "unit": "Unit price", "sum": "Amount", "total": "Total", "email": "Email", "phone": "Phone", "address": "Address", "footer": "Issued by NAVA, the intelligent sales assistant for online stores", "currency": "Toman"},
+    "es": {"title": "Factura de venta", "invoice": "Número de factura", "tracking": "Número de seguimiento", "issued": "Fecha de emisión", "status": "Estado del pedido", "seller": "Vendedor", "customer": "Datos del cliente", "items": "Artículos del pedido", "row": "N.º", "product": "Producto", "quantity": "Cant.", "unit": "Precio unitario", "sum": "Importe", "total": "Total", "email": "Correo", "phone": "Teléfono", "address": "Dirección", "footer": "Emitida por NAVA, el asistente inteligente de ventas para tiendas online", "currency": "tomanes"},
+    "de": {"title": "Verkaufsrechnung", "invoice": "Rechnungsnummer", "tracking": "Sendungsnummer", "issued": "Ausgestellt am", "status": "Bestellstatus", "seller": "Verkäufer", "customer": "Kundendaten", "items": "Bestellpositionen", "row": "Nr.", "product": "Produkt", "quantity": "Anz.", "unit": "Einzelpreis", "sum": "Betrag", "total": "Gesamtbetrag", "email": "E-Mail", "phone": "Telefon", "address": "Adresse", "footer": "Ausgestellt von NAVA, dem intelligenten Verkaufsassistenten für Online-Shops", "currency": "Toman"},
+    "fr": {"title": "Facture de vente", "invoice": "Numéro de facture", "tracking": "Numéro de suivi", "issued": "Date d’émission", "status": "État de la commande", "seller": "Vendeur", "customer": "Coordonnées du client", "items": "Articles commandés", "row": "N°", "product": "Produit", "quantity": "Qté", "unit": "Prix unitaire", "sum": "Montant", "total": "Total", "email": "E-mail", "phone": "Téléphone", "address": "Adresse", "footer": "Émise par NAVA, l’assistant commercial intelligent pour les boutiques en ligne", "currency": "tomans"},
+}
+
 
 def _register_fonts() -> None:
     # Runs once per interpreter: importing this module a second time is a no-op in
@@ -92,7 +106,7 @@ def rtl(value) -> str:
         return text
 
 
-def money(value) -> str:
+def money(value, locale="fa") -> str:
     """Formats an amount as plain (unshaped) text — callers route it through ``_p()``,
     which shapes it exactly once. Shaping this twice un-reverses the bidi reordering
     and renders as garbled/reversed Persian, so this must NOT call ``rtl()`` itself.
@@ -100,9 +114,12 @@ def money(value) -> str:
     try:
         amount = Decimal(value)
     except (InvalidOperation, TypeError):
-        return f"{value} تومان"
+        return f"{value} {INVOICE_TEXT[locale]['currency']}"
     amount = amount.quantize(Decimal("1")) if amount == amount.to_integral_value() else amount.quantize(Decimal("0.01"))
-    return f"{amount:,} تومان"
+    if locale == "fa":
+        return f"{amount:,} تومان"
+    locale_tags = {"fa": "fa_IR", "en": "en_US", "es": "es_ES", "de": "de_DE", "fr": "fr_FR"}
+    return f"{format_decimal(amount, locale=locale_tags[locale])} {INVOICE_TEXT[locale]['currency']}"
 
 
 def _style(name, font=FONT_REGULAR, size=10, leading=None, align=TA_RIGHT, color=INK, **extra):
@@ -126,16 +143,19 @@ STYLES = {
 }
 
 
-def _p(text, style):
-    return Paragraph(rtl(text), STYLES[style])
+def _p(text, style, locale="fa"):
+    paragraph_style = STYLES[style]
+    if locale != "fa" and paragraph_style.alignment == TA_RIGHT:
+        paragraph_style = ParagraphStyle(f"{style}_ltr", parent=paragraph_style, alignment=TA_LEFT)
+    return Paragraph(rtl(text) if locale == "fa" else str(text), paragraph_style)
 
 
-def _meta_row(pairs):
+def _meta_row(pairs, locale="fa"):
     """A right-aligned label/value grid, e.g. 'شماره فاکتور  INV-000123'."""
     cells = []
     for label, value in pairs:
-        cells.append([_p(value, "meta_value"), _p(label, "meta_label")])
-    table = Table([[c for pair in cells for c in pair]], colWidths=None, hAlign="RIGHT")
+        cells.append([_p(value, "meta_value", locale), _p(label, "meta_label", locale)])
+    table = Table([[c for pair in cells for c in pair]], colWidths=None, hAlign="RIGHT" if locale == "fa" else "LEFT")
     table.setStyle(TableStyle([
         ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -147,21 +167,24 @@ def _meta_row(pairs):
     return table
 
 
-def _items_table(items, width):
+def _items_table(items, width, locale="fa"):
     # Physical column order is left-to-right; the *last* column ends up on the right
     # edge of the page, which is where a right-to-left reader expects the row number.
-    header = [_p("جمع", "th"), _p("قیمت واحد", "th"), _p("تعداد", "th"), _p("کالا", "th"), _p("ردیف", "th")]
+    labels = INVOICE_TEXT[locale]
+    header_labels = [labels[key] for key in (("sum", "unit", "quantity", "product", "row") if locale == "fa" else ("row", "product", "quantity", "unit", "sum"))]
+    header = [_p(label, "th", locale) for label in header_labels]
     rows = [header]
     for index, item in enumerate(items, start=1):
-        rows.append([
-            _p(money(item.line_total), "td"),
-            _p(money(item.unit_price), "td"),
-            _p(item.quantity, "td"),
-            _p(item.product_name, "td_name"),
-            _p(index, "td"),
-        ])
-    col_widths = [width * 0.20, width * 0.20, width * 0.12, width * 0.36, width * 0.12]
-    table = Table(rows, colWidths=col_widths, repeatRows=1, hAlign="RIGHT")
+        values = [
+            _p(money(item.line_total, locale), "td", locale),
+            _p(money(item.unit_price, locale), "td", locale),
+            _p(item.quantity, "td", locale),
+            _p(item.product_name, "td_name", locale),
+            _p(index, "td", locale),
+        ]
+        rows.append(values if locale == "fa" else list(reversed(values)))
+    col_widths = [width * part for part in ((0.20, 0.20, 0.12, 0.36, 0.12) if locale == "fa" else (0.12, 0.36, 0.12, 0.20, 0.20))]
+    table = Table(rows, colWidths=col_widths, repeatRows=1, hAlign="RIGHT" if locale == "fa" else "LEFT")
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), TEAL_INK),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, TEAL_SOFT]),
@@ -175,7 +198,25 @@ def _items_table(items, width):
     return table
 
 
-def render_invoice_pdf(order) -> bytes:
+def _issued_at(order, locale: str, timezone_name: str) -> str:
+    issued = getattr(order, "paid_at", None) or order.created_at
+    if issued is None:
+        return "-"
+    issued = issued.replace(tzinfo=timezone.utc) if issued.tzinfo is None else issued
+    if locale == "fa":
+        tehran_time = issued.astimezone(ZoneInfo("Asia/Tehran")).replace(tzinfo=None)
+        return jdatetime.datetime.fromgregorian(datetime=tehran_time).strftime("%Y/%m/%d %H:%M")
+    try:
+        local_zone = ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        local_zone = ZoneInfo("UTC")
+    tags = {"en": "en_US", "es": "es_ES", "de": "de_DE", "fr": "fr_FR"}
+    return format_datetime(issued.astimezone(local_zone), format="medium", locale=tags[locale])
+
+
+def render_invoice_pdf(order, locale="fa", timezone_name="UTC") -> bytes:
+    locale = locale if locale in SUPPORTED_LOCALES else "fa"
+    labels = INVOICE_TEXT[locale]
     output = BytesIO()
     page_width, _ = A4
     margin = 16 * mm
@@ -193,9 +234,9 @@ def render_invoice_pdf(order) -> bytes:
     story = []
 
     header = Table(
-        [[Paragraph("NAVA", STYLES["brand"]), _p("فاکتور فروش", "doc_title")]],
+        [[Paragraph("NAVA", STYLES["brand"]), _p(labels["title"], "doc_title", locale)]],
         colWidths=[content_width * 0.5, content_width * 0.5],
-        hAlign="RIGHT",
+        hAlign="RIGHT" if locale == "fa" else "LEFT",
     )
     header.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
     story.append(header)
@@ -203,36 +244,37 @@ def render_invoice_pdf(order) -> bytes:
     story.append(HRFlowable(width="100%", thickness=1, color=LINE))
     story.append(Spacer(1, 5 * mm))
 
+    status_label = STATUS_LABELS_FA.get(order.status, order.status) if locale == "fa" else order.status.replace("_", " ").title()
     story.append(_meta_row([
-        ("شماره فاکتور", order.invoice_number),
-        ("کد رهگیری", order.tracking_number),
-        ("تاریخ صدور", order.created_at.strftime("%Y-%m-%d %H:%M") if order.created_at else "-"),
-        ("وضعیت سفارش", STATUS_LABELS_FA.get(order.status, order.status)),
-    ]))
+        (labels["invoice"], order.invoice_number),
+        (labels["tracking"], order.tracking_number),
+        (labels["issued"], _issued_at(order, locale, timezone_name)),
+        (labels["status"], status_label),
+    ], locale))
     story.append(Spacer(1, 6 * mm))
 
-    story.append(_p("فروشنده", "section"))
-    story.append(_p(order.store.name, "body"))
+    story.append(_p(labels["seller"], "section", locale))
+    story.append(_p(order.store.name, "body", locale))
     story.append(Spacer(1, 5 * mm))
 
-    story.append(_p("مشخصات مشتری", "section"))
+    story.append(_p(labels["customer"], "section", locale))
     customer_lines = [order.customer_name]
     if order.customer_email:
-        customer_lines.append(f"ایمیل: {order.customer_email}")
-    customer_lines.append(f"تلفن: {order.customer_phone}")
-    customer_lines.append(f"آدرس: {order.customer_address}")
+        customer_lines.append(f"{labels['email']}: {order.customer_email}")
+    customer_lines.append(f"{labels['phone']}: {order.customer_phone}")
+    customer_lines.append(f"{labels['address']}: {order.customer_address}")
     for line in customer_lines:
-        story.append(_p(line, "body"))
+        story.append(_p(line, "body", locale))
     story.append(Spacer(1, 6 * mm))
 
-    story.append(_p("اقلام سفارش", "section"))
-    story.append(_items_table(order.items, content_width))
+    story.append(_p(labels["items"], "section", locale))
+    story.append(_items_table(order.items, content_width, locale))
     story.append(Spacer(1, 6 * mm))
 
     total_row = Table(
-        [[_p(money(order.total_amount), "total_value"), _p("جمع کل", "total_label")]],
+        [[_p(money(order.total_amount, locale), "total_value", locale), _p(labels["total"], "total_label", locale)]],
         colWidths=[content_width * 0.5, content_width * 0.5],
-        hAlign="RIGHT",
+        hAlign="RIGHT" if locale == "fa" else "LEFT",
     )
     total_row.setStyle(TableStyle([
         ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
@@ -247,7 +289,7 @@ def render_invoice_pdf(order) -> bytes:
         canvas.saveState()
         canvas.setFont(FONT_REGULAR, 8.5)
         canvas.setFillColor(MUTED)
-        text = rtl("این فاکتور توسط ناوا صادر شده است — دستیار فروش هوشمند فروشگاه‌های آنلاین")
+        text = rtl(labels["footer"]) if locale == "fa" else labels["footer"]
         canvas.drawCentredString(page_width / 2, 10 * mm, text)
         canvas.restoreState()
 

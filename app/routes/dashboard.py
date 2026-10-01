@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import User, Store, Product
-from app.routes.auth import get_current_user_from_cookie
+from app.routes.auth import get_current_user_from_cookie, store_owner_filter
 from app.core.business_types import get_business_type_label
 
 
@@ -32,7 +32,7 @@ def dashboard(
     # Total number of stores owned by the current user
     stores_count = (
         db.query(Store)
-        .filter(Store.owner_id == current_user.id)
+        .filter(store_owner_filter(current_user))
         .count()
     )
 
@@ -40,7 +40,7 @@ def dashboard(
     total_products_count = (
         db.query(Product)
         .join(Store)
-        .filter(Store.owner_id == current_user.id)
+        .filter(store_owner_filter(current_user))
         .count()
     )
 
@@ -48,14 +48,14 @@ def dashboard(
     total_stock_count = (
         db.query(func.coalesce(func.sum(Product.stock - Product.reserved_stock), 0))
         .join(Store)
-        .filter(Store.owner_id == current_user.id)
+        .filter(store_owner_filter(current_user))
         .scalar()
     )
 
     # Get all stores owned by the current user
     stores = (
         db.query(Store)
-        .filter(Store.owner_id == current_user.id)
+        .filter(store_owner_filter(current_user))
         .all()
     )
 

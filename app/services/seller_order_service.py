@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.db.models import Order, Store
+from app.db.models import Order, Store, User
 from app.services.order_service import OrderService
 
 
@@ -30,12 +30,11 @@ class SellerOrderService:
         seller_id: int,
         store_id: int,
     ) -> Store:
-        store = db.scalar(
-            select(Store).where(
-                Store.id == store_id,
-                Store.owner_id == seller_id,
-            )
-        )
+        user = db.get(User, seller_id)
+        filters = [Store.id == store_id]
+        if user is None or user.role != "god":
+            filters.append(Store.owner_id == seller_id)
+        store = db.scalar(select(Store).where(*filters))
 
         if store is None:
             raise ValueError("Store not found")
@@ -57,7 +56,7 @@ class SellerOrderService:
         orders = db.scalars(
             select(Order)
             .options(joinedload(Order.items))
-            .where(Order.store_id == store_id)
+            .where(Order.store_id == store_id, OrderService.finalized_order_filter())
             .order_by(Order.created_at.desc())
         ).unique().all()
 
@@ -69,13 +68,17 @@ class SellerOrderService:
         seller_id: int,
         order_id: int,
     ) -> Order:
+        user = db.get(User, seller_id)
+        filters = [Order.id == order_id]
+        if user is None or user.role != "god":
+            filters.append(Store.owner_id == seller_id)
         order = db.scalar(
             select(Order)
             .join(Store, Order.store_id == Store.id)
             .options(joinedload(Order.items))
             .where(
-                Order.id == order_id,
-                Store.owner_id == seller_id,
+                *filters,
+                OrderService.finalized_order_filter(),
             )
         )
 

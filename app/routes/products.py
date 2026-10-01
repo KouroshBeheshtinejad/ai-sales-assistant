@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import Product, Store, User
-from app.routes.auth import get_current_user
+from app.routes.auth import get_current_user, store_owner_filter
 from app.services.cloudinary_service import delete_image, upload_image
 from app.services.image_validation import validate_image_content
 from app.services.semantic_index import (
@@ -99,7 +99,7 @@ def create_product(
         db.query(Store)
         .filter(
             Store.id == data.store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -141,7 +141,7 @@ async def upload_product_image(
         .join(Store)
         .filter(
             Product.id == product_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -213,7 +213,7 @@ def delete_product_image(
         .join(Store)
         .filter(
             Product.id == product_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -254,7 +254,7 @@ def get_products(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -288,7 +288,7 @@ def get_product(
         .join(Store)
         .filter(
             Product.id == product_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -335,7 +335,7 @@ def update_product(
         .join(Store)
         .filter(
             Product.id == product_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -389,7 +389,7 @@ def delete_product(
         .join(Store)
         .filter(
             Product.id == product_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.business_types import get_business_type_label, normalize_business_type
 from app.db.database import get_db
 from app.db.models import Store, User
-from app.routes.auth import get_current_user
+from app.routes.auth import get_current_user, store_owner_filter
 from app.services.cloudinary_service import delete_image, upload_image
 from app.services.image_validation import validate_image_content
 
@@ -91,7 +91,7 @@ def get_my_stores(
 ):
     stores = (
         db.query(Store)
-        .filter(Store.owner_id == current_user.id)
+        .filter(store_owner_filter(current_user))
         .all()
     )
 
@@ -119,7 +119,7 @@ def get_store(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -168,7 +168,7 @@ def update_store(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -212,7 +212,7 @@ async def upload_store_logo(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -284,7 +284,7 @@ def delete_store_logo(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -325,7 +325,7 @@ def delete_store(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )

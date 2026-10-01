@@ -6,14 +6,14 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db.database import get_db
 from app.db.models import Conversation, Store, User
-from app.routes.auth import get_current_user, get_current_user_from_cookie
+from app.routes.auth import get_current_user, get_current_user_from_cookie, store_owner_filter
 
 router = APIRouter(prefix="/seller/conversations", tags=["Seller Conversations"])
 templates = Jinja2Templates(directory="app/templates")
 
 
-def _owned_store(db: Session, seller_id: int, store_id: int) -> Store:
-    store = db.scalar(select(Store).where(Store.id == store_id, Store.owner_id == seller_id))
+def _owned_store(db: Session, user: User, store_id: int) -> Store:
+    store = db.scalar(select(Store).where(Store.id == store_id, store_owner_filter(user)))
     if store is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
     return store
@@ -49,7 +49,7 @@ def conversations_page(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ):
-    _owned_store(db, current_user.id, store_id)
+    _owned_store(db, current_user, store_id)
     conversations = db.scalars(
         select(Conversation)
         .options(joinedload(Conversation.messages))
@@ -69,7 +69,7 @@ def list_conversations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    _owned_store(db, current_user.id, store_id)
+    _owned_store(db, current_user, store_id)
     conversations = db.scalars(
         select(Conversation)
         .options(joinedload(Conversation.messages))
@@ -89,7 +89,7 @@ def get_conversation(
         select(Conversation)
         .join(Store, Conversation.store_id == Store.id)
         .options(joinedload(Conversation.messages))
-        .where(Conversation.id == conversation_id, Store.owner_id == current_user.id)
+        .where(Conversation.id == conversation_id, store_owner_filter(current_user))
     )
     if conversation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")

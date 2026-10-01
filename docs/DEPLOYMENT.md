@@ -8,6 +8,8 @@
 
 `APP_ENV=production`، `DATABASE_URL`، `SECRET_KEY` قوی و `APP_ALLOWED_HOSTS` را الزامی کنید. پورت PostgreSQL را عمومی نکنید، provider key را فقط در secret manager/environment قرار دهید، لاگ‌ها را بدون password/API key نگه دارید و health checkهای `/health/live` و `/health/ready` را monitor کنید.
 
+برای دسترسی سراسری God، `GOD_USER_EMAIL` را در secret manager روی ایمیل حساب تأییدشده‌ی خودتان تنظیم کنید. این نقش در API قابل واگذاری نیست؛ God می‌تواند از `/api/admin/users` نقش `support` یا `seller` را مدیریت کند. نقش Support فقط فهرست سفارش‌های نهایی‌شده را می‌خواند. آدرس بازگشت درگاه را روی `/api/payments/callback` تنظیم کنید. ساعت فاکتور فارسی همیشه تهران و شمسی است؛ چهار زبان دیگر از timezone مرورگر خریدار استفاده می‌کنند.
+
 اعلان سفارش از مرز `notification_service` عبور می‌کند. مقدار پیش‌فرض
 `CONVERSATION_RETENTION_DAYS=90` روز با job زیر پاک می‌شوند. سوابق سفارش و invoice
 برای نیازهای قانونی/عملیاتی حذف نمی‌شوند:

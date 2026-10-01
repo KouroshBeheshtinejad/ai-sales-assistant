@@ -70,7 +70,9 @@ export const api = {
   },
   checkout: (storeId, payload, guest, idempotencyKey) =>
     request(`/orders/stores/${storeId}`, { method: 'POST', guest, body: payload, headers: { 'Idempotency-Key': idempotencyKey } }),
-  guestInvoice: (storeId, orderId, guest) => request(`/orders/stores/${storeId}/guest/${orderId}/invoice`, { guest, blob: true }),
+  guestOrder: (storeId, orderId, guest) => request(`/orders/stores/${storeId}/guest/${orderId}`, { guest }),
+  guestInvoice: (storeId, orderId, guest, locale, timezone) =>
+    request(`/orders/stores/${storeId}/guest/${orderId}/invoice?locale=${encodeURIComponent(locale)}&timezone=${encodeURIComponent(timezone)}`, { guest, blob: true }),
   pay: (orderId, idempotencyKey, guest) =>
     request(`/payments/orders/${orderId}`, { method: 'POST', guest, headers: { 'Idempotency-Key': idempotencyKey } }),
   verifyPayment: (paymentId, authority, guest) =>

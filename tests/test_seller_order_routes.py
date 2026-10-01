@@ -109,7 +109,9 @@ def create_order(user_id: int, store_id: int, product_id: int):
         order = Order(
             user_id=user_id,
             store_id=store_id,
-            status="pending",
+            status="confirmed",
+            tracking_number="4821903357",
+            invoice_number="INV-20260920-000001",
             customer_name="Test Customer",
             customer_phone="09120000000",
             customer_address="Test Address",
@@ -186,7 +188,7 @@ def test_seller_can_list_store_orders(client, test_data):
     assert len(data) == 1
     assert data[0]["id"] == test_data["order"].id
     assert data[0]["store_id"] == test_data["store"].id
-    assert data[0]["status"] == "pending"
+    assert data[0]["status"] == "confirmed"
 
 
 def test_seller_cannot_list_another_store_orders(client, test_data):
@@ -229,7 +231,7 @@ def test_seller_can_update_order_status(client, test_data):
     response = client.patch(
         f"/seller/orders/{test_data['order'].id}/status",
         headers=auth_headers(test_data["seller"].id),
-        json={"status": "confirmed"},
+        json={"status": "preparing"},
     )
 
     assert response.status_code == 200
@@ -237,7 +239,7 @@ def test_seller_can_update_order_status(client, test_data):
     data = response.json()
 
     assert data["id"] == test_data["order"].id
-    assert data["status"] == "confirmed"
+    assert data["status"] == "preparing"
 
 
 def test_seller_cannot_make_invalid_status_transition(client, test_data):

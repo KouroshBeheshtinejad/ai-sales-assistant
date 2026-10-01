@@ -1,16 +1,31 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.db.database import get_db
 from app.db.models import User
 from app.routes.auth import get_current_user, get_optional_user
 from app.services.order_service import OrderService
-from app.services.invoice_service import render_invoice_pdf
+from app.services.invoice_service import SUPPORTED_LOCALES, render_invoice_pdf
 from app.services.chat_rate_limit import enforce_tracking_rate_limit
 
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
+
+
+def _invoice_pdf(order, locale: str, timezone_name: str) -> Response:
+    if locale not in SUPPORTED_LOCALES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported invoice language")
+    try:
+        ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid timezone")
+    return Response(
+        content=render_invoice_pdf(order, locale, timezone_name),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{order.invoice_number}-{locale}.pdf"'},
+    )
 
 
 class CreateOrderRequest(BaseModel):
@@ -34,7 +49,7 @@ def order_response(order):
     return {
         "id": order.id,
         "tracking_number": order.tracking_number,
-            "invoice_number": order.invoice_number,
+        "invoice_number": order.invoice_number,
         "user_id": order.user_id,
         "store_id": order.store_id,
         "status": order.status,
@@ -126,17 +141,15 @@ def create_order(
 @router.get("/{order_id}/invoice")
 def download_user_invoice(
     order_id: int,
+    locale: str = "fa",
+    timezone: str = "UTC",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     order = OrderService.get_order_by_id(db, order_id, current_user.id)
-    if order is None:
+    if order is None or (not order.paid_at and not order.tracking_number):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-    return Response(
-        content=render_invoice_pdf(order),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{order.invoice_number}.pdf"'},
-    )
+    return _invoice_pdf(order, locale, timezone)
 
 
 @router.get("/stores/{store_id}/guest/{order_id}")
@@ -163,6 +176,8 @@ def get_guest_order(
 def download_guest_invoice(
     store_id: int,
     order_id: int,
+    locale: str = "fa",
+    timezone: str = "UTC",
     guest_token: str | None = Header(default=None, alias="X-Guest-Token"),
     db: Session = Depends(get_db),
 ):
@@ -171,11 +186,7 @@ def download_guest_invoice(
     order = OrderService.get_guest_order(db, order_id, store_id, guest_token)
     if order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-    return Response(
-        content=render_invoice_pdf(order),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{order.invoice_number}.pdf"'},
-    )
+    return _invoice_pdf(order, locale, timezone)
 
 
 @router.get("")
@@ -202,7 +213,7 @@ def get_order(
         user_id=current_user.id,
     )
 
-    if order is None:
+    if order is None or (not order.paid_at and not order.tracking_number):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Order not found",

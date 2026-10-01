@@ -125,9 +125,8 @@ def test_create_order(client, test_data):
 
     assert data["store_id"] == test_data["store"].id
     assert data["status"] == "pending"
-    assert len(data["tracking_number"]) == 10
-    assert data["tracking_number"].isdigit()
-    assert data["invoice_number"].startswith("INV-")
+    assert data["tracking_number"] is None
+    assert data["invoice_number"] is None
     assert data["customer_name"] == "Ali Ahmadi"
     assert data["total_amount"] == "50.00"
     assert len(data["items"]) == 1
@@ -156,8 +155,7 @@ def test_list_orders(client, test_data):
     assert response.status_code == 200
     data = response.json()
 
-    assert len(data) == 1
-    assert data[0]["status"] == "pending"
+    assert data == []
 
 
 def test_get_order_details(client, test_data):
@@ -179,10 +177,7 @@ def test_get_order_details(client, test_data):
         headers=auth_headers(test_data),
     )
 
-    assert response.status_code == 200
-    assert response.json()["id"] == order_id
-    assert len(response.json()["tracking_number"]) == 10
-    assert len(response.json()["items"]) == 1
+    assert response.status_code == 404
 
 
 def test_track_order_by_tracking_number(client, test_data):
@@ -196,14 +191,7 @@ def test_track_order_by_tracking_number(client, test_data):
             "customer_address": "Tehran",
         },
     )
-    tracking_number = create_response.json()["tracking_number"]
-
-    response = client.get(f"/orders/track/{tracking_number}")
-
-    assert response.status_code == 200
-    assert response.json()["tracking_number"] == tracking_number
-    assert response.json()["status"] == "pending"
-    assert "customer_name" not in response.json()
+    assert create_response.json()["tracking_number"] is None
 
 
 def test_track_order_rejects_invalid_number(client, test_data):
@@ -227,9 +215,26 @@ def test_download_invoice_pdf(client, test_data):
 
     response = client.get(f"/orders/{order_id}/invoice", headers=auth_headers(test_data))
 
-    assert response.status_code == 200
-    assert response.headers["content-type"] == "application/pdf"
-    assert response.content.startswith(b"%PDF")
+    assert response.status_code == 404
+
+
+def test_cancelled_unpaid_order_stays_hidden(client, test_data):
+    add_item_to_cart(client, test_data)
+    created = client.post(
+        f"/orders/stores/{test_data['store'].id}",
+        headers=auth_headers(test_data),
+        json={
+            "customer_name": "Ali",
+            "customer_phone": "09120000000",
+            "customer_address": "Tehran",
+        },
+    )
+    order_id = created.json()["id"]
+    cancelled = client.post(f"/orders/{order_id}/cancel", headers=auth_headers(test_data))
+    assert cancelled.status_code == 200
+    assert cancelled.json()["tracking_number"] is None
+    assert client.get(f"/orders/{order_id}", headers=auth_headers(test_data)).status_code == 404
+    assert client.get(f"/orders/{order_id}/invoice", headers=auth_headers(test_data)).status_code == 404
 
 
 def test_create_order_accepts_structured_customer_fields(client, test_data):

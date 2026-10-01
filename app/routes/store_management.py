@@ -7,7 +7,7 @@ from app.core.business_types import BUSINESS_TYPES, get_business_fields_for_stor
 from app.core.csrf import require_csrf_token
 from app.db.database import get_db
 from app.db.models import User, Store, Product, FAQ, KnowledgeBaseEntry
-from app.routes.auth import get_current_user_from_cookie
+from app.routes.auth import get_current_user_from_cookie, store_owner_filter
 from app.services.semantic_index import (
     SOURCE_FAQ,
     SOURCE_KNOWLEDGE_BASE,
@@ -49,7 +49,7 @@ def manage_store(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -107,7 +107,7 @@ def manage_faqs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -134,7 +134,7 @@ def new_faq_form(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
     return templates.TemplateResponse(
@@ -163,7 +163,7 @@ def create_faq_from_form(
     current_user: User = Depends(get_current_user_from_cookie),
     _: None = Depends(require_csrf_token),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -185,7 +185,7 @@ def edit_faq_form(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -220,7 +220,7 @@ def update_faq_from_form(
     current_user: User = Depends(get_current_user_from_cookie),
     _: None = Depends(require_csrf_token),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -247,7 +247,7 @@ def delete_faq_from_form(
     current_user: User = Depends(get_current_user_from_cookie),
     _: None = Depends(require_csrf_token),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -271,7 +271,7 @@ def manage_knowledge(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -298,7 +298,7 @@ def new_knowledge_form(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -328,7 +328,7 @@ def create_knowledge_from_form(
     current_user: User = Depends(get_current_user_from_cookie),
     _: None = Depends(require_csrf_token),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -350,7 +350,7 @@ def edit_knowledge_form(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -385,7 +385,7 @@ def update_knowledge_from_form(
     current_user: User = Depends(get_current_user_from_cookie),
     _: None = Depends(require_csrf_token),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -414,7 +414,7 @@ def delete_knowledge_from_form(
     current_user: User = Depends(get_current_user_from_cookie),
     _: None = Depends(require_csrf_token),
 ):
-    store = db.query(Store).filter(Store.id == store_id, Store.owner_id == current_user.id).first()
+    store = db.query(Store).filter(Store.id == store_id, store_owner_filter(current_user)).first()
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -443,7 +443,7 @@ def new_product_form(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -480,7 +480,7 @@ def edit_product_form(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -539,7 +539,7 @@ async def update_product_from_form(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -609,7 +609,7 @@ async def create_product_from_form(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -657,7 +657,7 @@ def edit_store_form(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -694,7 +694,7 @@ def update_store_from_form(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )
@@ -730,7 +730,7 @@ def delete_product_from_store(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            Store.owner_id == current_user.id,
+            store_owner_filter(current_user),
         )
         .first()
     )

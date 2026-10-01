@@ -1,7 +1,7 @@
 from decimal import Decimal
 from datetime import datetime, timezone
 
-from app.services.invoice_service import money, render_invoice_pdf, rtl
+from app.services.invoice_service import _issued_at, money, render_invoice_pdf, rtl
 
 
 class _Item:
@@ -75,6 +75,22 @@ def test_render_invoice_pdf_embeds_the_persian_font():
     # Confirms the Persian-capable font actually made it into the document rather than
     # silently falling back to Helvetica (which cannot render Persian at all).
     assert b"Vazirmatn" in pdf_bytes
+
+
+def test_render_invoice_pdf_supports_all_locales():
+    for locale in ("fa", "en", "es", "de", "fr"):
+        pdf_bytes = render_invoice_pdf(_Order(), locale, "Europe/Berlin")
+        assert pdf_bytes.startswith(b"%PDF")
+        assert b"%%EOF" in pdf_bytes
+
+
+def test_persian_issued_date_is_jalali_tehran_time():
+    assert _issued_at(_Order(), "fa", "America/Los_Angeles") == "1405/06/29 18:00"
+
+
+def test_other_invoice_locales_use_customer_timezone():
+    order = _Order()
+    assert _issued_at(order, "en", "America/Los_Angeles") != _issued_at(order, "en", "Asia/Tokyo")
 
 
 def test_render_invoice_pdf_handles_missing_optional_fields():

@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import User
+from app.db.models import Payment, User
 from app.routes.auth import get_optional_user
 from app.services.payment_service import PaymentProviderNotConfigured, PaymentService
 
@@ -67,3 +69,33 @@ def verify_payment(
     except ValueError as exc:
         raise HTTPException(status_code=404 if str(exc) == "Payment not found" else 400, detail=str(exc)) from exc
     return payment_response(payment)
+
+
+@router.get("/callback", include_in_schema=False)
+def payment_callback(request: Request, db: Session = Depends(get_db)):
+    authority = request.query_params.get("Authority") or request.query_params.get("authority")
+    payment_status = (request.query_params.get("Status") or "").casefold()
+    payment = db.scalar(
+        select(Payment)
+        .where(Payment.authority == authority)
+    ) if authority else None
+    if payment is None:
+        return RedirectResponse("/payment-result?payment=failed", status_code=303)
+
+    order = payment.order
+    if payment_status == "ok":
+        try:
+            PaymentService.verify_payment(
+                db,
+                payment.id,
+                authority,
+                order.user_id,
+                order.guest_token,
+            )
+        except (PaymentProviderNotConfigured, ValueError):
+            return RedirectResponse("/payment-result?payment=failed", status_code=303)
+        return RedirectResponse(
+            f"/payment-result?payment=success&store_id={order.store_id}&order_id={order.id}",
+            status_code=303,
+        )
+    return RedirectResponse("/payment-result?payment=failed", status_code=303)

@@ -93,7 +93,9 @@ def create_order(db, user_id, store_id, product):
     order = Order(
         user_id=user_id,
         store_id=store_id,
-        status="pending",
+        status="confirmed",
+        tracking_number="4821903357",
+        invoice_number="INV-20260920-000001",
         customer_name="Test Customer",
         customer_phone="09120000000",
         customer_address="Test Address",
@@ -240,10 +242,10 @@ def test_seller_can_update_order_status(db):
         db=db,
         seller_id=seller.id,
         order_id=order.id,
-        new_status="confirmed",
+        new_status="preparing",
     )
 
-    assert updated_order.status == "confirmed"
+    assert updated_order.status == "preparing"
 
 
 def test_seller_cancellation_releases_reserved_stock(db):

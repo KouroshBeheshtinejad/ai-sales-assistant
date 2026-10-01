@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
-import { useI18n } from '../lib/i18n'
+import { LOCALES, useI18n } from '../lib/i18n'
 import { copyText, downloadBlob, safeStorage, toLatinDigits, uuid } from '../lib/util'
 import { Button, Empty, Field, Icon, Modal, StatusBadge, useToast } from './ui'
 
@@ -91,10 +91,12 @@ function CheckoutView({ shop, onBack, onDone }) {
   )
 }
 
-function DoneView({ shop, order, onClose }) {
+function DoneView({ shop, order, onClose, onPaid }) {
   const { t, id, money, err } = useI18n()
   const toast = useToast()
   const [payment, setPayment] = useState(null)
+  const [paidOrder, setPaidOrder] = useState(null)
+  const [invoiceLocale, setInvoiceLocale] = useState(LOCALES[0].code)
   const [busy, setBusy] = useState('')
   const payKey = useRef(uuid())
   const guest = shop.getGuestToken()
@@ -109,37 +111,54 @@ function DoneView({ shop, order, onClose }) {
     setPayment(created) // sandbox provider: confirmed from this screen
   })
   const confirmPayment = guarded('verify', async () => {
-    setPayment(await api.verifyPayment(payment.id, payment.authority, guest))
+    const verified = await api.verifyPayment(payment.id, payment.authority, guest)
+    setPayment(verified)
+    const finalized = await api.guestOrder(shop.storeId, order.id, guest)
+    setPaidOrder(finalized)
+    onPaid(finalized)
     toast(t('order.paid'))
   })
   const invoice = guarded('invoice', async () => {
-    downloadBlob(await api.guestInvoice(shop.storeId, order.id, guest), `${order.invoice_number || 'invoice'}.pdf`)
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    downloadBlob(await api.guestInvoice(shop.storeId, order.id, guest, invoiceLocale, timezone), `${paidOrder.invoice_number}.pdf`)
   })
 
   return (
     <div className="stack">
-      <dl className="facts">
-        <div><dt>{t('order.number')}</dt><dd>{id(order.id)}</dd></div>
-        <div>
-          <dt>{t('order.tracking')}</dt>
-          <dd className="row">{id(order.tracking_number)}<Button size="sm" onClick={async () => toast((await copyText(order.tracking_number)) ? t('copied') : t('err.generic'))}>{t('copy')}</Button></dd>
-        </div>
-        <div><dt>{t('o.status')}</dt><dd><StatusBadge status={order.status} /></dd></div>
-        <div><dt>{t('cart.total')}</dt><dd><strong>{money(order.total_amount)}</strong></dd></div>
-      </dl>
-      <ul className="plain-list" aria-label={t('order.items')}>
-        {order.items.map((item) => <li key={item.id}><span>{item.product_name} × {id(item.quantity)}</span><span>{money(item.line_total)}</span></li>)}
-      </ul>
-
       {payment?.status === 'paid' ? (
-        <p className="notice notice-ok" role="status">{t('order.paid')}</p>
+        <>
+          <p className="notice notice-ok" role="status">{t('order.paid')}</p>
+          {paidOrder && <>
+            <dl className="facts">
+              <div><dt>{t('order.number')}</dt><dd>{id(paidOrder.id)}</dd></div>
+              <div>
+                <dt>{t('order.tracking')}</dt>
+                <dd className="row">{id(paidOrder.tracking_number)}<Button size="sm" onClick={async () => toast((await copyText(paidOrder.tracking_number)) ? t('copied') : t('err.generic'))}>{t('copy')}</Button></dd>
+              </div>
+              <div><dt>{t('o.status')}</dt><dd><StatusBadge status={paidOrder.status} /></dd></div>
+              <div><dt>{t('cart.total')}</dt><dd><strong>{money(paidOrder.total_amount)}</strong></dd></div>
+            </dl>
+            <ul className="plain-list" aria-label={t('order.items')}>
+              {paidOrder.items.map((item) => <li key={item.id}><span>{item.product_name} × {id(item.quantity)}</span><span>{money(item.line_total)}</span></li>)}
+            </ul>
+            <Field label={t('order.invoiceLanguage')}>
+              <select value={invoiceLocale} onChange={(event) => setInvoiceLocale(event.target.value)}>
+                {LOCALES.map((locale) => <option key={locale.code} value={locale.code}>{locale.name}</option>)}
+              </select>
+            </Field>
+            <Button busy={busy === 'invoice'} onClick={invoice}>{t('order.invoice')}</Button>
+            <Link className="btn btn-ghost" to={`/track?number=${paidOrder.tracking_number}`} onClick={onClose}>{t('order.trackLink')}</Link>
+          </>}
+        </>
       ) : payment ? (
         <div className="notice"><p>{t('order.sandbox')}</p><Button variant="primary" busy={busy === 'verify'} onClick={confirmPayment}>{t('order.sandboxConfirm')}</Button></div>
       ) : (
-        <Button variant="primary" busy={busy === 'pay'} onClick={pay}>{t('order.pay')}</Button>
+        <>
+          <p>{t('order.paymentRequired')}</p>
+          <p><strong>{t('cart.total')}: {money(order.total_amount)}</strong></p>
+          <Button variant="primary" busy={busy === 'pay'} onClick={pay}>{t('order.pay')}</Button>
+        </>
       )}
-      <Button busy={busy === 'invoice'} onClick={invoice}>{t('order.invoice')}</Button>
-      <Link className="btn btn-ghost" to={`/track?number=${order.tracking_number}`} onClick={onClose}>{t('order.trackLink')}</Link>
       <Button variant="ghost" onClick={onClose}>{t('order.continue')}</Button>
     </div>
   )
@@ -149,13 +168,15 @@ export default function CartDrawer({ shop, onClose }) {
   const { t } = useI18n()
   const [view, setView] = useState('cart')
   const [order, setOrder] = useState(null)
-  const title = { cart: t('cart.title'), checkout: t('checkout.title'), done: t('order.placed') }[view]
+  const title = view === 'done' && order?.status === 'pending'
+    ? t('order.pending')
+    : { cart: t('cart.title'), checkout: t('checkout.title'), done: t('order.placed') }[view]
 
   return (
     <Modal title={title} onClose={onClose} variant="drawer">
       {view === 'cart' && <CartView shop={shop} onCheckout={() => setView('checkout')} />}
       {view === 'checkout' && <CheckoutView shop={shop} onBack={() => setView('cart')} onDone={(created) => { setOrder(created); setView('done') }} />}
-      {view === 'done' && order && <DoneView shop={shop} order={order} onClose={onClose} />}
+      {view === 'done' && order && <DoneView shop={shop} order={order} onClose={onClose} onPaid={setOrder} />}
     </Modal>
   )
 }

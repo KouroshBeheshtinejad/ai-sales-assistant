@@ -15,7 +15,6 @@ from app.services.sales_agent import SalesAgentService
 from app.services.conversation_service import ConversationService
 from app.services.sales_intent import SalesIntent, detect_intent
 from app.services.cart_service import CartService
-from app.services.order_service import OrderService
 from app.services.guest_commerce import (
     cart_summary,
     extract_customer_fields,
@@ -64,18 +63,6 @@ def _persist_chat_turn(db, conversation, question: str, answer: str) -> None:
         db, conversation_id=conversation.id, role="assistant", content=answer
     )
     db.commit()
-
-
-def _order_confirmation(order) -> str:
-    items = "، ".join(
-        f"{item.product_name} × {item.quantity}" for item in order.items
-    )
-    return (
-        f"سفارش شما با شماره {order.id} ثبت شد.\n"
-        f"اقلام: {items}\n"
-        f"مبلغ کل: {order.total_amount}\n"
-        f"وضعیت: {order.status}"
-    )
 
 
 _RECOMMENDATION_TERMS = (
@@ -253,20 +240,12 @@ def chat(
     try:
         if guest_token and conversation.checkout_state == "awaiting_confirmation":
             if is_confirmation(data.question):
-                order = OrderService.create_order(
-                    db=db,
-                    user_id=None,
-                    guest_token=guest_token,
-                    store_id=store_id,
-                    customer_name=conversation.checkout_customer_name or "",
-                    customer_phone=conversation.checkout_customer_phone or "",
-                    customer_address=conversation.checkout_customer_address or "",
-                    idempotency_key=conversation.checkout_idempotency_key,
-                )
-                conversation.checkout_state = "completed"
+                conversation.checkout_state = "idle"
                 conversation.checkout_idempotency_key = None
-                conversation.last_order_id = order.id
-                answer = _order_confirmation(order)
+                conversation.checkout_customer_name = None
+                conversation.checkout_customer_phone = None
+                conversation.checkout_customer_address = None
+                answer = "برای نهایی‌کردن سفارش و پرداخت امن، لطفاً از دکمه سبد خرید وارد تسویه‌حساب شوید. تا پیش از تأیید پرداخت، سفارش یا کد رهگیری صادر نمی‌شود."
                 _persist_chat_turn(db, conversation, data.question, answer)
                 return ChatResponse(success=True, answer=answer, guest_token=guest_token)
             if is_checkout_cancellation(data.question):

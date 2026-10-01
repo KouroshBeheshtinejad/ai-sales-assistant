@@ -90,6 +90,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .input-affix { position: relative; display: block; }
 .input-affix input { padding-inline-end: 72px; }
 .affix-btn { position: absolute; inset-inline-end: 6px; top: 50%; translate: 0 -50%; border: 0; background: none; padding: 6px 8px; color: var(--teal-ink); font-size: .85rem; }
+[dir='rtl'] .input-affix input { padding-inline-end: 12px; padding-inline-start: 72px; }
+[dir='rtl'] .affix-btn { inset-inline-end: auto; inset-inline-start: 6px; }
 
 .captcha-box { display: flex; align-items: stretch; gap: 8px; }
 .captcha-img { width: 160px; height: 60px; border: 1px solid var(--line-strong); border-radius: var(--r-s); object-fit: cover; background: #f1f6f5; }

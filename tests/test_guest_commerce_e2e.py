@@ -119,7 +119,7 @@ def test_unauthenticated_guest_chat_to_order_and_seller_visibility(client):
         json={"question": "بله"},
     )
     assert confirmed.status_code == 200, confirmed.text
-    assert "ثبت شد" in confirmed.json()["answer"]
+    assert "کد رهگیری صادر نمی‌شود" in confirmed.json()["answer"]
 
     duplicate = client.post(
         f"/public/stores/{store_id}/chat",
@@ -129,26 +129,24 @@ def test_unauthenticated_guest_chat_to_order_and_seller_visibility(client):
     assert duplicate.status_code == 200
 
     db = SessionLocal()
-    order = db.query(models.Order).filter_by(store_id=store_id, guest_token=guest_token).one()
+    orders = db.query(models.Order).filter_by(store_id=store_id, guest_token=guest_token).all()
     stored_product = db.get(models.Product, product_id)
-    assert order.total_amount == Decimal("4900000.00")
-    assert order.items[0].quantity == 2
+    assert orders == []
     assert stored_product.stock == 5
-    order_id = order.id
     db.close()
 
-    guest_order = client.get(f"/orders/stores/{store_id}/guest/{order_id}", headers=headers)
-    assert guest_order.status_code == 200
-    assert guest_order.json()["id"] == order_id
+    cart = client.get(f"/cart/stores/{store_id}", headers=headers)
+    assert cart.status_code == 200
+    assert cart.json()["items"][0]["quantity"] == 2
 
     seller_headers = {"Authorization": f"Bearer {create_access_token(seller_id)}"}
     seller_orders = client.get(f"/seller/orders/stores/{store_id}", headers=seller_headers)
     assert seller_orders.status_code == 200
-    assert seller_orders.json()[0]["id"] == order_id
+    assert seller_orders.json() == []
 
     conversations = client.get(f"/seller/conversations/stores/{store_id}", headers=seller_headers)
     assert conversations.status_code == 200
-    assert conversations.json()[0]["last_order_id"] == order_id
+    assert conversations.json()[0]["last_order_id"] is None
     assert any(message["content"] == "بله" for message in conversations.json()[0]["messages"])
 
     db = SessionLocal()
@@ -163,6 +161,6 @@ def test_unauthenticated_guest_chat_to_order_and_seller_visibility(client):
     )
     assert cross_store_cart.status_code == 404
     cross_store_order = client.get(
-        f"/orders/stores/{other_store_id}/guest/{order_id}", headers=headers
+        f"/orders/stores/{other_store_id}/guest/1", headers=headers
     )
     assert cross_store_order.status_code == 404

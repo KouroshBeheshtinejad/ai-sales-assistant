@@ -18,6 +18,7 @@ from app.core.csrf import ensure_csrf_token, set_csrf_cookie
 from app.db.database import SessionLocal, engine
 from app.db.models import Product, Store
 from app.routes.auth import router as auth_router
+from app.routes.admin import router as admin_router
 from app.routes.captcha import router as captcha_router
 from app.routes.store_management import router as store_management_router
 from app.routes.stores import router as stores_router
@@ -117,6 +118,7 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(store_management_router)
 app.include_router(stores_router)
 app.include_router(products_router)
@@ -137,6 +139,7 @@ app.include_router(captcha_router)
 # aliases for server-rendered forms and existing integrations.
 for api_router in (
     auth_router,
+    admin_router,
     store_management_router,
     stores_router,
     products_router,

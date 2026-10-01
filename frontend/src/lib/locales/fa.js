@@ -323,6 +323,8 @@ checkout.address = آدرس تحویل
 checkout.submit = ثبت سفارش
 checkout.back = بازگشت به سبد
 order.placed = سفارش ثبت شد
+order.pending = در انتظار پرداخت
+order.paymentRequired = برای نهایی‌شدن سفارش، پرداخت را انجام دهید.
 order.number = شماره سفارش
 order.tracking = کد رهگیری
 order.items = اقلام سفارش
@@ -331,6 +333,8 @@ order.paid = پرداخت انجام شد. سپاسگزاریم!
 order.sandbox = این یک پرداخت آزمایشی است. برای شبیه‌سازی پرداخت موفق، تأیید کنید.
 order.sandboxConfirm = تأیید پرداخت آزمایشی
 order.invoice = دریافت فاکتور (PDF)
+order.invoiceLanguage = زبان فاکتور
+payment.returnFailed = پرداخت تأیید نشد. سفارش نهایی نشده است.
 order.trackLink = پیگیری این سفارش
 order.continue = ادامه خرید
 

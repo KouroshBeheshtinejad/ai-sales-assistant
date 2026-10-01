@@ -3,7 +3,7 @@ from decimal import Decimal
 import secrets
 import logging
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Cart, CartItem, Conversation, Order, OrderItem, Product
@@ -12,6 +12,10 @@ from app.services.notification_service import notify_order_created
 
 class OrderService:
     logger = logging.getLogger(__name__)
+
+    @staticmethod
+    def finalized_order_filter():
+        return or_(Order.paid_at.is_not(None), Order.tracking_number.is_not(None))
 
     @staticmethod
     def release_order_stock(db: Session, order: Order) -> None:
@@ -144,7 +148,8 @@ class OrderService:
 
         # ایجاد سفارش
         order = Order(
-            tracking_number=OrderService._new_tracking_number(db),
+            tracking_number=None,
+            invoice_number=None,
             user_id=user_id,
             guest_token=guest_token,
             store_id=store_id,
@@ -161,12 +166,10 @@ class OrderService:
 
         db.add(order)
         db.flush()
-        order.invoice_number = f"INV-{datetime.now(timezone.utc):%Y%m%d}-{order.id:06d}"
 
         if guest_token:
             assert conversation is not None
-            conversation.last_order_id = order.id
-            conversation.checkout_state = "completed"
+            conversation.checkout_state = "awaiting_payment"
 
         # کاهش موجودی و اتصال اقلام به سفارش
         for cart_item, order_item in zip(
@@ -194,10 +197,30 @@ class OrderService:
 
         db.commit()
         db.refresh(order)
-        OrderService.logger.info("order_created order_id=%s store_id=%s", order.id, store_id)
-        notify_order_created(order)
+        OrderService.logger.info("checkout_started order_id=%s store_id=%s", order.id, store_id)
 
         return order
+
+    @staticmethod
+    def finalize_paid_order(db: Session, order: Order, paid_at: datetime) -> None:
+        order.paid_at = paid_at
+        order.status = "confirmed"
+        order.tracking_number = order.tracking_number or OrderService._new_tracking_number(db)
+        order.invoice_number = order.invoice_number or (
+            f"INV-{paid_at:%Y%m%d}-{order.id:06d}"
+        )
+        if order.guest_token:
+            conversation = db.scalar(
+                select(Conversation).where(
+                    Conversation.guest_token == order.guest_token,
+                    Conversation.store_id == order.store_id,
+                )
+            )
+            if conversation is not None:
+                conversation.last_order_id = order.id
+                conversation.checkout_state = "completed"
+                conversation.checkout_idempotency_key = None
+        notify_order_created(order)
 
     @staticmethod
     def get_order_by_id(
@@ -246,6 +269,7 @@ class OrderService:
                 Order.store_id == store_id,
                 Order.user_id.is_(None),
                 Order.guest_token == guest_token,
+                OrderService.finalized_order_filter(),
             )
         )
 
@@ -262,7 +286,7 @@ class OrderService:
             db.scalars(
                 select(Order)
                 .options(joinedload(Order.items))
-                .where(Order.user_id == user_id)
+                .where(Order.user_id == user_id, OrderService.finalized_order_filter())
                 .order_by(Order.created_at.desc())
             ).unique()
         )

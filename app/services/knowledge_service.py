@@ -1,17 +1,14 @@
 from sqlalchemy.orm import Session
 
-from app.db.models import FAQ, KnowledgeBaseEntry, Store
+from app.db.models import FAQ, KnowledgeBaseEntry, Store, User
 
 
 def get_store_or_404(db: Session, store_id: int, user_id: int):
-    store = (
-        db.query(Store)
-        .filter(
-            Store.id == store_id,
-            Store.owner_id == user_id,
-        )
-        .first()
-    )
+    user = db.get(User, user_id)
+    filters = [Store.id == store_id]
+    if user is None or user.role != "god":
+        filters.append(Store.owner_id == user_id)
+    store = db.query(Store).filter(*filters).first()
     if store is None:
         raise ValueError("Store not found")
     return store

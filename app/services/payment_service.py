@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Order, Payment, Product
 from app.services.notification_service import notify_payment_success
+from app.services.order_service import OrderService
 
 
 class PaymentProvider(Protocol):
@@ -200,9 +201,9 @@ class PaymentService:
         provider = get_payment_provider()
         result = provider.verify_payment(amount=payment.amount, authority=authority)
         payment.status = "paid"
-        payment.order.status = "confirmed"
         payment.transaction_id = result["transaction_id"]
         payment.paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        OrderService.finalize_paid_order(db, payment.order, payment.paid_at)
         for item in payment.order.items:
             if item.product_id is not None:
                 product = db.get(Product, item.product_id)

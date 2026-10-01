@@ -327,6 +327,8 @@ checkout.address = Dirección de entrega
 checkout.submit = Hacer pedido
 checkout.back = Volver al carrito
 order.placed = Pedido realizado
+order.pending = Pendiente de pago
+order.paymentRequired = Completa el pago para finalizar tu pedido.
 order.number = Número de pedido
 order.tracking = Número de seguimiento
 order.items = Artículos del pedido
@@ -335,6 +337,8 @@ order.paid = Pago recibido. ¡Gracias!
 order.sandbox = Este es un pago de prueba. Confirma para simular un pago correcto.
 order.sandboxConfirm = Confirmar pago de prueba
 order.invoice = Descargar factura (PDF)
+order.invoiceLanguage = Idioma de la factura
+payment.returnFailed = El pago no se confirmó. El pedido no se ha finalizado.
 order.trackLink = Seguir este pedido
 order.continue = Seguir comprando
 

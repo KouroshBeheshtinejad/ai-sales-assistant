@@ -35,7 +35,7 @@ The critical design decision: **the language model never invents a price, a stoc
 
 ### For shoppers
 - 💬 Ask about products, prices, sizes, and stock in plain language
-- 🛒 Cart and checkout entirely inside the chat, or via the storefront UI
+- 🛒 Chat-assisted shopping with secure cart checkout and payment confirmation
 - 👤 **Guest checkout** — no account required, secured by a private session token
 - 📦 Track any order with its 10-digit tracking number
 - 🧾 Download a PDF invoice for any order
@@ -190,6 +190,7 @@ All configuration is environment-driven — see [`.env.example`](.env.example) f
 | `APP_ENV` | `development` locally; `production` enables strict startup validation (`DATABASE_URL`, `SECRET_KEY`, `APP_ALLOWED_HOSTS` become mandatory) |
 | `SECRET_KEY` | **Must** be set to a strong, stable value in any deployed environment — session tokens don't survive a key rotation |
 | `APP_ALLOWED_HOSTS` | Comma-separated public hostnames (trusted-host protection) |
+| `GOD_USER_EMAIL` | Email of the single verified platform God account; role elevation is server-managed and cannot be assigned through registration or the role API |
 | `SESSION_COOKIE_SECURE` / `SESSION_COOKIE_SAMESITE` | Production cookies are always `Secure` + `HttpOnly` + `SameSite=Lax`; `SameSite=None` is rejected unless secure cookies are enabled |
 | `AUTH_RATE_LIMIT_REQUESTS` / `_WINDOW_SECONDS` | Login/registration rate limiting |
 
@@ -225,6 +226,7 @@ AI_RAG_ENABLED=true AI_RAG_EMBEDDING_PROVIDER=mock python -m app.services.semant
 | Variable | Purpose |
 |---|---|
 | `PAYMENT_PROVIDER` / `PAYMENT_MERCHANT_ID` / `PAYMENT_API_URL` | Payment gateway (ZarinPal-shaped by default); `disabled` runs a sandbox confirm-to-pay flow |
+| `PAYMENT_CALLBACK_URL` | Public backend URL for gateway returns, typically `https://your-domain/api/payments/callback` |
 | `SMTP_*` | Outgoing email (verification codes, password reset) |
 | `SMS_PROVIDER` / `SMS_WEBHOOK_URL` | Optional SMS verification channel |
 | `CLOUDINARY_*` | Product image hosting |

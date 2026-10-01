@@ -46,6 +46,21 @@ def _normalized_email(email: str) -> str:
     return email.strip().casefold()
 
 
+def _sync_god_role(user: User) -> None:
+    god_email = _normalized_email(os.getenv("GOD_USER_EMAIL", ""))
+    if god_email and user.is_verified and user.email.casefold() == god_email:
+        user.role = "god"
+    elif user.role == "god":
+        user.role = "seller"
+
+
+def store_owner_filter(user: User):
+    from sqlalchemy import true
+    from app.db.models import Store
+
+    return true() if user.role == "god" else Store.owner_id == user.id
+
+
 def _set_access_token_cookie(response: Response, access_token: str) -> None:
     settings = cookie_settings()
     response.set_cookie(
@@ -158,6 +173,8 @@ def login_form(
             context={"error": "The email or password is incorrect."},
             status_code=401,
         )
+    _sync_god_role(user)
+    db.commit()
     access_token = create_access_token(user.id, user.token_version)
     redirect = RedirectResponse(url="/dashboard", status_code=303)
     _set_access_token_cookie(redirect, access_token)
@@ -264,6 +281,7 @@ def verify_account(request: Request, data: VerifyAccountRequest, db: Session = D
     if not email_valid or not phone_valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification code")
     user.is_verified = True
+    _sync_god_role(user)
     db.commit()
     return {"message": "Account verified", "email": user.email}
 
@@ -350,6 +368,9 @@ def login(
             detail="Account verification is required",
         )
 
+    _sync_god_role(user)
+    db.commit()
+
     access_token = create_access_token(user.id, user.token_version)
 
     _set_access_token_cookie(response, access_token)
@@ -373,6 +394,10 @@ def _user_from_token(token: str, db: Session) -> User:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     if payload.get("token_version", 0) != user.token_version:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
+    previous_role = user.role
+    _sync_god_role(user)
+    if user.role != previous_role:
+        db.commit()
     return user
 
 
@@ -406,6 +431,7 @@ def get_me(
 ):
     return {
         "id": current_user.id,
+        "role": current_user.role,
         "email": current_user.email,
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,

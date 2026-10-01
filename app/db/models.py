@@ -81,6 +81,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="seller", server_default="seller")
     first_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), unique=True, index=True, nullable=True)
@@ -586,11 +587,10 @@ class Order(Base):
         String(10),
         unique=True,
         index=True,
-        nullable=False,
-        default=_tracking_number,
+        nullable=True,
     )
     invoice_number: Mapped[str] = mapped_column(
-        String(40), unique=True, index=True, nullable=False, default=_invoice_number,
+        String(40), unique=True, index=True, nullable=True,
     )
 
     user_id: Mapped[int | None] = mapped_column(
@@ -658,6 +658,11 @@ class Order(Base):
     )
 
     cancelled_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    paid_at: Mapped[datetime | None] = mapped_column(
         DateTime,
         nullable=True,
     )

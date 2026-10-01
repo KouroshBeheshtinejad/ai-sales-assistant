@@ -327,6 +327,8 @@ checkout.address = Delivery address
 checkout.submit = Place order
 checkout.back = Back to cart
 order.placed = Order placed
+order.pending = Awaiting payment
+order.paymentRequired = Complete payment to finalize your order.
 order.number = Order number
 order.tracking = Tracking number
 order.items = Order items
@@ -335,6 +337,8 @@ order.paid = Payment received. Thank you!
 order.sandbox = This is a sandbox payment. Confirm to simulate a successful payment.
 order.sandboxConfirm = Confirm test payment
 order.invoice = Download invoice (PDF)
+order.invoiceLanguage = Invoice language
+payment.returnFailed = Payment was not confirmed. Your order has not been finalized.
 order.trackLink = Track this order
 order.continue = Continue shopping
 

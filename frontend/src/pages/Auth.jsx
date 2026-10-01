@@ -14,7 +14,7 @@ function PasswordInput({ minLength = 8, ...rest }) {
   return (
     <span className="input-affix">
       <input {...rest} type={visible ? 'text' : 'password'} required minLength={minLength} dir="ltr" />
-      <button type="button" className="affix-btn" onClick={() => setVisible(!visible)}>{visible ? t('hide') : t('show')}</button>
+      <button type="button" className="affix-btn" dir="auto" onClick={() => setVisible(!visible)}>{visible ? t('hide') : t('show')}</button>
     </span>
   )
 }

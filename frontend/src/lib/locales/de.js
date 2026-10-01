@@ -327,6 +327,8 @@ checkout.address = Lieferadresse
 checkout.submit = Bestellung aufgeben
 checkout.back = Zurück zum Warenkorb
 order.placed = Bestellung aufgegeben
+order.pending = Zahlung ausstehend
+order.paymentRequired = Schließe die Zahlung ab, um deine Bestellung zu bestätigen.
 order.number = Bestellnummer
 order.tracking = Sendungsnummer
 order.items = Bestellte Artikel
@@ -335,6 +337,8 @@ order.paid = Zahlung erhalten. Vielen Dank!
 order.sandbox = Dies ist eine Testzahlung. Bestätigen Sie, um eine erfolgreiche Zahlung zu simulieren.
 order.sandboxConfirm = Testzahlung bestätigen
 order.invoice = Rechnung herunterladen (PDF)
+order.invoiceLanguage = Rechnungssprache
+payment.returnFailed = Die Zahlung wurde nicht bestätigt. Deine Bestellung wurde nicht abgeschlossen.
 order.trackLink = Diese Bestellung verfolgen
 order.continue = Weiter einkaufen
 

@@ -271,9 +271,9 @@ def test_list_user_orders(db, test_data):
 
     order_ids = [order.id for order in orders]
 
-    assert first_order.id in order_ids
-    assert second_order.id in order_ids
-    assert len(orders) == 2
+    assert first_order.id not in order_ids
+    assert second_order.id not in order_ids
+    assert orders == []
 
 
 def test_cancel_pending_order(db, test_data):
