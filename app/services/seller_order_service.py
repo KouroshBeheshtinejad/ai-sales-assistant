@@ -1,8 +1,10 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.db.models import Order, Store, StoreMembership, User
+from app.db.models import Order, Store, User
+from app.security.policies import store_scope_filter
 from app.services.order_service import OrderService
+from app.services.audit_service import record_audit_log
 
 
 class SellerOrderService:
@@ -31,21 +33,12 @@ class SellerOrderService:
         store_id: int,
     ) -> Store:
         user = db.get(User, seller_id)
-        filters = [Store.id == store_id]
-        if user is not None and user.role == "god":
-            pass
-        elif user is not None and user.role == "store_admin":
-            filters.append(
-                Store.id.in_(
-                    select(StoreMembership.store_id).where(
-                        StoreMembership.user_id == seller_id,
-                        StoreMembership.status == "approved",
-                    )
-                )
+        store = None if user is None else db.scalar(
+            select(Store).where(
+                Store.id == store_id,
+                store_scope_filter(user, "order.read"),
             )
-        else:
-            filters.append(Store.owner_id == seller_id)
-        store = db.scalar(select(Store).where(*filters))
+        )
 
         if store is None:
             raise ValueError("Store not found")
@@ -78,28 +71,16 @@ class SellerOrderService:
         db: Session,
         seller_id: int,
         order_id: int,
+        permission: str = "order.read",
     ) -> Order:
         user = db.get(User, seller_id)
-        filters = [Order.id == order_id]
-        if user is not None and user.role == "god":
-            pass
-        elif user is not None and user.role == "store_admin":
-            filters.append(
-                Store.id.in_(
-                    select(StoreMembership.store_id).where(
-                        StoreMembership.user_id == seller_id,
-                        StoreMembership.status == "approved",
-                    )
-                )
-            )
-        else:
-            filters.append(Store.owner_id == seller_id)
-        order = db.scalar(
+        order = None if user is None else db.scalar(
             select(Order)
             .join(Store, Order.store_id == Store.id)
             .options(joinedload(Order.items))
             .where(
-                *filters,
+                Order.id == order_id,
+                store_scope_filter(user, permission),
                 OrderService.finalized_order_filter(),
             )
         )
@@ -115,6 +96,8 @@ class SellerOrderService:
         seller_id: int,
         order_id: int,
         new_status: str,
+        actor: User | None = None,
+        ip_address: str | None = None,
     ) -> Order:
         if new_status not in SellerOrderService.VALID_STATUSES:
             raise ValueError("Invalid status")
@@ -123,6 +106,7 @@ class SellerOrderService:
             db=db,
             seller_id=seller_id,
             order_id=order_id,
+            permission="order.cancel" if new_status == "cancelled" else "order.update",
         )
 
         allowed_statuses = SellerOrderService.STATUS_TRANSITIONS.get(
@@ -136,9 +120,22 @@ class SellerOrderService:
                 f"to '{new_status}'"
             )
 
+        previous_status = order.status
         if new_status == "cancelled":
             OrderService.release_order_stock(db, order)
         order.status = new_status
+        if actor is not None:
+            record_audit_log(
+                db,
+                actor=actor,
+                action="order.status_changed",
+                resource_type="order",
+                resource_id=order.id,
+                store_id=order.store_id,
+                before_state={"status": previous_status},
+                after_state={"status": order.status},
+                ip_address=ip_address,
+            )
 
         db.commit()
         db.refresh(order)

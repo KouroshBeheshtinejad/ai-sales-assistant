@@ -285,10 +285,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .seller-nav nav a, .seller-foot a { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--r-s); color: #d3e2e4; text-decoration: none; }
 .seller-nav nav a:hover, .seller-foot a:hover { background: rgba(255, 255, 255, .08); color: #fff; }
 .seller-nav nav a.active { background: var(--teal); color: #fff; font-weight: 700; }
+.seller-nav-count, .seller-tab-count { display: inline-grid; place-items: center; min-width: 20px; min-height: 20px; padding-inline: 5px; border-radius: 10px; background: var(--danger); color: #fff; font-size: .72rem; font-weight: 700; line-height: 1; }
+.seller-nav-count { margin-inline-start: auto; }
 .seller-foot { margin-top: auto; display: grid; gap: 8px; justify-items: start; }
 .seller-foot .btn-ghost { color: #d3e2e4; }
 .seller-foot .btn-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, .08); color: #fff; }
 .seller-main { padding: 32px clamp(16px, 3vw, 40px) 64px; display: grid; gap: 20px; align-content: start; min-width: 0; }
+.seller-back-top { position: fixed; inset-inline-end: 24px; bottom: 24px; z-index: 35; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface); color: var(--ink); box-shadow: 0 6px 18px rgba(15, 37, 48, .16); cursor: pointer; }
+.seller-back-top:hover { background: var(--teal-soft); border-color: var(--teal); }
+.seller-back-top:focus-visible { outline: 3px solid var(--lapis); outline-offset: 3px; }
 
 /* Mobile-only chrome for the seller panel: a slim top bar and a fixed bottom tab bar.
    Both stay hidden on desktop, where the sidebar already covers this. */
@@ -479,10 +484,12 @@ img.store-mark { display: block; object-fit: cover; }
   .seller-nav { display: none; }
   .seller-topbar { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px clamp(12px, 4vw, 20px); padding-top: max(8px, env(safe-area-inset-top)); background: var(--surface); border-bottom: 1px solid var(--line); }
   .seller-main { padding: 20px clamp(12px, 4vw, 20px) calc(84px + env(safe-area-inset-bottom)); }
+  .seller-back-top { inset-inline-end: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); }
   .seller-tabbar { position: fixed; inset-inline: 0; bottom: 0; z-index: 40; display: flex; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -6px 20px rgba(15, 37, 48, .08); }
   .seller-tab { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 58px; padding: 6px 2px; color: var(--muted); text-decoration: none; font-size: .72rem; font-weight: 600; text-align: center; }
   .seller-tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .seller-tab.active { color: var(--teal-ink); }
+  .seller-tab-count { min-height: 16px; min-width: 16px; font-size: .65rem; }
   .two-col, .split { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
 }

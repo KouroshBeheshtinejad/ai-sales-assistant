@@ -4,16 +4,34 @@ import { Brand, LocaleToggle, SkipLink } from '../../components/Layout'
 import { Button, Empty, ErrorNote, Field, Icon, Loading, Modal } from '../../components/ui'
 import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../lib/i18n'
+import { useAsync } from '../../lib/hooks'
+import { api } from '../../lib/api'
 import { SellerProvider, useSeller } from './SellerContext'
 
 const OWNER_NAV = [
-  ['/seller', 's.overview', true, 'layers'],
-  ['/seller/orders', 's.orders', false, 'card'],
-  ['/seller/conversations', 's.conversations', false, 'chat'],
-  ['/seller/products', 's.products', false, 'box'],
-  ['/seller/knowledge', 's.knowledge', false, 'doc'],
+  ['/seller', 's.overview', true, 'layers', 'store.read'],
+  ['/seller/orders', 's.orders', false, 'card', 'order.read'],
+  ['/seller/conversations', 's.conversations', false, 'chat', 'conversation.read'],
+  ['/seller/products', 's.products', false, 'box', 'product.read'],
+  ['/seller/knowledge', 's.knowledge', false, 'doc', 'knowledge.read'],
+  ['/seller/team', 'dash.team', false, 'users', 'member.read'],
+  ['/seller/contact-support', 'dash.contactSupport', false, 'chat', 'support.contact'],
 ]
-const ADMIN_NAV = OWNER_NAV.filter(([, label]) => label !== 's.knowledge')
+const SUPPORT_NAV = [['/seller/support', 'dash.support', true, 'chat']]
+const CUSTOMER_NAV = [['/seller/customer', 'dash.customer', true, 'user']]
+
+function navigationFor(user, store) {
+  if (user?.role === 'support') return SUPPORT_NAV
+  const permissions = new Set(store?.permissions || [])
+  let nav = OWNER_NAV.filter(([, , , , permission]) => permissions.has(permission))
+  if (user?.role === 'customer') {
+    if (store?.permissions?.includes('store.read')) nav = [...nav, ...CUSTOMER_NAV]
+    else return CUSTOMER_NAV
+  }
+  if (!store && ['store_owner', 'god'].includes(user?.role)) nav = [OWNER_NAV[0]]
+  if (user?.role === 'god') nav = [['/seller/platform', 'dash.god', true, 'database'], ...SUPPORT_NAV, ...nav]
+  return nav
+}
 
 export function NeedStore() {
   const { t } = useI18n()
@@ -55,7 +73,7 @@ function AccountActions({ store, signOut, onNavigate }) {
 
 // Fixed bottom tab bar for the 5 primary sections. Icon + short label, thumb-reachable,
 // safe-area aware; this replaces the old horizontally-scrolling nav row on small screens.
-function TabBar({ nav }) {
+function TabBar({ nav, attentionCount }) {
   const { t } = useI18n()
   return (
     <nav className="seller-tabbar" aria-label={t('s.overview')}>
@@ -63,6 +81,7 @@ function TabBar({ nav }) {
         <NavLink key={to} to={to} end={end} className="seller-tab">
           <Icon name={icon} size={22} />
           <span>{t(label)}</span>
+          {attentionCount > 0 && ['/seller/support', '/seller/contact-support', '/seller/customer'].includes(to) && <span className="seller-tab-count">{attentionCount}</span>}
         </NavLink>
       ))}
     </nav>
@@ -99,9 +118,17 @@ function MobileTopBar({ stores, store, select, signOut }) {
 function Shell() {
   const { t } = useI18n()
   const { signOut, user } = useAuth()
-  const isOwner = user?.role === 'store_owner' || user?.role === 'god'
-  const nav = isOwner ? OWNER_NAV : ADMIN_NAV
   const { stores, store, select, loading, error, reloadStores } = useSeller()
+  const supportSummary = useAsync(() => api.support.summary(), [user?.id])
+  const [showBackToTop, setShowBackToTop] = useState(false)
+  const nav = navigationFor(user, store)
+
+  useEffect(() => {
+    const updateVisibility = () => setShowBackToTop(window.scrollY > 240)
+    window.addEventListener('scroll', updateVisibility, { passive: true })
+    updateVisibility()
+    return () => window.removeEventListener('scroll', updateVisibility)
+  }, [])
 
   return (
     <>
@@ -112,7 +139,7 @@ function Shell() {
           <StoreSwitcher stores={stores} store={store} select={select} />
           <nav aria-label="Seller">
             {nav.map(([to, label, end, icon]) => (
-              <NavLink key={to} to={to} end={end}><Icon name={icon} size={18} />{t(label)}</NavLink>
+              <NavLink key={to} to={to} end={end}><Icon name={icon} size={18} />{t(label)}{supportSummary.data?.attention_count > 0 && ['/seller/support', '/seller/contact-support', '/seller/customer'].includes(to) && <span className="seller-nav-count">{supportSummary.data.attention_count}</span>}</NavLink>
             ))}
           </nav>
           <div className="seller-foot">
@@ -126,7 +153,21 @@ function Shell() {
           {loading ? <Loading /> : error ? <ErrorNote error={error} onRetry={reloadStores} /> : <Outlet />}
         </main>
 
-        <TabBar nav={nav} />
+        <TabBar nav={nav} attentionCount={supportSummary.data?.attention_count || 0} />
+        {showBackToTop && (
+          <button
+            type="button"
+            className="seller-back-top"
+            aria-label={t('s.backToTop')}
+            title={t('s.backToTop')}
+            onClick={() => window.scrollTo({
+              top: 0,
+              behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+            })}
+          >
+            <Icon name="up" size={20} />
+          </button>
+        )}
       </div>
     </>
   )
@@ -134,4 +175,16 @@ function Shell() {
 
 export default function SellerLayout() {
   return <SellerProvider><Shell /></SellerProvider>
+}
+
+export function RequireStorePermission({ permission, children }) {
+  const { user } = useAuth()
+  const { store, loading } = useSeller()
+  const { t } = useI18n()
+  if (loading) return <Loading />
+  if (!store && ['store_owner', 'god'].includes(user?.role)) return children
+  if (!store?.permissions?.includes(permission)) {
+    return <Empty title={t('dash.forbidden')} />
+  }
+  return children
 }

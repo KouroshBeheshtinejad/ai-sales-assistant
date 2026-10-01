@@ -114,6 +114,7 @@ def get_seller_order(
 def update_order_status(
     order_id: int,
     payload: UpdateOrderStatusRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -123,6 +124,8 @@ def update_order_status(
             seller_id=current_user.id,
             order_id=order_id,
             new_status=payload.status,
+            actor=current_user,
+            ip_address=request.client.host if request.client else None,
         )
     except ValueError as exc:
         error_message = str(exc)

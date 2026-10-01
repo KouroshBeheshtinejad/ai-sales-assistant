@@ -107,6 +107,9 @@ export default function Products() {
   const { t, num, money, err } = useI18n()
   const toast = useToast()
   const { store, businessType } = useSeller()
+  const canCreate = store?.permissions?.includes('product.create')
+  const canUpdate = store?.permissions?.includes('product.update')
+  const canDelete = store?.permissions?.includes('product.delete')
   const [modal, setModal] = useState(null) // null | 'new' | product
   useSeo({ title: `${t('s.products')} | NAVA` })
   const state = useAsync(() => (store ? api.seller.products(store.id) : null), [store?.id])
@@ -131,10 +134,10 @@ export default function Products() {
 
   return (
     <>
-      <PageHead title={t('s.products')} actions={<Button variant="primary" onClick={() => setModal('new')}>{t('p.add')}</Button>} />
+      <PageHead title={t('s.products')} actions={canCreate && <Button variant="primary" onClick={() => setModal('new')}>{t('p.add')}</Button>} />
       <Async state={state}>
         {(products) => !products.length ? (
-          <Empty title={t('p.empty')} hint={t('p.emptyHint')} action={<Button variant="primary" onClick={() => setModal('new')}>{t('p.add')}</Button>} />
+          <Empty title={t('p.empty')} hint={t('p.emptyHint')} action={canCreate && <Button variant="primary" onClick={() => setModal('new')}>{t('p.add')}</Button>} />
         ) : (
           <div className="table-wrap">
             <table>
@@ -150,8 +153,8 @@ export default function Products() {
                     </td>
                     <td><Switch checked={p.is_active} label={`${p.name}: ${p.is_active ? t('active') : t('inactive')}`} onChange={() => toggle(p)} /></td>
                     <td className="actions">
-                      <Button size="sm" onClick={() => setModal(p)}>{t('edit')}</Button>
-                      <ConfirmButton onConfirm={() => remove(p)}>{t('delete')}</ConfirmButton>
+                      {canUpdate && <Button size="sm" onClick={() => setModal(p)}>{t('edit')}</Button>}
+                      {canDelete && <ConfirmButton onConfirm={() => remove(p)}>{t('delete')}</ConfirmButton>}
                     </td>
                   </tr>
                 ))}

@@ -8,10 +8,11 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.security import create_access_token, hash_password
 from app.db.database import Base, get_db
-from app.db.models import Order, Payment, Product, Store, StoreMembership, User
+from app.db.models import AuditLog, FAQ, KnowledgeBaseEntry, Order, Payment, Product, Store, StoreMembership, User
 from app.main import app
 from app.services.payment_service import PaymentProviderNotConfigured, get_payment_provider
 from app.services.payment_service import MockPaymentProvider
+from app.services.audit_service import content_audit_state
 
 
 @pytest.fixture()
@@ -89,6 +90,16 @@ def auth_headers(context):
     return {"Authorization": f"Bearer {context['token']}"}
 
 
+def test_content_audit_snapshot_does_not_store_raw_answer():
+    faq = FAQ(question="Shipping?", answer="Private content", store_id=1)
+
+    snapshot = content_audit_state(faq)
+
+    assert snapshot["label"] == "Shipping?"
+    assert snapshot["content_sha256"]
+    assert "Private content" not in str(snapshot)
+
+
 def create_order(client, context):
     cart = client.post(
         f"/cart/stores/{context['store_id']}/items",
@@ -150,9 +161,24 @@ def test_god_role_is_server_managed_and_support_is_read_only(payment_context, mo
     platform_stores = client.get("/api/admin/stores", headers=god_headers)
     assert platform_stores.status_code == 200
     assert {store["id"] for store in platform_stores.json()} == {context["store_id"], context["other_store_id"]}
+    overview = client.get("/api/admin/system/overview", headers=god_headers)
+    assert overview.status_code == 200
+    assert overview.json()["database_status"] == "ok"
+    assert overview.json()["users"]["total"] >= 4
+    assert client.get(
+        "/api/admin/system/overview",
+        headers={"Authorization": f"Bearer {context['support_token']}"},
+    ).status_code == 403
     platform_products = client.get("/api/admin/products", headers=god_headers)
     assert platform_products.status_code == 200
     assert any(product["id"] == context["product_id"] for product in platform_products.json())
+    database_users = client.get("/api/admin/database/users", headers=god_headers)
+    assert database_users.status_code == 200
+    inspected_user = client.get(
+        f"/api/admin/database/users/{context['user_id']}", headers=god_headers
+    )
+    assert inspected_user.status_code == 200
+    assert "password_hash" not in inspected_user.json()
 
     promoted = client.patch(
         f"/api/admin/users/{context['support_user_id']}/role",
@@ -174,8 +200,20 @@ def test_god_role_is_server_managed_and_support_is_read_only(payment_context, mo
         support_headers = {"Authorization": f"Bearer {create_access_token(str(support.id), support.token_version)}"}
     finally:
         db.close()
+    assert client.get("/api/admin/database/users", headers=support_headers).status_code == 403
+    audit_logs = client.get("/api/admin/audit-logs", headers=god_headers)
+    assert audit_logs.status_code == 200
+    role_event = next(
+        item
+        for item in audit_logs.json()
+        if item["action"] == "user.role_changed"
+        and item["resource_id"] == str(context["support_user_id"])
+    )
+    assert role_event["after_state"]["role"] == "support"
+    assert "password_hash" not in str(role_event)
     assert client.get("/api/admin/orders", headers=support_headers).status_code == 200
     assert client.get("/api/admin/users", headers=support_headers).status_code == 403
+    assert client.get("/api/admin/audit-logs", headers=support_headers).status_code == 403
     assert client.patch(
         f"/api/admin/users/{context['user_id']}/role",
         headers=support_headers,
@@ -193,8 +231,205 @@ def test_store_admin_is_limited_to_approved_store_membership(payment_context):
     assert client.put(
         f"/api/stores/{context['store_id']}",
         headers=headers,
-        json={"name": "Unauthorized rename"},
+        json={"name": "Authorized admin rename"},
+    ).status_code == 200
+    assert client.put(
+        f"/api/stores/{context['other_store_id']}",
+        headers=headers,
+        json={"name": "Cross-store rename"},
     ).status_code == 404
+
+
+def test_store_membership_role_is_authoritative_per_store(payment_context):
+    client, context = payment_context
+    headers = {"Authorization": f"Bearer {context['store_admin_token']}"}
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        member = db.get(User, context["store_admin_id"])
+        member.role = "customer"
+        db.query(StoreMembership).filter_by(
+            user_id=member.id,
+            store_id=context["store_id"],
+        ).one().role = "store_viewer"
+        db.add(
+            StoreMembership(
+                store_id=context["other_store_id"],
+                user_id=member.id,
+                role="store_admin",
+                status="approved",
+            )
+        )
+        db.add(FAQ(question="Question", answer="Answer", store_id=context["store_id"]))
+        db.add(
+            KnowledgeBaseEntry(
+                title="Policy", content="Content", store_id=context["store_id"]
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    assert client.get(
+        f"/api/products/?store_id={context['store_id']}", headers=headers
+    ).status_code == 200
+    assert client.post(
+        "/api/products/",
+        headers=headers,
+        json={"store_id": context["store_id"], "name": "Blocked", "price": 1},
+    ).status_code == 404
+    assert client.post(
+        "/api/products/",
+        headers=headers,
+        json={"store_id": context["other_store_id"], "name": "Allowed", "price": 1},
+    ).status_code == 200
+    assert client.get(
+        f"/api/stores/{context['store_id']}/faqs", headers=headers
+    ).status_code == 200
+    assert client.post(
+        f"/api/stores/{context['store_id']}/faqs",
+        headers=headers,
+        json={"question": "Blocked", "answer": "Blocked"},
+    ).status_code == 404
+    assert client.get(
+        f"/api/stores/{context['store_id']}/knowledge", headers=headers
+    ).status_code == 200
+    assert client.post(
+        f"/api/stores/{context['store_id']}/knowledge",
+        headers=headers,
+        json={"title": "Blocked", "content": "Blocked"},
+    ).status_code == 404
+
+
+def test_owner_can_manage_member_roles_and_revoke_store_access(payment_context):
+    client, context = payment_context
+    owner_headers = auth_headers(context)
+    added = client.post(
+        f"/api/stores/{context['store_id']}/members",
+        headers=owner_headers,
+        json={"email": "support-target@example.com", "role": "store_manager"},
+    )
+    assert added.status_code == 201
+    assert added.json()["role"] == "store_manager"
+    assert added.json()["status"] == "approved"
+    membership_id = added.json()["id"]
+
+    members = client.get(f"/api/stores/{context['store_id']}/members", headers=owner_headers)
+    assert members.status_code == 200
+    assert any(item["id"] == membership_id for item in members.json())
+    assert client.post(
+        f"/api/stores/{context['other_store_id']}/members",
+        headers=owner_headers,
+        json={"email": "payments@example.com", "role": "store_viewer"},
+    ).status_code == 404
+
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        member = db.query(User).filter_by(email="support-target@example.com").one()
+        manager_token = create_access_token(str(member.id), member.token_version)
+    finally:
+        db.close()
+    manager_headers = {"Authorization": f"Bearer {manager_token}"}
+    assert client.get(f"/api/products/?store_id={context['store_id']}", headers=manager_headers).status_code == 200
+
+    changed = client.patch(
+        f"/api/stores/{context['store_id']}/members/{membership_id}",
+        headers=owner_headers,
+        json={"role": "store_viewer"},
+    )
+    assert changed.status_code == 200
+    assert changed.json()["role"] == "store_viewer"
+    assert client.get("/api/auth/me", headers=manager_headers).status_code == 401
+
+    revoked = client.patch(
+        f"/api/stores/{context['store_id']}/members/{membership_id}",
+        headers=owner_headers,
+        json={"status": "suspended"},
+    )
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "suspended"
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        member = db.query(User).filter_by(email="support-target@example.com").one()
+        current_token = create_access_token(str(member.id), member.token_version)
+        events = db.query(AuditLog).filter_by(resource_id=str(membership_id)).all()
+    finally:
+        db.close()
+    assert client.get(f"/api/products/?store_id={context['store_id']}", headers={"Authorization": f"Bearer {current_token}"}).status_code == 404
+    assert {event.action for event in events} >= {"membership.invited", "membership.role_changed", "membership.suspended"}
+
+
+def test_store_staff_can_contact_support_only_for_their_store(payment_context):
+    client, context = payment_context
+    own_ticket = client.post(
+        "/api/support/conversations",
+        headers=auth_headers(context),
+        json={"store_id": context["store_id"], "message": "Please help with my store"},
+    )
+    unrelated_ticket = client.post(
+        "/api/support/conversations",
+        headers=auth_headers(context),
+        json={"store_id": context["other_store_id"], "message": "Cross-store request"},
+    )
+
+    assert own_ticket.status_code == 201
+    assert unrelated_ticket.status_code == 404
+
+
+def test_same_store_staff_can_share_support_thread_but_other_store_staff_cannot(payment_context):
+    client, context = payment_context
+    ticket = client.post(
+        "/api/support/conversations",
+        headers=auth_headers(context),
+        json={"store_id": context["store_id"], "message": "Owner asks support for help"},
+    )
+    assert ticket.status_code == 201
+    conversation_id = ticket.json()["id"]
+    store_admin_headers = {"Authorization": f"Bearer {context['store_admin_token']}"}
+    other_store_headers = {"Authorization": f"Bearer {context['support_token']}"}
+
+    shared = client.get("/api/support/conversations", headers=store_admin_headers)
+    assert [item["id"] for item in shared.json()] == [conversation_id]
+    assert client.post(
+        f"/api/support/conversations/{conversation_id}/reply",
+        headers=store_admin_headers,
+        json={"message": "Admin adds context"},
+    ).status_code == 200
+    assert client.get(
+        f"/api/support/conversations/{conversation_id}", headers=other_store_headers
+    ).status_code == 404
+    owner_view = client.get(
+        f"/api/support/conversations/{conversation_id}", headers=auth_headers(context)
+    )
+    assert owner_view.status_code == 200
+    assert owner_view.json()["messages"][-1]["content"] == "Admin adds context"
+
+
+def test_god_transfers_store_ownership_and_audits_the_change(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("GOD_USER_EMAIL", "payments@example.com")
+    owner_headers = auth_headers(context)
+
+    response = client.patch(
+        f"/api/admin/stores/{context['store_id']}/owner",
+        headers=owner_headers,
+        json={"user_id": context["support_user_id"]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["owner_id"] == context["support_user_id"]
+    assert client.get(f"/api/stores/{context['store_id']}", headers=owner_headers).status_code == 401
+    assert client.get(f"/api/stores/{context['store_id']}", headers={"Authorization": f"Bearer {context['support_token']}"}).status_code == 401
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        new_owner = db.get(User, context["support_user_id"])
+        god = db.get(User, context["user_id"])
+        new_owner_headers = {"Authorization": f"Bearer {create_access_token(str(new_owner.id), new_owner.token_version)}"}
+        refreshed_god_headers = {"Authorization": f"Bearer {create_access_token(str(god.id), god.token_version)}"}
+    finally:
+        db.close()
+    assert client.get(f"/api/stores/{context['store_id']}", headers=new_owner_headers).status_code == 200
+    logs = client.get("/api/admin/audit-logs", headers=refreshed_god_headers)
+    assert any(item["action"] == "store.owner_changed" for item in logs.json())
 
 
 def test_store_owner_approves_store_admin_membership(payment_context):

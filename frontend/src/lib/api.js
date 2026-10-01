@@ -25,6 +25,10 @@ async function request(path, { method = 'GET', body, auth = false, guest, header
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
   if (body !== undefined && !isFormData) requestHeaders['Content-Type'] = 'application/json'
   if (guest) requestHeaders['X-Guest-Token'] = guest
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())) {
+    const csrfToken = document.cookie.split('; ').find((item) => item.startsWith('csrf_token='))?.split('=').slice(1).join('=')
+    if (csrfToken) requestHeaders['X-CSRF-Token'] = decodeURIComponent(csrfToken)
+  }
   if (auth) {
     const token = getToken()
     if (token && token !== 'cookie-session') requestHeaders.Authorization = `Bearer ${token}`
@@ -95,8 +99,26 @@ export const api = {
     setRole: (userId, role) => seller(`/admin/users/${userId}/role`, { method: 'PATCH', body: { role } }),
     decideAccount: (userId, status) => seller(`/admin/users/${userId}/approval`, { method: 'PATCH', body: { status } }),
     stores: () => seller('/admin/stores'),
+    transferStoreOwner: (storeId, userId) => seller(`/admin/stores/${storeId}/owner`, { method: 'PATCH', body: { user_id: userId } }),
     products: () => seller('/admin/products'),
     orders: () => seller('/admin/orders'),
+    auditLogs: () => seller('/admin/audit-logs'),
+    databaseSummary: () => seller('/admin/database/summary'),
+    systemOverview: () => seller('/admin/system/overview'),
+    databaseRecords: (entity, query = '') => seller(`/admin/database/${encodeURIComponent(entity)}?q=${encodeURIComponent(query)}`),
+    databaseRecord: (entity, id) => seller(`/admin/database/${encodeURIComponent(entity)}/${id}`),
+  },
+
+  support: {
+    summary: () => seller('/support/summary'),
+    create: (payload) => seller('/support/conversations', { method: 'POST', body: payload }),
+    conversations: () => seller('/support/conversations'),
+    conversation: (id) => seller(`/support/conversations/${id}`),
+    reply: (id, message) => seller(`/support/conversations/${id}/reply`, { method: 'POST', body: { message } }),
+    queue: (status) => seller(`/support/queue${status ? `?status_filter=${encodeURIComponent(status)}` : ''}`),
+    claim: (id) => seller(`/support/queue/${id}/claim`, { method: 'POST' }),
+    agentReply: (id, message) => seller(`/support/queue/${id}/reply`, { method: 'POST', body: { message } }),
+    setStatus: (id, status) => seller(`/support/queue/${id}/status`, { method: 'PATCH', body: { status } }),
   },
 
   // Seller (Bearer token)
@@ -113,6 +135,9 @@ export const api = {
     adminRequests: (storeId) => seller(`/stores/${storeId}/admin-requests`),
     decideAdminRequest: (storeId, membershipId, status) =>
       seller(`/stores/${storeId}/admin-requests/${membershipId}`, { method: 'PATCH', body: { status } }),
+    members: (storeId) => seller(`/stores/${storeId}/members`),
+    addMember: (storeId, payload) => seller(`/stores/${storeId}/members`, { method: 'POST', body: payload }),
+    updateMember: (storeId, membershipId, payload) => seller(`/stores/${storeId}/members/${membershipId}`, { method: 'PATCH', body: payload }),
 
     orders: (storeId) => seller(`/seller/orders/stores/${storeId}`),
     order: (id) => seller(`/seller/orders/${id}`),

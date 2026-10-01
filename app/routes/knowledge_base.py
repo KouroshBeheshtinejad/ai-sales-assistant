@@ -13,6 +13,7 @@ from app.services.semantic_index import (
     safely_discard_semantic_document,
     safely_sync_semantic_document,
 )
+from app.services.audit_service import content_audit_state, record_content_audit
 
 
 router = APIRouter(
@@ -70,7 +71,7 @@ def list_knowledge_entries(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        get_store_or_404(db, store_id, current_user.id)
+        get_store_or_404(db, store_id, current_user.id, "knowledge.read")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -91,7 +92,9 @@ def get_knowledge_entry(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        entry = get_knowledge_for_store_or_404(db, store_id, knowledge_id, current_user.id)
+        entry = get_knowledge_for_store_or_404(
+            db, store_id, knowledge_id, current_user.id, "knowledge.read"
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return entry
@@ -105,7 +108,7 @@ def create_knowledge_entry(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        get_store_or_404(db, store_id, current_user.id)
+        get_store_or_404(db, store_id, current_user.id, "knowledge.write")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -116,6 +119,8 @@ def create_knowledge_entry(
         store_id=store_id,
     )
     db.add(entry)
+    db.flush()
+    record_content_audit(db, actor=current_user, action="knowledge.created", record=entry)
     db.commit()
     db.refresh(entry)
     safely_sync_semantic_document(db, entry)
@@ -131,10 +136,13 @@ def update_knowledge_entry(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        entry = get_knowledge_for_store_or_404(db, store_id, knowledge_id, current_user.id)
+        entry = get_knowledge_for_store_or_404(
+            db, store_id, knowledge_id, current_user.id, "knowledge.write"
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
+    before_state = content_audit_state(entry)
     safely_discard_semantic_document(
         db, SOURCE_KNOWLEDGE_BASE, entry.id, entry.store_id
     )
@@ -147,6 +155,9 @@ def update_knowledge_entry(
     for field, value in update_data.items():
         setattr(entry, field, value)
 
+    record_content_audit(
+        db, actor=current_user, action="knowledge.updated", record=entry, before_state=before_state
+    )
     db.commit()
     db.refresh(entry)
     safely_sync_semantic_document(db, entry)
@@ -161,13 +172,19 @@ def delete_knowledge_entry(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        entry = get_knowledge_for_store_or_404(db, store_id, knowledge_id, current_user.id)
+        entry = get_knowledge_for_store_or_404(
+            db, store_id, knowledge_id, current_user.id, "knowledge.write"
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
+    before_state = content_audit_state(entry)
     safely_discard_semantic_document(
         db, SOURCE_KNOWLEDGE_BASE, entry.id, entry.store_id
     )
     db.delete(entry)
+    record_content_audit(
+        db, actor=current_user, action="knowledge.deleted", record=entry, before_state=before_state
+    )
     db.commit()
     return {"message": "Knowledge entry deleted successfully"}

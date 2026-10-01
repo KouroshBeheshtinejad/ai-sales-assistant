@@ -28,6 +28,7 @@ from app.services.chat_rate_limit import enforce_auth_rate_limit
 from app.services.captcha_service import verify_captcha
 from app.services.notification_service import get_email_provider
 from app.services.verification_service import issue_code, verify_code
+from app.security.policies import store_scope_filter
 
 
 router = APIRouter(
@@ -56,30 +57,16 @@ def _sync_god_role(user: User) -> None:
         user.role = "store_owner"
 
 
-def store_owner_filter(user: User):
-    from sqlalchemy import false, select, true
-
-    if user.role == "god":
-        return true()
-    if user.role == "store_owner":
-        return Store.owner_id == user.id
-    if user.role == "store_admin":
-        approved_store_ids = select(StoreMembership.store_id).where(
-            StoreMembership.user_id == user.id,
-            StoreMembership.status == "approved",
-        )
-        return Store.id.in_(approved_store_ids)
-    return false()
+def store_owner_filter(user: User, permission: str = "store.read"):
+    return store_scope_filter(user, permission)
 
 
 def store_owner_only_filter(user: User):
-    from sqlalchemy import false, true
+    from sqlalchemy import true
 
     if user.role == "god":
         return true()
-    if user.role == "store_owner":
-        return Store.owner_id == user.id
-    return false()
+    return Store.owner_id == user.id
 
 
 def require_roles(user: User, *roles: str) -> None:

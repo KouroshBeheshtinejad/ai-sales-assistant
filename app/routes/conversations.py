@@ -13,7 +13,9 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 def _owned_store(db: Session, user: User, store_id: int) -> Store:
-    store = db.scalar(select(Store).where(Store.id == store_id, store_owner_filter(user)))
+    store = db.scalar(
+        select(Store).where(Store.id == store_id, store_owner_filter(user, "conversation.read"))
+    )
     if store is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
     return store
@@ -89,7 +91,7 @@ def get_conversation(
         select(Conversation)
         .join(Store, Conversation.store_id == Store.id)
         .options(joinedload(Conversation.messages))
-        .where(Conversation.id == conversation_id, store_owner_filter(current_user))
+        .where(Conversation.id == conversation_id, store_owner_filter(current_user, "conversation.read"))
     )
     if conversation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")

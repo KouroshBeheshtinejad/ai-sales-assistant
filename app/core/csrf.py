@@ -30,7 +30,7 @@ def set_csrf_cookie(request: Request, response) -> None:
     response.set_cookie(
         key=CSRF_COOKIE_NAME,
         value=token,
-        httponly=True,
+        httponly=False,
         secure=settings.secure,
         samesite=settings.samesite,
         max_age=settings.max_age_seconds,
@@ -42,6 +42,21 @@ async def require_csrf_token(request: Request) -> None:
     submitted_token = form_data.get(CSRF_FORM_FIELD_NAME)
     cookie_token = request.cookies.get(CSRF_COOKIE_NAME)
     if not (
+        isinstance(submitted_token, str)
+        and cookie_token
+        and hmac.compare_digest(submitted_token, cookie_token)
+    ):
+        logger.warning("Rejected CSRF validation method=%s path=%s", request.method, request.url.path)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid CSRF token",
+        )
+
+
+async def require_csrf_header(request: Request) -> None:
+    cookie_token = request.cookies.get(CSRF_COOKIE_NAME)
+    submitted_token = request.headers.get("X-CSRF-Token")
+    if request.cookies.get("access_token") and not (
         isinstance(submitted_token, str)
         and cookie_token
         and hmac.compare_digest(submitted_token, cookie_token)

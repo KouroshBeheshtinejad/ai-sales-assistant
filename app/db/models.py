@@ -109,6 +109,7 @@ class User(Base):
 
     conversations: Mapped[list["Conversation"]] = relationship(
         back_populates="user",
+        foreign_keys="Conversation.user_id",
         cascade="all, delete-orphan",
     )
 
@@ -185,6 +186,30 @@ class StoreMembership(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     user: Mapped["User"] = relationship()
     store: Mapped["Store"] = relationship()
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_store_created", "store_id", "created_at"),
+        Index("ix_audit_logs_actor_created", "actor_user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    resource_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    resource_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    store_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stores.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False, index=True)
+    before_state: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    after_state: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class FAQ(Base):
@@ -364,9 +389,9 @@ class Conversation(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    store_id: Mapped[int] = mapped_column(
+    store_id: Mapped[int | None] = mapped_column(
         ForeignKey("stores.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
@@ -388,6 +413,13 @@ class Conversation(Base):
         nullable=False,
         default="active",
         index=True,
+    )
+
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="sales", server_default="sales", index=True)
+    support_status: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
+    priority: Mapped[str] = mapped_column(String(20), nullable=False, default="normal", server_default="normal")
+    assigned_to: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -431,6 +463,7 @@ class Conversation(Base):
 
     user: Mapped["User | None"] = relationship(
         back_populates="conversations",
+        foreign_keys=[user_id],
     )
 
     messages: Mapped[list["Message"]] = relationship(

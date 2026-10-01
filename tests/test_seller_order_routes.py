@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.security import create_access_token, hash_password
 from app.db.database import Base, get_db
-from app.db.models import Order, OrderItem, Product, Store, User
+from app.db.models import Order, OrderItem, Product, Store, StoreMembership, User
 from app.main import app
 
 
@@ -198,7 +198,32 @@ def test_seller_cannot_list_another_store_orders(client, test_data):
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "Store not found"
+
+
+def test_store_manager_cannot_cancel_orders_without_order_cancel_permission(client, test_data):
+    manager = create_user("manager-api@example.com")
+    db = TestingSessionLocal()
+    try:
+        db.add(
+            StoreMembership(
+                store_id=test_data["store"].id,
+                user_id=manager.id,
+                role="store_manager",
+                status="approved",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.patch(
+        f"/seller/orders/{test_data['order'].id}/status",
+        headers=auth_headers(manager.id),
+        json={"status": "cancelled"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Order not found"
 
 
 def test_seller_can_get_order_details(client, test_data):

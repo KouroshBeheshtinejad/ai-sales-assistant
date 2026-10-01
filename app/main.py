@@ -1,4 +1,5 @@
 import logging
+import hmac
 import re
 import uuid
 from contextlib import asynccontextmanager
@@ -6,7 +7,7 @@ from html import escape
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
@@ -31,6 +32,7 @@ from app.routes.cart import router as cart_router
 from app.routes.order import router as order_router
 from app.routes.seller_orders import router as seller_orders_router
 from app.routes.conversations import router as conversations_router
+from app.routes.support import router as support_router
 from app.routes.business_types import router as business_types_router
 from app.routes.payments import router as payments_router
 from app.routes.showcase import router as showcase_router
@@ -52,6 +54,13 @@ logger = logging.getLogger(__name__)
 templates = Jinja2Templates(directory="app/templates")
 frontend_dist = Path("frontend/dist")
 uploads_dir = Path("uploads")
+PUBLIC_AUTH_MUTATIONS = {
+    "/auth/login",
+    "/auth/register",
+    "/auth/verify",
+    "/auth/password-reset/request",
+    "/auth/password-reset/confirm",
+}
 
 
 def react_html_with_metadata(request: Request, title: str, description: str, path: str) -> HTMLResponse:
@@ -79,6 +88,26 @@ def react_html_with_metadata(request: Request, title: str, description: str, pat
 @app.middleware("http")
 async def csrf_cookie_middleware(request: Request, call_next):
     ensure_csrf_token(request)
+    unsafe_method = request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}
+    cookie_authenticated_mutation = (
+        unsafe_method
+        and bool(request.cookies.get("access_token"))
+        and not request.headers.get("authorization")
+        and request.url.path.removeprefix("/api") not in PUBLIC_AUTH_MUTATIONS
+    )
+    form_content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().casefold()
+    if cookie_authenticated_mutation and form_content_type != "application/x-www-form-urlencoded":
+        cookie_token = request.cookies.get("csrf_token")
+        submitted_token = request.headers.get("X-CSRF-Token")
+        if not (
+            isinstance(submitted_token, str)
+            and cookie_token
+            and hmac.compare_digest(submitted_token, cookie_token)
+        ):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Invalid CSRF token"},
+            )
     response = await call_next(request)
     set_csrf_cookie(request, response)
     return response
@@ -130,6 +159,7 @@ app.include_router(cart_router)
 app.include_router(order_router)
 app.include_router(seller_orders_router)
 app.include_router(conversations_router)
+app.include_router(support_router)
 app.include_router(business_types_router)
 app.include_router(payments_router)
 app.include_router(showcase_router)
@@ -150,6 +180,7 @@ for api_router in (
     order_router,
     seller_orders_router,
     conversations_router,
+    support_router,
     business_types_router,
     payments_router,
     showcase_router,

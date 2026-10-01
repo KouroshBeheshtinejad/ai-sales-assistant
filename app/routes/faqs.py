@@ -13,6 +13,7 @@ from app.services.semantic_index import (
     safely_discard_semantic_document,
     safely_sync_semantic_document,
 )
+from app.services.audit_service import content_audit_state, record_content_audit
 
 
 router = APIRouter(
@@ -70,7 +71,7 @@ def list_faqs(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        get_store_or_404(db, store_id, current_user.id)
+        get_store_or_404(db, store_id, current_user.id, "faq.read")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -91,7 +92,7 @@ def get_faq(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        faq = get_faq_for_store_or_404(db, store_id, faq_id, current_user.id)
+        faq = get_faq_for_store_or_404(db, store_id, faq_id, current_user.id, "faq.read")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return faq
@@ -105,7 +106,7 @@ def create_faq(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        get_store_or_404(db, store_id, current_user.id)
+        get_store_or_404(db, store_id, current_user.id, "faq.write")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -116,6 +117,8 @@ def create_faq(
         store_id=store_id,
     )
     db.add(faq)
+    db.flush()
+    record_content_audit(db, actor=current_user, action="faq.created", record=faq)
     db.commit()
     db.refresh(faq)
     safely_sync_semantic_document(db, faq)
@@ -131,10 +134,11 @@ def update_faq(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        faq = get_faq_for_store_or_404(db, store_id, faq_id, current_user.id)
+        faq = get_faq_for_store_or_404(db, store_id, faq_id, current_user.id, "faq.write")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
+    before_state = content_audit_state(faq)
     safely_discard_semantic_document(db, SOURCE_FAQ, faq.id, faq.store_id)
     update_data = data.model_dump(exclude_unset=True)
     if "question" in update_data and update_data["question"] is not None:
@@ -145,6 +149,9 @@ def update_faq(
     for field, value in update_data.items():
         setattr(faq, field, value)
 
+    record_content_audit(
+        db, actor=current_user, action="faq.updated", record=faq, before_state=before_state
+    )
     db.commit()
     db.refresh(faq)
     safely_sync_semantic_document(db, faq)
@@ -159,11 +166,15 @@ def delete_faq(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        faq = get_faq_for_store_or_404(db, store_id, faq_id, current_user.id)
+        faq = get_faq_for_store_or_404(db, store_id, faq_id, current_user.id, "faq.write")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
+    before_state = content_audit_state(faq)
     safely_discard_semantic_document(db, SOURCE_FAQ, faq.id, faq.store_id)
     db.delete(faq)
+    record_content_audit(
+        db, actor=current_user, action="faq.deleted", record=faq, before_state=before_state
+    )
     db.commit()
     return {"message": "FAQ deleted successfully"}

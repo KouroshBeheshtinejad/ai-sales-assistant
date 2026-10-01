@@ -53,6 +53,7 @@ function EntryForm({ kind, storeId, entry, onSaved, onClose }) {
 function EntryList({ kind, store }) {
   const { t, err } = useI18n()
   const toast = useToast()
+  const canWrite = store.permissions?.includes(kind === 'faqs' ? 'faq.write' : 'knowledge.write')
   const [modal, setModal] = useState(null)
   const state = useAsync(() => api.seller.list(store.id, kind), [store.id, kind])
   const [headName] = KINDS[kind].head
@@ -71,7 +72,7 @@ function EntryList({ kind, store }) {
 
   return (
     <div role="tabpanel">
-      <div className="row end"><Button variant="primary" onClick={() => setModal('new')}>{t('k.add')}</Button></div>
+      {canWrite && <div className="row end"><Button variant="primary" onClick={() => setModal('new')}>{t('k.add')}</Button></div>}
       <Async state={state}>
         {(entries) => !entries.length ? <Empty title={t(KINDS[kind].empty)} /> : (
           <ul className="list-cards">
@@ -82,10 +83,10 @@ function EntryList({ kind, store }) {
                   {!entry.is_active && <Badge>{t('inactive')}</Badge>}
                 </div>
                 <p className="clamp pre">{entry[bodyName]}</p>
-                <div className="row">
+                {canWrite && <div className="row">
                   <Button size="sm" onClick={() => setModal(entry)}>{t('edit')}</Button>
                   <ConfirmButton onConfirm={() => remove(entry)}>{t('delete')}</ConfirmButton>
-                </div>
+                </div>}
               </li>
             ))}
           </ul>

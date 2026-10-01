@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Async, Badge, Button, ConfirmButton, Empty, Field, Modal, useToast } from '../../components/ui'
 import { api } from '../../lib/api'
@@ -96,6 +96,7 @@ function StorePanel({ store, isOwner }) {
   const { reloadStores, select } = useSeller()
   const [modal, setModal] = useState(null)
   const url = `${location.origin}/store/${store.id}`
+  const canUpdate = store.permissions?.includes('store.update')
   const label = bizLabel(store.business_type, store.business_type_label)
 
   const saved = async (id) => {
@@ -119,9 +120,9 @@ function StorePanel({ store, isOwner }) {
     <section className="card stack">
       <div className="row between">
         <div><h2 className="h3">{store.name}</h2><p className="muted">{label}</p></div>
-        {isOwner && <div className="row">
-          <Button size="sm" onClick={() => setModal('edit')}>{t('s.editStore')}</Button>
-          <Button size="sm" onClick={() => setModal('create')}>{t('s.newStore')}</Button>
+        {(canUpdate || isOwner) && <div className="row">
+          {canUpdate && <Button size="sm" onClick={() => setModal('edit')}>{t('s.editStore')}</Button>}
+          {isOwner && <Button size="sm" onClick={() => setModal('create')}>{t('s.newStore')}</Button>}
         </div>}
       </div>
       <div className="row">
@@ -148,7 +149,7 @@ export default function Overview() {
   const { t, num, money, id, date } = useI18n()
   const { user } = useAuth()
   const { store, reloadStores, select } = useSeller()
-  const isOwner = user?.role === 'store_owner'
+  const isOwner = user?.role === 'store_owner' || user?.role === 'god'
   useSeo({ title: `${t('s.overview')} | NAVA` })
   const data = useAsync(() => (store ? Promise.all([api.seller.orders(store.id), api.seller.products(store.id), api.seller.conversations(store.id)]) : null), [store?.id])
 

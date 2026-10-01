@@ -7,6 +7,7 @@ import { useI18n } from '../../lib/i18n'
 import { TRANSITIONS } from '../../lib/orders'
 import { parseDate } from '../../lib/util'
 import { PageHead } from './SellerLayout'
+import { useSeller } from './SellerContext'
 
 export default function OrderDetail() {
   const { orderId } = useParams()
@@ -15,6 +16,10 @@ export default function OrderDetail() {
   const [busy, setBusy] = useState('')
   const state = useAsync(() => api.seller.order(orderId), [orderId])
   useSeo({ title: `${t('od.title', { id: id(orderId) })} | NAVA` })
+
+  const { store } = useSeller()
+  const canUpdate = store?.permissions?.includes('order.update')
+  const canCancel = store?.permissions?.includes('order.cancel')
 
   const move = async (next) => {
     setBusy(next)
@@ -41,9 +46,9 @@ export default function OrderDetail() {
                 <section className="card stack">
                   <Timeline status={order.status} />
                   <h2 className="h3">{t('od.next')}</h2>
-                  {options.length === 0 ? <p className="muted">{t('od.final')}</p> : (
+                  {options.length === 0 ? <p className="muted">{t('od.final')}</p> : !canUpdate ? <p className="muted">{t('dash.forbidden')}</p> : (
                     <div className="row">
-                      {options.map((next) => next === 'cancelled'
+                      {options.filter((next) => next !== 'cancelled' || canCancel).map((next) => next === 'cancelled'
                         ? <ConfirmButton key={next} variant="danger" size="md" busy={busy === next} onConfirm={() => move(next)}>{t('od.cancelOrder')}</ConfirmButton>
                         : <Button key={next} variant="primary" busy={busy === next} disabled={Boolean(busy)} onClick={() => move(next)}>{t('od.moveTo', { status: t(`status.${next}`) })}</Button>)}
                     </div>

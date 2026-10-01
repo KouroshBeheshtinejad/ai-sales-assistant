@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
@@ -11,6 +11,7 @@ from app.db.models import Product, Store, User
 from app.routes.auth import get_current_user, store_owner_filter
 from app.services.cloudinary_service import delete_image, upload_image
 from app.services.image_validation import validate_image_content
+from app.services.audit_service import record_audit_log
 from app.services.semantic_index import (
     SOURCE_PRODUCT,
     safely_discard_semantic_document,
@@ -92,6 +93,7 @@ def _product_response(product: Product, message: str | None = None):
 @router.post("/")
 def create_product(
     data: ProductCreateRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -99,7 +101,7 @@ def create_product(
         db.query(Store)
         .filter(
             Store.id == data.store_id,
-            store_owner_filter(current_user),
+            store_owner_filter(current_user, "product.create"),
         )
         .first()
     )
@@ -122,6 +124,22 @@ def create_product(
     )
 
     db.add(product)
+    db.flush()
+    record_audit_log(
+        db,
+        actor=current_user,
+        action="product.created",
+        resource_type="product",
+        resource_id=product.id,
+        store_id=product.store_id,
+        after_state={
+            "name": product.name,
+            "price": str(product.price),
+            "stock": product.stock,
+            "is_active": product.is_active,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
     db.commit()
     db.refresh(product)
     safely_sync_semantic_document(db, product)
@@ -132,6 +150,7 @@ def create_product(
 @router.post("/{product_id}/image")
 async def upload_product_image(
     product_id: int,
+    request: Request,
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -141,7 +160,7 @@ async def upload_product_image(
         .join(Store)
         .filter(
             Product.id == product_id,
-            store_owner_filter(current_user),
+            store_owner_filter(current_user, "product.update"),
         )
         .first()
     )
@@ -190,6 +209,17 @@ async def upload_product_image(
         ) from exc
 
     product.image_url = image_url
+    record_audit_log(
+        db,
+        actor=current_user,
+        action="product.image_changed",
+        resource_type="product",
+        resource_id=product.id,
+        store_id=product.store_id,
+        before_state={"has_image": bool(old_image_url)},
+        after_state={"has_image": True},
+        ip_address=request.client.host if request.client else None,
+    )
     db.commit()
     db.refresh(product)
 
@@ -205,6 +235,7 @@ async def upload_product_image(
 @router.delete("/{product_id}/image")
 def delete_product_image(
     product_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -213,7 +244,7 @@ def delete_product_image(
         .join(Store)
         .filter(
             Product.id == product_id,
-            store_owner_filter(current_user),
+            store_owner_filter(current_user, "product.update"),
         )
         .first()
     )
@@ -235,6 +266,17 @@ def delete_product_image(
         ) from exc
 
     product.image_url = None
+    record_audit_log(
+        db,
+        actor=current_user,
+        action="product.image_changed",
+        resource_type="product",
+        resource_id=product.id,
+        store_id=product.store_id,
+        before_state={"has_image": bool(image_url)},
+        after_state={"has_image": False},
+        ip_address=request.client.host if request.client else None,
+    )
     db.commit()
     db.refresh(product)
 
@@ -254,7 +296,7 @@ def get_products(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            store_owner_filter(current_user),
+            store_owner_filter(current_user, "product.read"),
         )
         .first()
     )
@@ -288,7 +330,7 @@ def get_product(
         .join(Store)
         .filter(
             Product.id == product_id,
-            store_owner_filter(current_user),
+            store_owner_filter(current_user, "product.read"),
         )
         .first()
     )
@@ -327,6 +369,7 @@ class ProductUpdateRequest(BaseModel):
 def update_product(
     product_id: int,
     data: ProductUpdateRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -335,7 +378,7 @@ def update_product(
         .join(Store)
         .filter(
             Product.id == product_id,
-            store_owner_filter(current_user),
+            store_owner_filter(current_user, "product.update"),
         )
         .first()
     )
@@ -353,6 +396,14 @@ def update_product(
         product.store_id,
     )
 
+    before_state = {
+        "name": product.name,
+        "price": str(product.price),
+        "stock": product.stock,
+        "reserved_stock": product.reserved_stock,
+        "is_active": product.is_active,
+    }
+
     update_data = data.model_dump(exclude_unset=True)
 
     if "attributes" in update_data and update_data["attributes"] is not None:
@@ -368,6 +419,23 @@ def update_product(
     for field, value in update_data.items():
         setattr(product, field, value)
 
+    record_audit_log(
+        db,
+        actor=current_user,
+        action="product.updated",
+        resource_type="product",
+        resource_id=product.id,
+        store_id=product.store_id,
+        before_state=before_state,
+        after_state={
+            "name": product.name,
+            "price": str(product.price),
+            "stock": product.stock,
+            "reserved_stock": product.reserved_stock,
+            "is_active": product.is_active,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
     db.commit()
     db.refresh(product)
     safely_sync_semantic_document(db, product)
@@ -381,6 +449,7 @@ def update_product(
 @router.delete("/{product_id}")
 def delete_product(
     product_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -389,7 +458,7 @@ def delete_product(
         .join(Store)
         .filter(
             Product.id == product_id,
-            store_owner_filter(current_user),
+            store_owner_filter(current_user, "product.delete"),
         )
         .first()
     )
@@ -401,6 +470,13 @@ def delete_product(
         )
 
     image_url = product.image_url
+    before_state = {
+        "name": product.name,
+        "price": str(product.price),
+        "stock": product.stock,
+        "reserved_stock": product.reserved_stock,
+        "is_active": product.is_active,
+    }
 
     safely_discard_semantic_document(
         db,
@@ -418,6 +494,16 @@ def delete_product(
         ) from exc
 
     db.delete(product)
+    record_audit_log(
+        db,
+        actor=current_user,
+        action="product.deleted",
+        resource_type="product",
+        resource_id=product_id,
+        store_id=product.store_id,
+        before_state=before_state,
+        ip_address=request.client.host if request.client else None,
+    )
     db.commit()
 
     return {
