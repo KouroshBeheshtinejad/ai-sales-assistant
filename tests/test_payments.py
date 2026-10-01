@@ -471,7 +471,18 @@ def test_role_workspace_routes_serve_the_frontend_application(payment_context, m
     frontend_dist.mkdir()
     (frontend_dist / "index.html").write_text("<!doctype html><div id=\"root\"></div>", encoding="utf-8")
     monkeypatch.setattr(main, "frontend_dist", frontend_dist)
-    for path in ("/workspace", "/workspace/customer", "/workspace/support", "/workspace/god", "/api-docs"):
+    for path in (
+        "/workspace",
+        "/workspace/customer",
+        "/workspace/support",
+        "/workspace/god",
+        "/seller/team",
+        "/seller/support",
+        "/seller/platform",
+        "/seller/customer",
+        "/seller/contact-support",
+        "/api-docs",
+    ):
         response = client.get(path)
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
