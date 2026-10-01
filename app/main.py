@@ -250,6 +250,7 @@ async def react_product_route(store_id: int, product_id: int, request: Request):
 @app.get("/workspace", include_in_schema=False)
 @app.get("/workspace/{path:path}", include_in_schema=False)
 @app.get("/payment-result", include_in_schema=False)
+@app.get("/api-docs", include_in_schema=False)
 async def react_seller_route(path: str | None = None):
     if (frontend_dist / "index.html").is_file():
         return FileResponse(frontend_dist / "index.html")

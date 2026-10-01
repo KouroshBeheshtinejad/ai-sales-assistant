@@ -240,6 +240,29 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .facts > div { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 .facts dt { color: var(--muted); }
 .facts dd { font-weight: 600; display: flex; align-items: center; gap: 8px; text-align: end; }
+.api-docs { max-width: 1040px; padding-block: 40px 64px; }
+.api-docs .page-head { display: block; }
+.api-docs-tools { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, 280px) auto; align-items: end; gap: 12px; }
+.api-count { color: var(--muted); font-size: .9rem; }
+.api-group { display: grid; gap: 12px; }
+.api-group > h2 { font-size: 1.2rem; }
+.api-endpoint-list { display: grid; gap: 8px; }
+.api-endpoint { padding: 0; overflow: hidden; }
+.api-endpoint summary { cursor: pointer; list-style: none; }
+.api-endpoint summary::-webkit-details-marker { display: none; }
+.api-endpoint-summary { display: grid; grid-template-columns: 76px minmax(190px, .8fr) minmax(0, 1.2fr); align-items: center; gap: 12px; padding: 12px 16px; }
+.api-endpoint-summary code, .api-detail-section code { overflow-wrap: anywhere; }
+.api-method { display: inline-flex; justify-content: center; padding: 2px 8px; border-radius: 4px; font-size: .75rem; font-weight: 800; }
+.api-method-get { background: var(--ok-soft); color: var(--ok); }
+.api-method-post { background: var(--lapis-soft); color: var(--lapis); }
+.api-method-put, .api-method-patch { background: var(--saffron-soft); color: var(--warn); }
+.api-method-delete { background: var(--danger-soft); color: var(--danger); }
+.api-endpoint-title { color: var(--muted); font-size: .9rem; }
+.api-endpoint-body { display: grid; gap: 16px; padding: 16px; border-top: 1px solid var(--line); }
+.api-detail-section { display: grid; gap: 8px; }
+.api-detail-section h3 { font-size: .95rem; }
+.api-detail-section pre { max-height: 360px; overflow: auto; padding: 14px; border-radius: var(--r-s); background: var(--ink); color: #e9f2f3; font: 400 .82rem/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.api-meta { color: var(--muted); font-size: .85rem; }
 
 .timeline { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center; font-size: .8rem; color: var(--muted); }
 .timeline li { display: grid; gap: 6px; justify-items: center; position: relative; }
@@ -511,6 +534,9 @@ img.store-mark { display: block; object-fit: cover; }
   .mini-body { padding: 10px; }
   .cta-band .btn { width: 100%; }
   .footer-grid { gap: 24px; padding-block: 28px; }
+  .api-docs-tools { grid-template-columns: 1fr; }
+  .api-endpoint-summary { grid-template-columns: 68px minmax(0, 1fr); gap: 6px 10px; }
+  .api-endpoint-title { grid-column: 2; }
   .topbar-end { gap: 6px; }
   .lang { padding-inline: 8px; }
   .product-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 12px; }

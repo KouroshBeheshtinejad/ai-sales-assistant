@@ -191,6 +191,7 @@ All configuration is environment-driven — see [`.env.example`](.env.example) f
 | `SECRET_KEY` | **Must** be set to a strong, stable value in any deployed environment — session tokens don't survive a key rotation |
 | `APP_ALLOWED_HOSTS` | Comma-separated public hostnames (trusted-host protection) |
 | `GOD_USER_EMAIL` | Email of the single verified platform God account; role elevation is server-managed and cannot be assigned through registration or the role API |
+| `LOG_VERIFICATION_CODES` | Set to `true` to write email/SMS verification codes to application logs for deployment debugging. Disabled by default because log access exposes active OTPs; restrict access and retention when enabled |
 | `SESSION_COOKIE_SECURE` / `SESSION_COOKIE_SAMESITE` | Production cookies are always `Secure` + `HttpOnly` + `SameSite=Lax`; `SameSite=None` is rejected unless secure cookies are enabled |
 | `AUTH_RATE_LIMIT_REQUESTS` / `_WINDOW_SECONDS` | Login/registration rate limiting |
 

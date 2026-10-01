@@ -236,11 +236,14 @@ def test_role_workspace_routes_serve_the_frontend_application(payment_context, m
     frontend_dist.mkdir()
     (frontend_dist / "index.html").write_text("<!doctype html><div id=\"root\"></div>", encoding="utf-8")
     monkeypatch.setattr(main, "frontend_dist", frontend_dist)
-    for path in ("/workspace", "/workspace/customer", "/workspace/support", "/workspace/god"):
+    for path in ("/workspace", "/workspace/customer", "/workspace/support", "/workspace/god", "/api-docs"):
         response = client.get(path)
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert 'id="root"' in response.text
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+    assert "/api/payments/orders/{order_id}" in openapi.json()["paths"]
 
 
 def test_mock_payment_is_idempotent_and_server_verified(payment_context, monkeypatch):

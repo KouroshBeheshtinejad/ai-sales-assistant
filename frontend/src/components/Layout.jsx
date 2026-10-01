@@ -163,6 +163,7 @@ export function SiteFooter() {
           <FooterColumn title={t('footer.customers')}>
             <li><Link to={`/store/${DEMO_STORE_ID}`}>{t('nav.demo')}</Link></li>
             <li><Link to="/track">{t('nav.track')}</Link></li>
+            <li><Link to="/api-docs">{t('apiDocs.link')}</Link></li>
           </FooterColumn>
           <div className="footer-col">
             <h2 className="footer-title">{t('footer.language')}</h2>

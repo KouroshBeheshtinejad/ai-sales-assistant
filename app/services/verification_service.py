@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 
@@ -16,6 +17,14 @@ from app.services.notification_service import get_email_provider, get_sms_provid
 
 OTP_EXPIRY_MINUTES = 10
 OTP_MAX_ATTEMPTS = 5
+logger = logging.getLogger(__name__)
+
+
+def _masked_target(channel: str, target: str) -> str:
+    if channel == "email" and "@" in target:
+        name, domain = target.split("@", 1)
+        return f"{name[:1]}***@{domain}"
+    return f"***{target[-4:]}" if len(target) > 4 else "***"
 
 
 def _hash_code(user_id: int, channel: str, code: str) -> str:
@@ -42,6 +51,15 @@ def issue_code(db: Session, user: User, channel: str) -> str:
     )
     db.add(record)
     db.commit()
+    if os.getenv("LOG_VERIFICATION_CODES", "false").strip().casefold() in {"1", "true", "yes", "on"}:
+        logger.warning(
+            "verification_code_issued user_id=%s channel=%s target=%s code=%s expires_in_minutes=%s",
+            user.id,
+            channel,
+            _masked_target(channel, target),
+            code,
+            OTP_EXPIRY_MINUTES,
+        )
     provider = os.getenv("OTP_PROVIDER", "disabled").casefold()
     if provider == "email":
         get_email_provider().send(

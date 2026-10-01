@@ -12,6 +12,7 @@ import StoreShell from './pages/StoreShell'
 import ProductPage from './pages/ProductPage'
 import Track from './pages/Track'
 import PaymentResult from './pages/PaymentResult'
+import ApiDocs from './pages/ApiDocs'
 
 // The seller panel is only needed by store owners: keep it out of the storefront bundle.
 const SellerLayout = lazy(() => import('./pages/seller/SellerLayout'))
@@ -46,6 +47,7 @@ export default function App() {
                   <Route path="register" element={<AuthPage initial="register" />} />
                   <Route path="track" element={<Track />} />
                   <Route path="payment-result" element={<PaymentResult />} />
+                  <Route path="api-docs" element={<ApiDocs />} />
                   <Route path="*" element={<NotFound />} />
                 </Route>
 

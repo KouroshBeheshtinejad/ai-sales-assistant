@@ -13,6 +13,7 @@ from app.db.models import Store, StoreMembership, User
 from app.main import app
 from app.routes.auth import create_access_token
 from app.services.captcha_service import generate_captcha, verify_captcha
+from app.services.verification_service import issue_code
 
 
 @pytest.fixture()
@@ -82,6 +83,31 @@ class TestCaptchaService:
     def test_unknown_token_is_rejected(self, client):
         db = _db(client)
         assert verify_captcha(db, "not-a-real-token", "12345") is False
+
+
+class TestVerificationCodeLogging:
+    def test_issued_email_and_sms_codes_are_logged_when_enabled(self, client, monkeypatch, caplog):
+        db = _db(client)
+        user = _register_user(db, email="otp-log@example.com", phone="+15551234567")
+        monkeypatch.setenv("LOG_VERIFICATION_CODES", "true")
+
+        with caplog.at_level("WARNING", logger="app.services.verification_service"):
+            email_code = issue_code(db, user, "email")
+            sms_code = issue_code(db, user, "phone")
+
+        assert f"channel=email target=o***@example.com code={email_code}" in caplog.text
+        assert f"channel=phone target=***4567 code={sms_code}" in caplog.text
+
+    def test_codes_are_not_logged_unless_explicitly_enabled(self, client, monkeypatch, caplog):
+        db = _db(client)
+        user = _register_user(db)
+        monkeypatch.delenv("LOG_VERIFICATION_CODES", raising=False)
+
+        with caplog.at_level("WARNING", logger="app.services.verification_service"):
+            code = issue_code(db, user, "email")
+
+        assert code not in caplog.text
+        assert "verification_code_issued" not in caplog.text
 
 
 class TestCaptchaEndpoint:
