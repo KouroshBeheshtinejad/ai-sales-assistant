@@ -228,8 +228,14 @@ def test_unconfigured_users_cannot_access_admin_routes(payment_context):
     assert response.status_code == 403
 
 
-def test_role_workspace_routes_serve_the_frontend_application(payment_context):
+def test_role_workspace_routes_serve_the_frontend_application(payment_context, monkeypatch, tmp_path):
     client, _context = payment_context
+    from app import main
+
+    frontend_dist = tmp_path / "dist"
+    frontend_dist.mkdir()
+    (frontend_dist / "index.html").write_text("<!doctype html><div id=\"root\"></div>", encoding="utf-8")
+    monkeypatch.setattr(main, "frontend_dist", frontend_dist)
     for path in ("/workspace", "/workspace/customer", "/workspace/support", "/workspace/god"):
         response = client.get(path)
         assert response.status_code == 200
