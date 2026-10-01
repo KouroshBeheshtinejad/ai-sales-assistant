@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.db.models import Order, Store, User
+from app.db.models import Order, Store, StoreMembership, User
 from app.services.order_service import OrderService
 
 
@@ -32,7 +32,18 @@ class SellerOrderService:
     ) -> Store:
         user = db.get(User, seller_id)
         filters = [Store.id == store_id]
-        if user is None or user.role != "god":
+        if user is not None and user.role == "god":
+            pass
+        elif user is not None and user.role == "store_admin":
+            filters.append(
+                Store.id.in_(
+                    select(StoreMembership.store_id).where(
+                        StoreMembership.user_id == seller_id,
+                        StoreMembership.status == "approved",
+                    )
+                )
+            )
+        else:
             filters.append(Store.owner_id == seller_id)
         store = db.scalar(select(Store).where(*filters))
 
@@ -70,7 +81,18 @@ class SellerOrderService:
     ) -> Order:
         user = db.get(User, seller_id)
         filters = [Order.id == order_id]
-        if user is None or user.role != "god":
+        if user is not None and user.role == "god":
+            pass
+        elif user is not None and user.role == "store_admin":
+            filters.append(
+                Store.id.in_(
+                    select(StoreMembership.store_id).where(
+                        StoreMembership.user_id == seller_id,
+                        StoreMembership.status == "approved",
+                    )
+                )
+            )
+        else:
             filters.append(Store.owner_id == seller_id)
         order = db.scalar(
             select(Order)

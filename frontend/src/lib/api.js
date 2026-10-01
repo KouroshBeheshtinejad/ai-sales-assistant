@@ -84,10 +84,20 @@ export const api = {
   verify: (payload) => request('/auth/verify', { method: 'POST', body: payload }),
   login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
   me: () => request('/auth/me', { auth: true }),
+  orders: () => seller('/orders'),
   updateProfile: (payload) => request('/auth/me', { method: 'PATCH', auth: true, body: payload }),
   requestReset: (email) => request('/auth/password-reset/request', { method: 'POST', body: { email } }),
   confirmReset: (token, newPassword) =>
     request('/auth/password-reset/confirm', { method: 'POST', body: { token, new_password: newPassword } }),
+
+  admin: {
+    users: () => seller('/admin/users'),
+    setRole: (userId, role) => seller(`/admin/users/${userId}/role`, { method: 'PATCH', body: { role } }),
+    decideAccount: (userId, status) => seller(`/admin/users/${userId}/approval`, { method: 'PATCH', body: { status } }),
+    stores: () => seller('/admin/stores'),
+    products: () => seller('/admin/products'),
+    orders: () => seller('/admin/orders'),
+  },
 
   // Seller (Bearer token)
   seller: {
@@ -100,6 +110,9 @@ export const api = {
       return seller(`/stores/${id}/logo`, { method: 'POST', body })
     },
     deleteStore: (id) => seller(`/stores/${id}`, { method: 'DELETE' }),
+    adminRequests: (storeId) => seller(`/stores/${storeId}/admin-requests`),
+    decideAdminRequest: (storeId, membershipId, status) =>
+      seller(`/stores/${storeId}/admin-requests/${membershipId}`, { method: 'PATCH', body: { status } }),
 
     orders: (storeId) => seller(`/seller/orders/stores/${storeId}`),
     order: (id) => seller(`/seller/orders/${id}`),

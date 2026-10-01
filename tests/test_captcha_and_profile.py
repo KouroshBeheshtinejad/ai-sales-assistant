@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.security import hash_password
 from app.db.database import Base, get_db
-from app.db.models import User
+from app.db.models import Store, StoreMembership, User
 from app.main import app
 from app.routes.auth import create_access_token
 from app.services.captcha_service import generate_captcha, verify_captcha
@@ -114,6 +114,71 @@ class TestRegisterAndLoginRequireCaptcha:
             "captcha_answer": code,
         })
         assert response.status_code == 200
+        assert response.json()["role"] == "customer"
+        assert response.json()["approval_status"] == "active"
+
+    def test_privileged_role_registration_waits_for_approval(self, client):
+        token, code = _solved_captcha(client)
+        response = client.post("/api/auth/register", json={
+            "email": "owner-request@example.com",
+            "password": "Secret123!",
+            "role": "store_owner",
+            "captcha_token": token,
+            "captcha_answer": code,
+        })
+        assert response.status_code == 200
+        assert response.json()["role"] == "store_owner"
+        assert response.json()["approval_status"] == "pending"
+        assert response.json()["approval_required"] is True
+
+    def test_store_admin_registration_creates_pending_tenant_membership(self, client):
+        db = _db(client)
+        owner = _register_user(db, email="tenant-owner@example.com", role="store_owner")
+        store = Store(name="Tenant Store", owner_id=owner.id)
+        db.add(store)
+        db.commit()
+        token, code = _solved_captcha(client)
+        response = client.post("/api/auth/register", json={
+            "email": "tenant-admin@example.com",
+            "password": "Secret123!",
+            "role": "store_admin",
+            "store_id": store.id,
+            "captcha_token": token,
+            "captcha_answer": code,
+        })
+        assert response.status_code == 200
+        admin = db.query(User).filter_by(email="tenant-admin@example.com").one()
+        membership = db.query(StoreMembership).filter_by(user_id=admin.id, store_id=store.id).one()
+        assert admin.approval_status == "pending"
+        assert membership.status == "pending"
+
+    def test_login_rejects_a_role_different_from_the_saved_role(self, client):
+        db = _db(client)
+        _register_user(db, role="store_owner")
+        token, code = _solved_captcha(client)
+        response = client.post("/api/auth/login", json={
+            "email": "seller@example.com",
+            "password": "Secret123!",
+            "role": "support",
+            "captcha_token": token,
+            "captcha_answer": code,
+        })
+        assert response.status_code == 403
+        assert response.json()["detail"] == "Selected role does not match this account"
+
+    def test_login_rejects_verified_but_unapproved_support_account(self, client):
+        db = _db(client)
+        _register_user(db, role="support", approval_status="pending")
+        token, code = _solved_captcha(client)
+        response = client.post("/api/auth/login", json={
+            "email": "seller@example.com",
+            "password": "Secret123!",
+            "role": "support",
+            "captcha_token": token,
+            "captcha_answer": code,
+        })
+        assert response.status_code == 403
+        assert response.json()["detail"] == "Account approval is pending"
 
     def test_login_fails_without_captcha_even_with_correct_password(self, client):
         db = _db(client)

@@ -4,6 +4,7 @@ import { Async, Badge, Button, ConfirmButton, Empty, Field, Modal, useToast } fr
 import { api } from '../../lib/api'
 import { useAsync, useSeo } from '../../lib/hooks'
 import { useI18n } from '../../lib/i18n'
+import { useAuth } from '../../lib/auth'
 import { copyText, parseDate } from '../../lib/util'
 import { PageHead } from './SellerLayout'
 import { useSeller } from './SellerContext'
@@ -51,7 +52,45 @@ function StoreForm({ store, onSaved, onCancel }) {
   )
 }
 
-function StorePanel({ store }) {
+function StoreAdminRequests({ storeId }) {
+  const { t, err } = useI18n()
+  const toast = useToast()
+  const [requests, setRequests] = useState([])
+  const [busyId, setBusyId] = useState(null)
+  const [error, setError] = useState('')
+
+  const reload = async () => {
+    try { setRequests(await api.seller.adminRequests(storeId)); setError('') } catch (cause) { setError(err(cause)) }
+  }
+  useEffect(() => { reload() }, [storeId])
+
+  const decide = async (request, status) => {
+    setBusyId(request.id)
+    try {
+      await api.seller.decideAdminRequest(storeId, request.id, status)
+      await reload()
+      toast(status === 'approved' ? t('dash.approve') : t('dash.reject'))
+    } catch (cause) {
+      toast(err(cause), 'danger')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <section className="card stack">
+      <h2 className="h3">{t('dash.storeAdminRequests')}</h2>
+      {error && <p className="notice notice-danger" role="alert">{error}</p>}
+      {!error && !requests.length && <p className="muted">{t('dash.empty')}</p>}
+      <ul className="plain-list">{requests.map((request) => <li key={request.id}>
+        <span><strong>{request.name || request.email}</strong><br /><span dir="ltr">{request.email}</span><br /><span className="muted">{request.is_verified ? t('dash.verified') : t('auth.verifyTitle')}</span></span>
+        <span className="row"><Button size="sm" disabled={!request.is_verified} busy={busyId === request.id} onClick={() => decide(request, 'approved')}>{t('dash.approve')}</Button><Button size="sm" variant="danger" busy={busyId === request.id} onClick={() => decide(request, 'rejected')}>{t('dash.reject')}</Button></span>
+      </li>)}</ul>
+    </section>
+  )
+}
+
+function StorePanel({ store, isOwner }) {
   const { t, bizLabel, err } = useI18n()
   const toast = useToast()
   const { reloadStores, select } = useSeller()
@@ -80,10 +119,10 @@ function StorePanel({ store }) {
     <section className="card stack">
       <div className="row between">
         <div><h2 className="h3">{store.name}</h2><p className="muted">{label}</p></div>
-        <div className="row">
+        {isOwner && <div className="row">
           <Button size="sm" onClick={() => setModal('edit')}>{t('s.editStore')}</Button>
           <Button size="sm" onClick={() => setModal('create')}>{t('s.newStore')}</Button>
-        </div>
+        </div>}
       </div>
       <div className="row">
         <span className="muted">{t('s.publicLink')}</span>
@@ -93,7 +132,7 @@ function StorePanel({ store }) {
       {modal && (
         <Modal title={modal === 'edit' ? t('s.editStore') : t('s.newStore')} onClose={() => setModal(null)}>
           <StoreForm key={modal} store={modal === 'edit' ? store : null} onSaved={saved} onCancel={() => setModal(null)} />
-          {modal === 'edit' && (
+          {modal === 'edit' && isOwner && (
             <div className="danger-zone">
               <p className="muted">{t('s.deleteStoreNote')}</p>
               <ConfirmButton variant="danger" onConfirm={remove}>{t('s.deleteStore')}</ConfirmButton>
@@ -107,11 +146,14 @@ function StorePanel({ store }) {
 
 export default function Overview() {
   const { t, num, money, id, date } = useI18n()
+  const { user } = useAuth()
   const { store, reloadStores, select } = useSeller()
+  const isOwner = user?.role === 'store_owner'
   useSeo({ title: `${t('s.overview')} | NAVA` })
   const data = useAsync(() => (store ? Promise.all([api.seller.orders(store.id), api.seller.products(store.id), api.seller.conversations(store.id)]) : null), [store?.id])
 
   if (!store) {
+    if (!isOwner) return <div className="page-narrow"><Empty title={t('dash.pendingTitle')} hint={t('dash.pendingBody')} /></div>
     return (
       <div className="page-narrow">
         <Empty title={t('s.noStoreTitle')} hint={t('s.noStoreBody')} />
@@ -125,7 +167,8 @@ export default function Overview() {
   return (
     <>
       <PageHead title={t('s.overview')} />
-      <StorePanel store={store} />
+      <StorePanel store={store} isOwner={isOwner} />
+      {isOwner && <StoreAdminRequests storeId={store.id} />}
       <Async state={data}>
         {([orders, products, conversations]) => {
           const pending = orders.filter((o) => o.status === 'pending')

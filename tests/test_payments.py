@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.security import create_access_token, hash_password
 from app.db.database import Base, get_db
-from app.db.models import Product, Store, User
+from app.db.models import Product, Store, StoreMembership, User
 from app.main import app
 from app.services.payment_service import PaymentProviderNotConfigured, get_payment_provider
 
@@ -27,11 +27,32 @@ def payment_context():
     db.flush()
     product = Product(name="Payment Product", price=Decimal("12.50"), stock=2, store_id=store.id, is_active=True)
     db.add(product)
-    support_user = User(email="support-target@example.com", password_hash=hash_password("StrongPass123!"))
+    support_user = User(email="support-target@example.com", password_hash=hash_password("StrongPass123!"), is_verified=True)
     db.add(support_user)
     db.flush()
     other_store = Store(name="Other Store", owner_id=support_user.id)
     db.add(other_store)
+    store_admin = User(
+        email="store-admin@example.com",
+        password_hash=hash_password("StrongPass123!"),
+        role="store_admin",
+        approval_status="active",
+        is_verified=True,
+    )
+    db.add(store_admin)
+    db.flush()
+    db.add(StoreMembership(store_id=store.id, user_id=store_admin.id, status="approved"))
+    applicant = User(
+        email="store-admin-applicant@example.com",
+        password_hash=hash_password("StrongPass123!"),
+        role="store_admin",
+        approval_status="pending",
+        is_verified=True,
+    )
+    db.add(applicant)
+    db.flush()
+    membership_request = StoreMembership(store_id=store.id, user_id=applicant.id, status="pending")
+    db.add(membership_request)
     db.commit()
     context = {
         "user_id": user.id,
@@ -41,6 +62,10 @@ def payment_context():
         "support_user_id": support_user.id,
         "support_token": create_access_token(str(support_user.id)),
         "other_store_id": other_store.id,
+        "store_admin_id": store_admin.id,
+        "store_admin_token": create_access_token(str(store_admin.id)),
+        "admin_applicant_id": applicant.id,
+        "admin_membership_id": membership_request.id,
     }
     db.close()
 
@@ -121,6 +146,12 @@ def test_god_role_is_server_managed_and_support_is_read_only(payment_context, mo
     assert profile.json()["role"] == "god"
     stores = client.get("/api/stores/", headers=god_headers)
     assert {store["id"] for store in stores.json()} == {context["store_id"], context["other_store_id"]}
+    platform_stores = client.get("/api/admin/stores", headers=god_headers)
+    assert platform_stores.status_code == 200
+    assert {store["id"] for store in platform_stores.json()} == {context["store_id"], context["other_store_id"]}
+    platform_products = client.get("/api/admin/products", headers=god_headers)
+    assert platform_products.status_code == 200
+    assert any(product["id"] == context["product_id"] for product in platform_products.json())
 
     promoted = client.patch(
         f"/api/admin/users/{context['support_user_id']}/role",
@@ -129,21 +160,80 @@ def test_god_role_is_server_managed_and_support_is_read_only(payment_context, mo
     )
     assert promoted.status_code == 200
     assert promoted.json()["role"] == "support"
+    approval = client.patch(
+        f"/api/admin/users/{context['support_user_id']}/approval",
+        headers=god_headers,
+        json={"status": "active"},
+    )
+    assert approval.status_code == 200
 
-    support_headers = {"Authorization": f"Bearer {context['support_token']}"}
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        support = db.get(User, context["support_user_id"])
+        support_headers = {"Authorization": f"Bearer {create_access_token(str(support.id), support.token_version)}"}
+    finally:
+        db.close()
     assert client.get("/api/admin/orders", headers=support_headers).status_code == 200
     assert client.get("/api/admin/users", headers=support_headers).status_code == 403
     assert client.patch(
         f"/api/admin/users/{context['user_id']}/role",
         headers=support_headers,
-        json={"role": "seller"},
+        json={"role": "store_owner"},
     ).status_code == 403
+
+
+def test_store_admin_is_limited_to_approved_store_membership(payment_context):
+    client, context = payment_context
+    headers = {"Authorization": f"Bearer {context['store_admin_token']}"}
+    stores = client.get("/api/stores/", headers=headers)
+    assert stores.status_code == 200
+    assert [item["id"] for item in stores.json()] == [context["store_id"]]
+    assert client.get(f"/api/stores/{context['other_store_id']}", headers=headers).status_code == 404
+    assert client.put(
+        f"/api/stores/{context['store_id']}",
+        headers=headers,
+        json={"name": "Unauthorized rename"},
+    ).status_code == 404
+
+
+def test_store_owner_approves_store_admin_membership(payment_context):
+    client, context = payment_context
+    owner_headers = auth_headers(context)
+    requests = client.get(f"/api/stores/{context['store_id']}/admin-requests", headers=owner_headers)
+    assert requests.status_code == 200
+    assert any(item["id"] == context["admin_membership_id"] for item in requests.json())
+
+    approved = client.patch(
+        f"/api/stores/{context['store_id']}/admin-requests/{context['admin_membership_id']}",
+        headers=owner_headers,
+        json={"status": "approved"},
+    )
+    assert approved.status_code == 200
+    assert approved.json()["user_approval_status"] == "active"
+
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        applicant = db.get(User, context["admin_applicant_id"])
+        headers = {"Authorization": f"Bearer {create_access_token(str(applicant.id), applicant.token_version)}"}
+    finally:
+        db.close()
+    stores = client.get("/api/stores/", headers=headers)
+    assert [item["id"] for item in stores.json()] == [context["store_id"]]
 
 
 def test_unconfigured_users_cannot_access_admin_routes(payment_context):
     client, context = payment_context
     response = client.get("/api/admin/users", headers=auth_headers(context))
     assert response.status_code == 403
+
+
+def test_role_workspace_routes_serve_the_frontend_application(payment_context):
+    client, _context = payment_context
+    for path in ("/workspace", "/workspace/customer", "/workspace/support", "/workspace/god"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert 'id="root"' in response.text
 
 
 def test_mock_payment_is_idempotent_and_server_verified(payment_context, monkeypatch):

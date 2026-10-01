@@ -48,7 +48,7 @@ export default function AuthPage({ initial }) {
   const [params] = useSearchParams()
   const [step, setStep] = useState(initial === 'register' ? 'register' : params.get('mode') || 'login')
   const [info, setInfo] = useState('')
-  const [account, setAccount] = useState({ email: params.get('email') || '', password: '', phone: '', firstName: '', lastName: '', channels: ['email'] })
+  const [account, setAccount] = useState({ email: params.get('email') || '', password: '', phone: '', firstName: '', lastName: '', channels: ['email'], role: 'customer', storeId: '' })
   const next = safeNext(params.get('next'))
 
   useEffect(() => {
@@ -61,8 +61,8 @@ export default function AuthPage({ initial }) {
   useSeo({ title: `${t(step === 'register' ? 'auth.registerTitle' : 'auth.loginTitle')} | NAVA` })
 
   const go = (nextStep, message = '') => { setStep(nextStep); setInfo(message) }
-  const finishLogin = async (email, password, captchaToken, captchaAnswer) => {
-    await api.login({ email, password, captcha_token: captchaToken, captcha_answer: captchaAnswer })
+  const finishLogin = async (email, password, captchaToken, captchaAnswer, role = account.role) => {
+    await api.login({ email, password, role, captcha_token: captchaToken, captcha_answer: captchaAnswer })
     signIn()
     navigate(next, { replace: true })
   }
@@ -94,6 +94,11 @@ function LoginForm({ account, setAccount, info, go, finishLogin }) {
       <h1>{t('auth.loginTitle')}</h1>
       <Notice info={info} error={error} />
       <Field label={t('auth.email')}><input type="email" required autoComplete="email" dir="ltr" value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} /></Field>
+      <Field label={t('auth.role')}>
+        <select value={account.role} onChange={(e) => setAccount({ ...account, role: e.target.value })}>
+          {['customer', 'store_owner', 'store_admin', 'support', 'god'].map((role) => <option key={role} value={role}>{t(`role.${role}`)}</option>)}
+        </select>
+      </Field>
       <Field label={t('auth.password')}><PasswordInput autoComplete="current-password" value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })} /></Field>
       <CaptchaField captcha={captcha} label={t('captcha.label')} />
       <Button type="submit" variant="primary" busy={busy}>{t('auth.loginSubmit')}</Button>
@@ -111,13 +116,15 @@ function RegisterForm({ account, setAccount, go }) {
     const res = await api.register({
       email: account.email.trim(),
       password: account.password,
+      role: account.role,
+      store_id: account.role === 'store_admin' ? Number(account.storeId) : undefined,
       phone: phone || undefined,
       first_name: account.firstName.trim() || undefined,
       last_name: account.lastName.trim() || undefined,
       captcha_token: captcha.token,
       captcha_answer: captcha.answer,
     })
-    setAccount({ ...account, phone, channels: res.channels || ['email'] })
+    setAccount({ ...account, phone, channels: res.channels || ['email'], approvalPending: res.approval_required })
     go('verify')
   })
   const onSubmit = async (event) => {
@@ -133,6 +140,12 @@ function RegisterForm({ account, setAccount, go }) {
         <Field label={t('auth.lastName')}><input required autoComplete="family-name" maxLength={120} value={account.lastName} onChange={(e) => setAccount({ ...account, lastName: e.target.value })} /></Field>
       </div>
       <Field label={t('auth.email')}><input type="email" required autoComplete="email" dir="ltr" value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} /></Field>
+      <Field label={t('auth.role')}>
+        <select value={account.role} onChange={(e) => setAccount({ ...account, role: e.target.value })}>
+          {['customer', 'store_owner', 'store_admin', 'support'].map((role) => <option key={role} value={role}>{t(`role.${role}`)}</option>)}
+        </select>
+      </Field>
+      {account.role === 'store_admin' && <Field label={t('auth.storeId')}><input type="number" min="1" required value={account.storeId} onChange={(e) => setAccount({ ...account, storeId: e.target.value })} /></Field>}
       <Field label={`${t('auth.phone')} (${t('optional')})`} hint={t('auth.phoneHint')}><input type="tel" inputMode="tel" minLength={5} maxLength={50} autoComplete="tel" dir="ltr" value={account.phone} onChange={(e) => setAccount({ ...account, phone: e.target.value })} /></Field>
       <Field label={t('auth.password')} hint={t('auth.passwordHint')}><PasswordInput autoComplete="new-password" value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })} /></Field>
       <CaptchaField captcha={captcha} label={t('captcha.label')} />
@@ -153,8 +166,9 @@ function VerifyForm({ account, go, finishLogin, info }) {
     const phoneCode = toLatinDigits(codes.phone).trim()
     if (!/^\d{8}$/.test(emailCode) || (needsPhone && !/^\d{8}$/.test(phoneCode))) { setLocalError(t('form.otp')); return }
     setLocalError('')
-    await api.verify({ email: account.email.trim(), email_code: emailCode, phone_code: needsPhone ? phoneCode : undefined })
-    if (account.password) await finishLogin(account.email.trim(), account.password, captcha.token, captcha.answer) // still in memory after sign-up
+    const verified = await api.verify({ email: account.email.trim(), email_code: emailCode, phone_code: needsPhone ? phoneCode : undefined })
+    if (account.password && verified.approval_status === 'active') await finishLogin(account.email.trim(), account.password, captcha.token, captcha.answer, verified.role) // still in memory after sign-up
+    else if (verified.approval_status === 'pending') go('login', t('auth.awaitingApproval'))
     else go('login', t('auth.verified'))
   })
   const onSubmit = async (event) => {

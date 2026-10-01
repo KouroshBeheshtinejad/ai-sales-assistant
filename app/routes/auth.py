@@ -4,6 +4,7 @@ import hmac
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -13,7 +14,7 @@ from pydantic import BaseModel, EmailStr, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import PasswordResetToken, User
+from app.db.models import PasswordResetToken, Store, StoreMembership, User
 from app.core.config import cookie_settings
 from app.core.csrf import require_csrf_token
 from app.core.security import (
@@ -50,15 +51,40 @@ def _sync_god_role(user: User) -> None:
     god_email = _normalized_email(os.getenv("GOD_USER_EMAIL", ""))
     if god_email and user.is_verified and user.email.casefold() == god_email:
         user.role = "god"
+        user.approval_status = "active"
     elif user.role == "god":
-        user.role = "seller"
+        user.role = "store_owner"
 
 
 def store_owner_filter(user: User):
-    from sqlalchemy import true
-    from app.db.models import Store
+    from sqlalchemy import false, select, true
 
-    return true() if user.role == "god" else Store.owner_id == user.id
+    if user.role == "god":
+        return true()
+    if user.role == "store_owner":
+        return Store.owner_id == user.id
+    if user.role == "store_admin":
+        approved_store_ids = select(StoreMembership.store_id).where(
+            StoreMembership.user_id == user.id,
+            StoreMembership.status == "approved",
+        )
+        return Store.id.in_(approved_store_ids)
+    return false()
+
+
+def store_owner_only_filter(user: User):
+    from sqlalchemy import false, true
+
+    if user.role == "god":
+        return true()
+    if user.role == "store_owner":
+        return Store.owner_id == user.id
+    return false()
+
+
+def require_roles(user: User, *roles: str) -> None:
+    if user.approval_status != "active" or user.role not in roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Role access denied")
 
 
 def _set_access_token_cookie(response: Response, access_token: str) -> None:
@@ -68,7 +94,7 @@ def _set_access_token_cookie(response: Response, access_token: str) -> None:
         value=access_token,
         httponly=True,
         secure=settings.secure,
-        samesite=settings.samesite,
+        samesite=cast(Literal["lax", "strict", "none"], settings.samesite),
         max_age=settings.max_age_seconds,
     )
 
@@ -82,11 +108,21 @@ class RegisterRequest(BaseModel):
     confirm_password: str | None = Field(None, min_length=8)
     captcha_token: str = Field(..., min_length=1)
     captcha_answer: str = Field(..., min_length=1, max_length=16)
+    role: Literal["customer", "store_owner", "store_admin", "support"] = "customer"
+    store_id: int | None = Field(None, gt=0)
 
     @model_validator(mode="after")
     def passwords_match(self):
         if self.confirm_password is not None and self.password != self.confirm_password:
             raise ValueError("Passwords do not match")
+        return self
+
+    @model_validator(mode="after")
+    def validate_requested_role(self):
+        if self.role == "store_admin" and self.store_id is None:
+            raise ValueError("A store is required for a store admin request")
+        if self.role != "store_admin" and self.store_id is not None:
+            raise ValueError("A store can only be selected for a store admin request")
         return self
 
 
@@ -95,6 +131,7 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=8)
     captcha_token: str = Field(..., min_length=1)
     captcha_answer: str = Field(..., min_length=1, max_length=16)
+    role: Literal["customer", "store_owner", "store_admin", "support", "god"] | None = None
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -140,14 +177,14 @@ class PasswordResetConfirmRequest(BaseModel):
 @router.get("/login", response_class=HTMLResponse, include_in_schema=False)
 def login_page(request: Request):
     if request.cookies.get("access_token"):
-        return RedirectResponse(url="/dashboard", status_code=303)
+        return RedirectResponse(url="/workspace", status_code=303)
     return templates.TemplateResponse(request=request, name="auth_login.html", context={"error": None})
 
 
 @router.get("/register", response_class=HTMLResponse, include_in_schema=False)
 def register_page(request: Request):
     if request.cookies.get("access_token"):
-        return RedirectResponse(url="/dashboard", status_code=303)
+        return RedirectResponse(url="/workspace", status_code=303)
     return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": None})
 
 
@@ -156,6 +193,7 @@ def login_form(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    role: str | None = Form(None),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf_token),
 ):
@@ -174,9 +212,23 @@ def login_form(
             status_code=401,
         )
     _sync_god_role(user)
+    if not user.is_verified or user.approval_status != "active":
+        return templates.TemplateResponse(
+            request=request,
+            name="auth_login.html",
+            context={"error": "Account verification or approval is required."},
+            status_code=403,
+        )
+    if role and role != user.role:
+        return templates.TemplateResponse(
+            request=request,
+            name="auth_login.html",
+            context={"error": "Selected role does not match this account."},
+            status_code=403,
+        )
     db.commit()
     access_token = create_access_token(user.id, user.token_version)
-    redirect = RedirectResponse(url="/dashboard", status_code=303)
+    redirect = RedirectResponse(url="/workspace", status_code=303)
     _set_access_token_cookie(redirect, access_token)
     return redirect
 
@@ -186,6 +238,8 @@ def register_form(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    role: str = Form("customer"),
+    store_id: int | None = Form(None),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf_token),
 ):
@@ -195,9 +249,23 @@ def register_form(
         return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": "Password must be at least 8 characters."}, status_code=422)
     if db.query(User).filter(User.email == email).first():
         return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": "An account with this email already exists."}, status_code=400)
-    user = User(email=email, password_hash=hash_password(password), is_verified=False)
+    if role not in {"customer", "store_owner", "store_admin", "support"}:
+        return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": "Invalid account role."}, status_code=422)
+    if role == "store_admin" and (store_id is None or db.get(Store, store_id) is None):
+        return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": "A valid store is required."}, status_code=422)
+    user = User(
+        email=email,
+        password_hash=hash_password(password),
+        is_verified=False,
+        role=role,
+        approval_status="active" if role == "customer" else "pending",
+    )
     db.add(user)
+    db.flush()
+    if role == "store_admin":
+        db.add(StoreMembership(store_id=store_id, user_id=user.id, status="pending"))
     db.commit()
+    db.refresh(user)
     issue_code(db, user, "email")
     redirect = RedirectResponse(url="/auth/login", status_code=303)
     return redirect
@@ -244,6 +312,9 @@ def register(
             detail="Email already registered",
         )
 
+    if data.role == "store_admin" and db.get(Store, data.store_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
+
     user = User(
         email=normalized_email,
         first_name=data.first_name,
@@ -251,9 +322,15 @@ def register(
         phone=data.phone,
         password_hash=hash_password(data.password),
         is_verified=False,
+        role=data.role,
+        approval_status="active" if data.role == "customer" else "pending",
     )
 
     db.add(user)
+    db.flush()
+
+    if data.role == "store_admin":
+        db.add(StoreMembership(store_id=data.store_id, user_id=user.id, status="pending"))
     db.commit()
     db.refresh(user)
 
@@ -266,6 +343,9 @@ def register(
         "user_id": user.id,
         "email": user.email,
         "verification_required": True,
+        "role": user.role,
+        "approval_status": user.approval_status,
+        "approval_required": user.approval_status == "pending",
         "channels": ["email", "phone"] if user.phone else ["email"],
     }
 
@@ -283,7 +363,12 @@ def verify_account(request: Request, data: VerifyAccountRequest, db: Session = D
     user.is_verified = True
     _sync_god_role(user)
     db.commit()
-    return {"message": "Account verified", "email": user.email}
+    return {
+        "message": "Account verified",
+        "email": user.email,
+        "role": user.role,
+        "approval_status": user.approval_status,
+    }
 
 
 def _reset_hash(token: str) -> str:
@@ -369,6 +454,12 @@ def login(
         )
 
     _sync_god_role(user)
+    if user.approval_status == "pending":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account approval is pending")
+    if user.approval_status != "active":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account access was rejected")
+    if data.role is not None and data.role != user.role:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Selected role does not match this account")
     db.commit()
 
     access_token = create_access_token(user.id, user.token_version)
@@ -398,6 +489,8 @@ def _user_from_token(token: str, db: Session) -> User:
     _sync_god_role(user)
     if user.role != previous_role:
         db.commit()
+    if user.approval_status != "active":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is not approved")
     return user
 
 
@@ -427,11 +520,13 @@ def get_optional_user(
 
 @router.get("/me")
 def get_me(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     return {
         "id": current_user.id,
         "role": current_user.role,
+        "approval_status": current_user.approval_status,
         "email": current_user.email,
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
@@ -447,6 +542,10 @@ def get_me(
             and current_user.business_address
             and current_user.business_phone
         ),
+        "store_memberships": [
+            {"store_id": item.store_id, "status": item.status, "role": item.role}
+            for item in db.query(StoreMembership).filter(StoreMembership.user_id == current_user.id).all()
+        ],
         "created_at": current_user.created_at,
     }
 

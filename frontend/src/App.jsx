@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import { ErrorBoundary, NotFound, PublicLayout } from './components/Layout'
 import { Loading, ToastProvider } from './components/ui'
 import { AuthProvider, RequireAuth } from './lib/auth'
+import { RequireRoles } from './lib/auth'
 import { I18nProvider } from './lib/i18n'
 import AuthPage from './pages/Auth'
 import Landing from './pages/Landing'
@@ -22,6 +23,12 @@ const ConversationDetail = lazy(() => import('./pages/seller/Conversations').the
 const Products = lazy(() => import('./pages/seller/Products'))
 const Knowledge = lazy(() => import('./pages/seller/Knowledge'))
 const Account = lazy(() => import('./pages/seller/Account'))
+const RoleDashboardRouter = lazy(() => import('./pages/RoleDashboards').then((module) => ({ default: module.RoleDashboardRouter })))
+const CustomerDashboard = lazy(() => import('./pages/RoleDashboards').then((module) => ({ default: module.CustomerDashboard })))
+const SupportDashboard = lazy(() => import('./pages/RoleDashboards').then((module) => ({ default: module.SupportDashboard })))
+const GodDashboard = lazy(() => import('./pages/RoleDashboards').then((module) => ({ default: module.GodDashboard })))
+const PendingDashboard = lazy(() => import('./pages/RoleDashboards').then((module) => ({ default: module.PendingDashboard })))
+const RejectedDashboard = lazy(() => import('./pages/RoleDashboards').then((module) => ({ default: module.RejectedDashboard })))
 
 // Paths mirror the routes FastAPI serves index.html for (see app/main.py).
 export default function App() {
@@ -42,12 +49,19 @@ export default function App() {
                   <Route path="*" element={<NotFound />} />
                 </Route>
 
+                <Route path="workspace" element={<RequireAuth><RoleDashboardRouter /></RequireAuth>} />
+                <Route path="workspace/customer" element={<RequireAuth><RequireRoles roles={['customer']}><CustomerDashboard /></RequireRoles></RequireAuth>} />
+                <Route path="workspace/support" element={<RequireAuth><RequireRoles roles={['support']}><SupportDashboard /></RequireRoles></RequireAuth>} />
+                <Route path="workspace/god" element={<RequireAuth><RequireRoles roles={['god']}><GodDashboard /></RequireRoles></RequireAuth>} />
+                <Route path="workspace/pending" element={<RequireAuth><PendingDashboard /></RequireAuth>} />
+                <Route path="workspace/rejected" element={<RequireAuth><RejectedDashboard /></RequireAuth>} />
+
                 <Route path="store/:id" element={<StoreShell />}>
                   <Route index element={<StoreHome />} />
                   <Route path="product/:productId" element={<ProductPage />} />
                 </Route>
 
-                <Route path="seller" element={<RequireAuth><SellerLayout /></RequireAuth>}>
+                <Route path="seller" element={<RequireAuth><RequireRoles roles={['store_owner', 'store_admin', 'god']}><SellerLayout /></RequireRoles></RequireAuth>}>
                   <Route index element={<Overview />} />
                   <Route path="orders" element={<Orders />} />
                   <Route path="order/:orderId" element={<OrderDetail />} />

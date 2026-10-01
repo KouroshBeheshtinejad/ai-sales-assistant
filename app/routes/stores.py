@@ -1,14 +1,16 @@
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.business_types import get_business_type_label, normalize_business_type
 from app.db.database import get_db
-from app.db.models import Store, User
-from app.routes.auth import get_current_user, store_owner_filter
+from app.db.models import Store, StoreMembership, User
+from app.routes.auth import get_current_user, require_roles, store_owner_filter, store_owner_only_filter
 from app.services.cloudinary_service import delete_image, upload_image
 from app.services.image_validation import validate_image_content
 
@@ -61,6 +63,7 @@ def create_store(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    require_roles(current_user, "store_owner", "god")
     normalized_business_type = normalize_business_type(data.business_type)
     store = Store(
         name=data.name,
@@ -168,7 +171,7 @@ def update_store(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            store_owner_filter(current_user),
+            store_owner_only_filter(current_user),
         )
         .first()
     )
@@ -212,7 +215,7 @@ async def upload_store_logo(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            store_owner_filter(current_user),
+            store_owner_only_filter(current_user),
         )
         .first()
     )
@@ -284,7 +287,7 @@ def delete_store_logo(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            store_owner_filter(current_user),
+            store_owner_only_filter(current_user),
         )
         .first()
     )
@@ -325,7 +328,7 @@ def delete_store(
         db.query(Store)
         .filter(
             Store.id == store_id,
-            store_owner_filter(current_user),
+            store_owner_only_filter(current_user),
         )
         .first()
     )
@@ -343,3 +346,65 @@ def delete_store(
         "message": "Store deleted successfully",
         "store_id": store_id,
     }
+
+
+class StoreAdminDecision(BaseModel):
+    status: Literal["approved", "rejected"]
+
+
+@router.get("/{store_id}/admin-requests")
+def list_store_admin_requests(
+    store_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    store = db.scalar(select(Store).where(Store.id == store_id, store_owner_only_filter(current_user)))
+    if store is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
+    memberships = db.scalars(
+        select(StoreMembership)
+        .where(StoreMembership.store_id == store_id, StoreMembership.status == "pending")
+        .order_by(StoreMembership.created_at)
+    ).all()
+    return [
+        {
+            "id": item.id,
+            "user_id": item.user_id,
+            "email": item.user.email,
+            "name": " ".join(part for part in (item.user.first_name, item.user.last_name) if part),
+            "is_verified": item.user.is_verified,
+            "created_at": item.created_at,
+        }
+        for item in memberships
+    ]
+
+
+@router.patch("/{store_id}/admin-requests/{membership_id}")
+def decide_store_admin_request(
+    store_id: int,
+    membership_id: int,
+    payload: StoreAdminDecision,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    store = db.scalar(select(Store).where(Store.id == store_id, store_owner_only_filter(current_user)))
+    if store is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
+    membership = db.get(StoreMembership, membership_id)
+    if membership is None or membership.store_id != store_id or membership.status != "pending":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin request not found")
+    if payload.status == "approved" and not membership.user.is_verified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email verification is required first")
+    membership.status = payload.status
+    user = membership.user
+    approved_elsewhere = db.scalar(
+        select(StoreMembership.id).where(
+            StoreMembership.user_id == user.id,
+            StoreMembership.status == "approved",
+            StoreMembership.id != membership.id,
+        )
+    )
+    user.approval_status = "active" if payload.status == "approved" or approved_elsewhere else "rejected"
+    user.token_version += 1
+    db.commit()
+    return {"membership_id": membership.id, "status": membership.status, "user_approval_status": user.approval_status}

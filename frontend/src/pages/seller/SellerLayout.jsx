@@ -6,13 +6,14 @@ import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../lib/i18n'
 import { SellerProvider, useSeller } from './SellerContext'
 
-const NAV = [
+const OWNER_NAV = [
   ['/seller', 's.overview', true, 'layers'],
   ['/seller/orders', 's.orders', false, 'card'],
   ['/seller/conversations', 's.conversations', false, 'chat'],
   ['/seller/products', 's.products', false, 'box'],
   ['/seller/knowledge', 's.knowledge', false, 'doc'],
 ]
+const ADMIN_NAV = OWNER_NAV.filter(([, label]) => label !== 's.knowledge')
 
 export function NeedStore() {
   const { t } = useI18n()
@@ -54,11 +55,11 @@ function AccountActions({ store, signOut, onNavigate }) {
 
 // Fixed bottom tab bar for the 5 primary sections. Icon + short label, thumb-reachable,
 // safe-area aware; this replaces the old horizontally-scrolling nav row on small screens.
-function TabBar() {
+function TabBar({ nav }) {
   const { t } = useI18n()
   return (
     <nav className="seller-tabbar" aria-label={t('s.overview')}>
-      {NAV.map(([to, label, end, icon]) => (
+      {nav.map(([to, label, end, icon]) => (
         <NavLink key={to} to={to} end={end} className="seller-tab">
           <Icon name={icon} size={22} />
           <span>{t(label)}</span>
@@ -97,7 +98,9 @@ function MobileTopBar({ stores, store, select, signOut }) {
 
 function Shell() {
   const { t } = useI18n()
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
+  const isOwner = user?.role === 'store_owner' || user?.role === 'god'
+  const nav = isOwner ? OWNER_NAV : ADMIN_NAV
   const { stores, store, select, loading, error, reloadStores } = useSeller()
 
   return (
@@ -108,7 +111,7 @@ function Shell() {
           <Brand to="/seller" />
           <StoreSwitcher stores={stores} store={store} select={select} />
           <nav aria-label="Seller">
-            {NAV.map(([to, label, end, icon]) => (
+            {nav.map(([to, label, end, icon]) => (
               <NavLink key={to} to={to} end={end}><Icon name={icon} size={18} />{t(label)}</NavLink>
             ))}
           </nav>
@@ -123,7 +126,7 @@ function Shell() {
           {loading ? <Loading /> : error ? <ErrorNote error={error} onRetry={reloadStores} /> : <Outlet />}
         </main>
 
-        <TabBar />
+        <TabBar nav={nav} />
       </div>
     </>
   )

@@ -81,7 +81,8 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    role: Mapped[str] = mapped_column(String(20), nullable=False, default="seller", server_default="seller")
+    role: Mapped[str] = mapped_column(String(30), nullable=False, default="store_owner", server_default="store_owner")
+    approval_status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", server_default="active", index=True)
     first_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), unique=True, index=True, nullable=True)
@@ -167,6 +168,23 @@ class Store(Base):
         back_populates="store",
         cascade="all, delete-orphan",
     )
+
+
+class StoreMembership(Base):
+    __tablename__ = "store_memberships"
+    __table_args__ = (
+        UniqueConstraint("store_id", "user_id", name="uq_store_membership_user_store"),
+        Index("ix_store_memberships_user_status", "user_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(30), nullable=False, default="store_admin", server_default="store_admin")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+    user: Mapped["User"] = relationship()
+    store: Mapped["Store"] = relationship()
 
 
 class FAQ(Base):
