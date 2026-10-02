@@ -270,14 +270,8 @@ class Product(Base):
     __tablename__ = "products"
     __table_args__ = (
         CheckConstraint("stock >= 0", name="ck_products_stock_nonnegative"),
-        CheckConstraint(
-            "reserved_stock >= 0",
-            name="ck_products_reserved_stock_nonnegative",
-        ),
-        CheckConstraint(
-            "reserved_stock <= stock",
-            name="ck_products_reserved_lte_stock",
-        ),
+        CheckConstraint("reserved_stock >= 0", name="ck_products_reserved_stock_nonnegative"),
+        CheckConstraint("reserved_stock <= stock", name="ck_products_reserved_lte_stock"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -289,10 +283,7 @@ class Product(Base):
         nullable=True,
     )
 
-    image_url: Mapped[str | None] = mapped_column(
-        String(500),
-        nullable=True,
-    )
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     price: Mapped[float] = mapped_column(Numeric(12, 2))
 
@@ -450,9 +441,7 @@ class Conversation(Base):
     checkout_customer_address: Mapped[str | None] = mapped_column(
         Text, nullable=True,
     )
-    checkout_idempotency_key: Mapped[str | None] = mapped_column(
-        String(128), nullable=True,
-    )
+    checkout_idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     last_order_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True,
     )
@@ -713,10 +702,7 @@ class Order(Base):
         nullable=True,
     )
 
-    paid_at: Mapped[datetime | None] = mapped_column(
-        DateTime,
-        nullable=True,
-    )
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     user: Mapped["User"] = relationship()
 
@@ -812,12 +798,7 @@ class PasswordResetToken(Base):
 
 
 class CaptchaChallenge(Base):
-    """A short-lived, single-use human-verification challenge.
-
-    Issued anonymously (no user_id: it must be solvable before login/registration,
-    when there is no authenticated identity yet) and also reused for the seller
-    account form, where a fresh challenge is required before profile edits save.
-    """
+    """A short-lived, single-use human-verification challenge."""
 
     __tablename__ = "captcha_challenges"
 

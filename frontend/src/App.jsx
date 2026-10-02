@@ -13,6 +13,8 @@ import ProductPage from './pages/ProductPage'
 import Track from './pages/Track'
 import PaymentResult from './pages/PaymentResult'
 import ApiDocs from './pages/ApiDocs'
+const About = lazy(() => import('./pages/About'))
+const StoreDirectory = lazy(() => import('./pages/StoreDirectory'))
 
 // The seller panel is only needed by store owners: keep it out of the storefront bundle.
 const SellerLayout = lazy(() => import('./pages/seller/SellerLayout'))
@@ -46,6 +48,8 @@ export default function App() {
                 <Route element={<PublicLayout />}>
                   <Route index element={<Landing />} />
                   <Route path="landing" element={<Landing />} />
+                  <Route path="about" element={<About />} />
+                  <Route path="stores" element={<StoreDirectory />} />
                   <Route path="login" element={<AuthPage initial="login" />} />
                   <Route path="register" element={<AuthPage initial="register" />} />
                   <Route path="track" element={<Track />} />

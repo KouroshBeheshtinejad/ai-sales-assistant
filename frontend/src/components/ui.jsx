@@ -223,6 +223,8 @@ const ICONS = {
   code: 'M8 7l-5 5 5 5M16 7l5 5-5 5',
   truck: 'M2 6h11v10H2zM13 9h4l3 3v4h-7M6 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM17 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
   refresh: 'M4 4v6h6M20 20v-6h-6M4.5 15a8 8 0 0 0 14.6 2.5M19.5 9a8 8 0 0 0-14.6-2.5',
+  home: 'M3 10.5 12 3l9 7.5M5 9v12h14V9M9 21v-7h6v7',
+  heart: 'M20.8 8.7c0 5.1-8.8 11.1-8.8 11.1S3.2 13.8 3.2 8.7A4.5 4.5 0 0 1 12 6.2a4.5 4.5 0 0 1 8.8 2.5z',
 }
 export function Icon({ name, size = 20, className }) {
   return <svg className={cx('icon', className)} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONS[name]} /></svg>

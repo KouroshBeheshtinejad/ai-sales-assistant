@@ -248,7 +248,7 @@ class OrderService:
             return None
         return db.scalar(
             select(Order)
-            .options(joinedload(Order.store))
+            .options(joinedload(Order.store), joinedload(Order.items))
             .where(Order.tracking_number == tracking_number)
         )
 

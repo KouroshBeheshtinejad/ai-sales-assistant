@@ -58,9 +58,14 @@ export const api = {
   catalog: (storeId) => request(`/public/stores/${storeId}/catalog`),
   // Random live stores and products for the landing page.
   showcase: (stores = 6, products = 8) => request(`/public/showcase?stores=${stores}&products=${products}`),
+  storesByBusinessType: (businessType, limit = 100) => request(`/public/stores?business_type=${encodeURIComponent(businessType)}&limit=${limit}`),
   chat: (storeId, question, guest) =>
     request(`/public/stores/${storeId}/chat`, { method: 'POST', guest, body: { question, guest_token: guest || undefined } }),
   track: (number) => request(`/orders/track/${encodeURIComponent(number)}`),
+  trackInvoice: (number, locale, timezone) => request(
+    `/orders/track/${encodeURIComponent(number)}/invoice?locale=${encodeURIComponent(locale)}&timezone=${encodeURIComponent(timezone)}`,
+    { blob: true },
+  ),
 
   // Guest cart / orders / payments
   cart: {
@@ -89,6 +94,10 @@ export const api = {
   login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
   me: () => request('/auth/me', { auth: true }),
   orders: () => seller('/orders'),
+  invoice: (orderId, locale, timezone) => seller(
+    `/orders/${orderId}/invoice?locale=${encodeURIComponent(locale)}&timezone=${encodeURIComponent(timezone)}`,
+    { blob: true },
+  ),
   updateProfile: (payload) => request('/auth/me', { method: 'PATCH', auth: true, body: payload }),
   requestReset: (email) => request('/auth/password-reset/request', { method: 'POST', body: { email } }),
   confirmReset: (token, newPassword) =>

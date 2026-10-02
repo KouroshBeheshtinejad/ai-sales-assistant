@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,6 +12,7 @@ from app.db.models import Product, Store, User
 from app.main import app
 from app.routes.auth import create_access_token
 from app.core.security import hash_password
+from app.services.order_service import OrderService
 
 
 @pytest.fixture()
@@ -198,6 +200,52 @@ def test_track_order_rejects_invalid_number(client, test_data):
     response = client.get("/orders/track/123")
 
     assert response.status_code == 404
+
+
+def test_tracking_lookup_shows_invoice_details_and_downloads_pdf(client, test_data):
+    add_item_to_cart(client, test_data, quantity=2)
+    created = client.post(
+        f"/orders/stores/{test_data['store'].id}",
+        headers=auth_headers(test_data),
+        json={
+            "customer_name": "Ali",
+            "customer_phone": "09120000000",
+            "customer_address": "Tehran Private Address",
+        },
+    )
+    assert created.status_code == 201
+    assert created.json()["tracking_number"] is None
+
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        from app.db.models import Order
+
+        order = db.get(Order, created.json()["id"])
+        OrderService.finalize_paid_order(db, order, datetime.now(timezone.utc))
+        db.commit()
+        tracking_number = order.tracking_number
+    finally:
+        db.close()
+
+    details = client.get(f"/orders/track/{tracking_number}")
+    assert details.status_code == 200
+    payload = details.json()
+    assert payload["invoice_number"]
+    assert payload["total_amount"] == "50.00"
+    assert payload["items"] == [{
+        "product_name": "API Product",
+        "unit_price": "25.00",
+        "quantity": 2,
+        "line_total": "50.00",
+    }]
+    assert "customer_phone" not in payload
+    assert "customer_address" not in payload
+
+    invoice = client.get(f"/orders/track/{tracking_number}/invoice?locale=en&timezone=UTC")
+    assert invoice.status_code == 200
+    assert invoice.headers["content-type"] == "application/pdf"
+    assert invoice.content.startswith(b"%PDF")
+    assert client.get("/orders/track/0000000000/invoice").status_code == 404
 
 
 def test_download_invoice_pdf(client, test_data):

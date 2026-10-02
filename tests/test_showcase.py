@@ -39,7 +39,7 @@ def _seed(db):
     owner = models.User(email="owner@example.com", password_hash=hash_password("Secret123!"), is_verified=True)
     db.add(owner)
     db.flush()
-    busy = models.Store(name="Busy store", description="x" * 400, owner_id=owner.id)
+    busy = models.Store(name="Busy store", description="x" * 400, owner_id=owner.id, business_type="restaurant")
     empty = models.Store(name="Empty store", owner_id=owner.id)
     db.add_all([busy, empty])
     db.flush()
@@ -93,3 +93,19 @@ def test_showcase_is_available_under_api_prefix_and_respects_limits():
 def test_showcase_is_empty_without_data():
     body = _client().get("/public/showcase").json()
     assert body == {"stats": {"stores": 0, "products": 0}, "stores": [], "products": []}
+
+
+def test_public_store_directory_filters_by_business_type_and_sellable_stock():
+    with TestingSessionLocal() as db:
+        busy_id = _seed(db)
+
+    client = _client()
+    response = client.get("/api/public/stores?business_type=restaurant")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.json()["business_type"] == "restaurant"
+    assert response.json()["total"] == 1
+    assert response.json()["stores"][0]["id"] == busy_id
+    assert response.json()["stores"][0]["product_count"] == 1
+    assert client.get("/public/stores?business_type=not-a-real-type").status_code == 404

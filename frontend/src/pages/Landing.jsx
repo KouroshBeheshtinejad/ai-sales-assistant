@@ -5,6 +5,7 @@ import { Button, Icon, Swatch } from '../components/ui'
 import { useBusinessTypes, useSeo, useShowcase } from '../lib/hooks'
 import { LOCALES, useI18n } from '../lib/i18n'
 import { cx } from '../lib/util'
+import BusinessCategories from './BusinessCategories'
 
 const FEATURES = [
   ['search', 'f1'], ['shield', 'f2'], ['chat', 'f3'], ['doc', 'f4'],
@@ -288,11 +289,11 @@ function FinalCta() {
   )
 }
 
-export default function Landing() {
+export function AboutProject() {
   const { t } = useI18n()
   const types = useBusinessTypes()
   const showcase = useShowcase(6, 8)
-  useSeo({ title: 'NAVA | AI commerce', description: t('landing.lead') })
+  useSeo({ title: `${t('nav.about')} | NAVA`, description: t('landing.lead') })
 
   return (
     <>
@@ -301,11 +302,24 @@ export default function Landing() {
       <How />
       <Features typeCount={types.length} />
       <Assistant />
-      <Showcase showcase={showcase} types={types} />
       <Types types={types} />
       <Audience />
       <Faq />
       <FinalCta />
+    </>
+  )
+}
+
+export default function Landing() {
+  const { t } = useI18n()
+  const types = useBusinessTypes()
+  const showcase = useShowcase(6, 8)
+  useSeo({ title: 'NAVA | AI commerce', description: t('landing.browseBusinessesLead') })
+
+  return (
+    <>
+      <BusinessCategories types={types} />
+      <Showcase showcase={showcase} types={types} />
     </>
   )
 }

@@ -427,6 +427,16 @@ img.store-mark { display: block; object-fit: cover; }
 .type-chips { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 900px; }
 .type-chips li { padding: 6px 16px; border: 1px solid var(--line-strong); border-radius: 99px; background: var(--surface); font-weight: 600; }
 .type-chips .more { border-color: var(--teal-ink); background: var(--teal-ink); color: #fff; }
+.business-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; list-style: none; margin: 0; padding: 0; }
+.business-tile { display: grid; align-content: center; justify-items: center; gap: 12px; aspect-ratio: 1 / 1; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-m); background: var(--surface); color: var(--ink); text-align: center; text-decoration: none; font-weight: 700; transition: border-color .15s, background .15s, transform .15s; }
+.business-tile:hover { border-color: var(--teal); background: var(--teal-soft); transform: translateY(-2px); }
+.business-tile:focus-visible { outline: 3px solid var(--lapis); outline-offset: 2px; }
+.business-tile > span:last-child { overflow-wrap: anywhere; }
+.business-mark { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: var(--teal-soft); color: var(--teal-ink); }
+.directory-page { min-height: 60vh; }
+.public-back-top { position: fixed; inset-inline-start: 24px; bottom: 24px; z-index: 35; display: grid; place-items: center; width: 46px; height: 46px; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface); color: var(--ink); box-shadow: 0 6px 18px rgba(15, 37, 48, .16); cursor: pointer; }
+.public-back-top:hover { background: var(--teal-soft); border-color: var(--teal); }
+.public-back-top:focus-visible { outline: 3px solid var(--lapis); outline-offset: 3px; }
 
 .wrap.narrow-section { width: min(820px, 100% - 32px); }
 .faq { display: grid; gap: 12px; margin-top: 24px; }
@@ -478,6 +488,9 @@ img.store-mark { display: block; object-fit: cover; }
   .product-hero { aspect-ratio: 16 / 9; }
 }
 @media (max-width: 820px) {
+  .business-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+  .business-tile { padding: 8px; font-size: .9rem; }
+  .business-mark { width: 42px; height: 42px; }
   /* Sidebar becomes a top bar (brand + store name + "more" sheet) and a fixed bottom
      tab bar for the 5 sections, instead of squeezing the desktop sidebar sideways. */
   .seller { display: block; min-height: 0; }
@@ -494,6 +507,10 @@ img.store-mark { display: block; object-fit: cover; }
   .form-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
+  .business-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .business-tile { gap: 8px; font-size: .82rem; }
+  .business-mark { width: 38px; height: 38px; }
+  .public-back-top { inset-inline-start: 14px; bottom: max(18px, env(safe-area-inset-bottom)); }
   .hide-sm { display: none; }
   .steps { grid-template-columns: 1fr; }
   .timeline { font-size: .7rem; }

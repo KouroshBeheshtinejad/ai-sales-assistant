@@ -59,11 +59,11 @@ function StoreSwitcher({ stores, store, select, variant }) {
 
 // Sign out, the public store link and the language switcher: identical content in the
 // desktop sidebar footer and the mobile sheet, just styled differently by their parent.
-function AccountActions({ store, signOut, onNavigate }) {
+function AccountActions({ store, signOut, onNavigate, showAccount = true }) {
   const { t } = useI18n()
   return (
     <>
-      <Link to="/seller/account" onClick={onNavigate}><Icon name="user" size={18} />{t('nav.account')}</Link>
+      {showAccount && <Link to="/seller/account" onClick={onNavigate}><Icon name="user" size={18} />{t('nav.account')}</Link>}
       {store && <Link to={`/store/${store.id}`} target="_blank" rel="noreferrer" onClick={onNavigate}><Icon name="eye" size={18} />{t('s.viewStore')}</Link>}
       <LocaleToggle />
       <Button variant="ghost" size="sm" onClick={signOut}><Icon name="logout" size={18} />{t('s.logout')}</Button>
@@ -91,7 +91,7 @@ function TabBar({ nav, attentionCount }) {
 // Compact top bar shown only on mobile: brand, the active store's name, and a "more"
 // button that opens everything the desktop sidebar keeps visible (store switcher,
 // view-store link, language, sign out) in an accessible modal sheet.
-function MobileTopBar({ stores, store, select, signOut }) {
+function MobileTopBar({ stores, store, select, signOut, showAccount }) {
   const { t } = useI18n()
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
@@ -107,7 +107,7 @@ function MobileTopBar({ stores, store, select, signOut }) {
         <Modal title={t('nav.menu')} onClose={() => setOpen(false)}>
           <div className="stack seller-sheet">
             <StoreSwitcher stores={stores} store={store} select={select} />
-            <AccountActions store={store} signOut={signOut} onNavigate={() => setOpen(false)} />
+            <AccountActions store={store} signOut={signOut} onNavigate={() => setOpen(false)} showAccount={showAccount} />
           </div>
         </Modal>
       )}
@@ -122,6 +122,7 @@ function Shell() {
   const supportSummary = useAsync(() => api.support.summary(), [user?.id])
   const [showBackToTop, setShowBackToTop] = useState(false)
   const nav = navigationFor(user, store)
+  const showAccount = user?.role !== 'customer'
 
   useEffect(() => {
     const updateVisibility = () => setShowBackToTop(window.scrollY > 240)
@@ -143,11 +144,11 @@ function Shell() {
             ))}
           </nav>
           <div className="seller-foot">
-            <AccountActions store={store} signOut={signOut} />
+            <AccountActions store={store} signOut={signOut} showAccount={showAccount} />
           </div>
         </aside>
 
-        <MobileTopBar stores={stores} store={store} select={select} signOut={signOut} />
+        <MobileTopBar stores={stores} store={store} select={select} signOut={signOut} showAccount={showAccount} />
 
         <main id="main" className="seller-main">
           {loading ? <Loading /> : error ? <ErrorNote error={error} onRetry={reloadStores} /> : <Outlet />}

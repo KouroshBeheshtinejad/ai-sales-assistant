@@ -88,14 +88,42 @@ def track_order(
     if order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     return {
+        "id": order.id,
         "tracking_number": order.tracking_number,
+        "invoice_number": order.invoice_number,
         "store_id": order.store_id,
         "store_name": order.store.name,
         "status": order.status,
+        "total_amount": str(order.total_amount),
         "created_at": order.created_at,
         "updated_at": order.updated_at,
+        "paid_at": order.paid_at,
         "cancelled_at": order.cancelled_at,
+        "items": [
+            {
+                "product_name": item.product_name,
+                "unit_price": str(item.unit_price),
+                "quantity": item.quantity,
+                "line_total": str(item.line_total),
+            }
+            for item in order.items
+        ],
     }
+
+
+@router.get("/track/{tracking_number}/invoice")
+def download_tracked_invoice(
+    tracking_number: str,
+    request: Request,
+    locale: str = "fa",
+    timezone: str = "UTC",
+    db: Session = Depends(get_db),
+):
+    enforce_tracking_rate_limit(request)
+    order = OrderService.get_order_by_tracking_number(db, tracking_number)
+    if order is None or (not order.paid_at and not order.tracking_number) or not order.invoice_number:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    return _invoice_pdf(order, locale, timezone)
 
 
 @router.post(

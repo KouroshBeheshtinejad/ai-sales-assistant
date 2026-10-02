@@ -5,13 +5,14 @@ always shows real, current data. Only fields that are already public on the
 storefront are exposed (see ``/public/stores/{id}/catalog``).
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import Product, Store
+from app.core.business_types import BUSINESS_TYPES
 
 
 router = APIRouter(tags=["Public Showcase"])
@@ -102,3 +103,48 @@ def public_showcase(
     }
     # A random sample must not be cached by browsers or proxies.
     return JSONResponse(payload, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/public/stores")
+def public_stores_by_business_type(
+    business_type: str = Query(..., min_length=1, max_length=100),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    valid_slugs = {item["slug"] for item in BUSINESS_TYPES}
+    if business_type not in valid_slugs:
+        raise HTTPException(status_code=404, detail="Business type not found")
+
+    product_counts = (
+        db.query(Product.store_id.label("store_id"), func.count(Product.id).label("product_count"))
+        .filter(*_sellable())
+        .group_by(Product.store_id)
+        .subquery()
+    )
+    query = (
+        db.query(Store, product_counts.c.product_count)
+        .join(product_counts, product_counts.c.store_id == Store.id)
+        .filter(Store.business_type == business_type)
+        .order_by(Store.name, Store.id)
+    )
+    total = query.count()
+    rows = query.offset(offset).limit(limit).all()
+    return JSONResponse(
+        {
+            "business_type": business_type,
+            "total": total,
+            "stores": [
+                {
+                    "id": store.id,
+                    "name": store.name,
+                    "description": _shorten(store.description),
+                    "logo_url": store.logo_url,
+                    "business_type": store.business_type,
+                    "product_count": product_count,
+                }
+                for store, product_count in rows
+            ],
+        },
+        headers={"Cache-Control": "no-store"},
+    )

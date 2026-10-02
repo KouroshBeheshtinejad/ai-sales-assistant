@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Async, Badge, Button, ConfirmButton, Empty, Field, Icon, StatusBadge, useToast } from '../components/ui'
+import { Async, Badge, Button, ConfirmButton, Empty, Field, Icon, StatusBadge, Timeline, useToast } from '../components/ui'
 import { api } from '../lib/api'
 import { useAsync, useSeo } from '../lib/hooks'
 import { useAuth } from '../lib/auth'
@@ -44,12 +44,27 @@ export function RejectedDashboard() {
 }
 
 export function CustomerDashboard() {
-  const { t, money, id, date } = useI18n()
+  const { t, money, id, date, locale, err } = useI18n()
   const orders = useAsync(() => api.orders(), [])
   const conversations = useAsync(() => api.support.conversations(), [])
+  const [tab, setTab] = useState('orders')
+  const [trackingNumber, setTrackingNumber] = useState('')
+  const [trackedOrder, setTrackedOrder] = useState(null)
+  const [trackingError, setTrackingError] = useState('')
+  const [trackingBusy, setTrackingBusy] = useState(false)
+  const [invoiceBusy, setInvoiceBusy] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  useEffect(() => {
+    if (!conversations.data?.length) return undefined
+    const sources = conversations.data.map((item) => {
+      const source = new EventSource(`/api/support/conversations/${item.id}/events`)
+      source.onmessage = () => conversations.reload()
+      return source
+    })
+    return () => sources.forEach((source) => source.close())
+  }, [conversations.data])
   const submitSupport = async (event) => {
     event.preventDefault()
     setBusy(true)
@@ -64,18 +79,86 @@ export function CustomerDashboard() {
       setBusy(false)
     }
   }
+  const lookupTracking = async (event) => {
+    event.preventDefault()
+    if (!/^\d{10}$/.test(trackingNumber)) {
+      setTrackedOrder(null)
+      setTrackingError(t('form.tracking'))
+      return
+    }
+    setTrackingBusy(true)
+    setTrackingError('')
+    try {
+      setTrackedOrder(await api.track(trackingNumber))
+    } catch (cause) {
+      setTrackedOrder(null)
+      setTrackingError(err(cause))
+    } finally {
+      setTrackingBusy(false)
+    }
+  }
+  const downloadInvoice = async (order, tracking = false) => {
+    setInvoiceBusy(String(order.id || order.tracking_number))
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+      const blob = tracking
+        ? await api.trackInvoice(order.tracking_number, locale, timezone)
+        : await api.invoice(order.id, locale, timezone)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${order.invoice_number || `NAVA-${order.tracking_number}`}.pdf`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (cause) {
+      setTrackingError(err(cause))
+    } finally {
+      setInvoiceBusy('')
+    }
+  }
   useSeo({ title: `${t('dash.customer')} | NAVA` })
   return (
     <>
       <DashboardHeader title={t('dash.customer')} />
-      <Async state={orders}>{(items) => items.length ? (
+      <div className="tabs" role="tablist" aria-label={t('dash.customer')}>
+        <button type="button" role="tab" aria-selected={tab === 'orders'} className={tab === 'orders' ? 'tab on' : 'tab'} onClick={() => setTab('orders')}>{t('dash.orders')}</button>
+        <button type="button" role="tab" aria-selected={tab === 'tracking'} className={tab === 'tracking' ? 'tab on' : 'tab'} onClick={() => setTab('tracking')}>{t('dash.trackingInvoices')}</button>
+      </div>
+      {tab === 'orders' ? <Async state={orders}>{(items) => items.length ? (
         <section className="card stack"><h2 className="h3">{t('dash.orders')}</h2>
           <ul className="plain-list">{items.map((order) => <li key={order.id}>
-            <span><strong>{t('od.title', { id: id(order.id) })}</strong><span className="muted"> · {date(new Date(order.created_at))}</span><br />{order.tracking_number && <Link to={`/track?number=${order.tracking_number}`}>{t('order.tracking')}: {id(order.tracking_number)}</Link>}</span>
-            <span className="stack"><StatusBadge status={order.status} /><strong>{money(order.total_amount)}</strong></span>
+            <div className="stack">
+              <span><strong>{t('od.title', { id: id(order.id) })}</strong><span className="muted"> · {date(new Date(order.created_at))}</span></span>
+              {order.tracking_number && <Link to={`/track?number=${order.tracking_number}`}>{t('order.tracking')}: {id(order.tracking_number)}</Link>}
+              {order.invoice_number && <small className="muted">{t('od.invoice')}: {order.invoice_number}</small>}
+              <details><summary>{t('dash.orderDetails')}</summary><ul className="plain-list">{order.items.map((item) => <li key={item.id}><span>{item.product_name} × {id(item.quantity)}</span><strong>{money(item.line_total)}</strong></li>)}</ul></details>
+            </div>
+            <span className="stack"><StatusBadge status={order.status} /><strong>{money(order.total_amount)}</strong>{order.invoice_number && <Button size="sm" busy={invoiceBusy === String(order.id)} onClick={() => downloadInvoice(order)}>{t('dash.downloadInvoice')}</Button>}</span>
           </li>)}</ul>
         </section>
-      ) : <Empty title={t('dash.empty')} />}</Async>
+      ) : <Empty title={t('dash.empty')} />}</Async> : (
+        <section className="card stack">
+          <h2 className="h3">{t('dash.trackingInvoices')}</h2>
+          <form className="row form-row" onSubmit={lookupTracking}>
+            <Field label={t('track.number')}><input inputMode="numeric" dir="ltr" maxLength={10} value={trackingNumber} onChange={(event) => setTrackingNumber(event.target.value.replace(/\D/g, ''))} /></Field>
+            <Button type="submit" variant="primary" busy={trackingBusy}>{t('track.submit')}</Button>
+          </form>
+          {trackingError && <p className="notice notice-danger" role="alert">{trackingError}</p>}
+          {trackedOrder && <section className="stack" aria-live="polite">
+            <div className="row between"><strong>{t('order.tracking')}: {id(trackedOrder.tracking_number)}</strong><StatusBadge status={trackedOrder.status} /></div>
+            <Timeline status={trackedOrder.status} />
+            <dl className="facts">
+              <div><dt>{t('track.store')}</dt><dd><Link to={`/store/${trackedOrder.store_id}`}>{trackedOrder.store_name}</Link></dd></div>
+              <div><dt>{t('track.placedAt')}</dt><dd>{date(new Date(trackedOrder.created_at))}</dd></div>
+              <div><dt>{t('track.updatedAt')}</dt><dd>{date(new Date(trackedOrder.updated_at))}</dd></div>
+              <div><dt>{t('od.invoice')}</dt><dd>{trackedOrder.invoice_number || t('dash.invoicePending')}</dd></div>
+              <div><dt>{t('cart.total')}</dt><dd>{money(trackedOrder.total_amount)}</dd></div>
+            </dl>
+            <ul className="plain-list">{trackedOrder.items.map((item, index) => <li key={`${item.product_name}-${index}`}><span>{item.product_name} × {id(item.quantity)}<small>{money(item.unit_price)}</small></span><strong>{money(item.line_total)}</strong></li>)}</ul>
+            {trackedOrder.invoice_number && <Button variant="primary" busy={invoiceBusy === String(trackedOrder.id)} onClick={() => downloadInvoice(trackedOrder, true)}><Icon name="doc" size={16} />{t('dash.downloadInvoice')}</Button>}
+          </section>}
+        </section>
+      )}
       <section className="card stack">
         <h2 className="h3">{t('dash.contactSupport')}</h2>
         <form className="stack" onSubmit={submitSupport}>
@@ -168,6 +251,17 @@ export function SupportDashboard() {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const queue = useAsync(() => api.support.queue(statusFilter || undefined), [statusFilter])
+  useEffect(() => {
+    const source = new EventSource('/api/support/queue/events')
+    source.onmessage = () => queue.reload()
+    return () => source.close()
+  }, [queue.reload])
+  useEffect(() => {
+    if (!selected) return undefined
+    const source = new EventSource(`/api/support/conversations/${selected.id}/events`)
+    source.onmessage = () => queue.reload()
+    return () => source.close()
+  }, [selected?.id, queue.reload])
   useSeo({ title: `${t('dash.support')} | NAVA` })
   const act = async (operation) => {
     setBusy(true)

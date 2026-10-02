@@ -1,6 +1,10 @@
+import asyncio
+import json
+from collections import defaultdict
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
@@ -16,6 +20,7 @@ from app.services.chat_rate_limit import enforce_auth_rate_limit
 
 router = APIRouter(prefix="/support", tags=["Support"])
 SUPPORT_STATUSES = {"new", "assigned", "waiting_customer", "waiting_support", "resolved", "closed"}
+SUPPORT_EVENT_STREAMS: dict[str | int, set[asyncio.Queue[str]]] = defaultdict(set)
 
 
 def _require_support(user: User) -> None:
@@ -83,6 +88,59 @@ def _response(db: Session, item: Conversation) -> dict:
     }
 
 
+def _broadcast_support_event(event: str, conversation_id: int | None = None, payload: dict | None = None) -> None:
+    body = json.dumps({"event": event, "conversation_id": conversation_id, "payload": payload or {}})
+    targets = ["queue"]
+    if conversation_id is not None:
+        targets.append(conversation_id)
+    for key in targets:
+        for queue in list(SUPPORT_EVENT_STREAMS.get(key, set())):
+            try:
+                queue.put_nowait(body)
+            except Exception:
+                SUPPORT_EVENT_STREAMS.get(key, set()).discard(queue)
+
+
+@router.get("/queue/events")
+async def support_queue_events(request: Request):
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    SUPPORT_EVENT_STREAMS["queue"].add(queue)
+
+    async def event_stream():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                message = await queue.get()
+                yield f"data: {message}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            SUPPORT_EVENT_STREAMS["queue"].discard(queue)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.get("/conversations/{conversation_id}/events")
+async def support_conversation_events(conversation_id: int, request: Request):
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    SUPPORT_EVENT_STREAMS[conversation_id].add(queue)
+
+    async def event_stream():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                message = await queue.get()
+                yield f"data: {message}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            SUPPORT_EVENT_STREAMS[conversation_id].discard(queue)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
 class NewSupportConversation(BaseModel):
     message: str = Field(..., min_length=1, max_length=5000)
     store_id: int | None = Field(None, gt=0)
@@ -138,6 +196,7 @@ def create_support_conversation(
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
+    _broadcast_support_event("conversation_created", item.id, {"conversation_id": item.id, "status": item.support_status})
     return {"id": item.id, "status": item.support_status}
 
 
@@ -186,6 +245,7 @@ def customer_reply(
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
+    _broadcast_support_event("conversation_updated", item.id, {"conversation_id": item.id, "status": item.support_status})
     return {"id": item.id, "status": item.support_status}
 
 
@@ -263,6 +323,7 @@ def claim_support_conversation(
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
+    _broadcast_support_event("conversation_updated", item.id, {"conversation_id": item.id, "status": item.support_status, "assigned_to": user.id})
     return {"id": item.id, "status": item.support_status, "assigned_to": user.id}
 
 
@@ -290,6 +351,7 @@ def support_reply(
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
+    _broadcast_support_event("conversation_updated", item.id, {"conversation_id": item.id, "status": item.support_status})
     return {"id": item.id, "status": item.support_status}
 
 
@@ -317,4 +379,5 @@ def update_support_status(
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
+    _broadcast_support_event("conversation_updated", item.id, {"conversation_id": item.id, "status": item.support_status})
     return {"id": item.id, "status": item.support_status}

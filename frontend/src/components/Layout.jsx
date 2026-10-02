@@ -57,10 +57,12 @@ function useScrollOnNavigate() {
 }
 
 const SECTION_LINKS = [
-  ['nav.features', { pathname: '/', hash: '#features' }],
-  ['nav.how', { pathname: '/', hash: '#how' }],
+  ['nav.about', '/about'],
+  ['nav.features', { pathname: '/about', hash: '#features' }],
+  ['nav.how', { pathname: '/about', hash: '#how' }],
   ['nav.stores', { pathname: '/', hash: '#stores' }],
-  ['nav.faq', { pathname: '/', hash: '#faq' }],
+  ['nav.businesses', { pathname: '/', hash: '#business-types' }],
+  ['nav.faq', { pathname: '/about', hash: '#faq' }],
 ]
 
 function AccountLinks({ onNavigate }) {
@@ -149,6 +151,7 @@ export function SiteFooter() {
             <p>{t('footer.tagline')}</p>
           </div>
           <FooterColumn title={t('footer.product')}>
+            <li><Link to="/about">{t('nav.about')}</Link></li>
             <li><Link to={{ pathname: '/', hash: '#features' }}>{t('nav.features')}</Link></li>
             <li><Link to={{ pathname: '/', hash: '#how' }}>{t('nav.how')}</Link></li>
             <li><Link to={{ pathname: '/', hash: '#types' }}>{t('footer.types')}</Link></li>
@@ -194,11 +197,38 @@ export function StoreFooter() {
       <div className="wrap row between">
         <span className="muted">{t('shop.poweredBy')}</span>
         <div className="row">
+          <Link to="/about">{t('nav.about')}</Link>
           <Link to="/track">{t('nav.track')}</Link>
           <Link to="/register">{t('shop.createYours')}</Link>
         </div>
       </div>
     </footer>
+  )
+}
+
+export function PublicBackToTop() {
+  const { t } = useI18n()
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const update = () => setVisible(window.scrollY > 320)
+    window.addEventListener('scroll', update, { passive: true })
+    update()
+    return () => window.removeEventListener('scroll', update)
+  }, [])
+  if (!visible) return null
+  return (
+    <button
+      type="button"
+      className="public-back-top"
+      aria-label={t('footer.top')}
+      title={t('footer.top')}
+      onClick={() => window.scrollTo({
+        top: 0,
+        behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      })}
+    >
+      <Icon name="up" size={20} />
+    </button>
   )
 }
 
@@ -210,6 +240,7 @@ export function PublicLayout() {
       <SiteHeader />
       <main id="main"><Outlet /></main>
       <SiteFooter />
+      <PublicBackToTop />
     </>
   )
 }
