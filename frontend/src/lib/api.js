@@ -120,6 +120,7 @@ export const api = {
 
   support: {
     summary: () => seller('/support/summary'),
+    stores: (query = '') => seller(`/support/stores?q=${encodeURIComponent(query)}`),
     create: (payload) => seller('/support/conversations', { method: 'POST', body: payload }),
     conversations: () => seller('/support/conversations'),
     conversation: (id) => seller(`/support/conversations/${id}`),

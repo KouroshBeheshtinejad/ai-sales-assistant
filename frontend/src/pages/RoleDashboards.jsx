@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Async, Badge, Button, ConfirmButton, Empty, Field, Icon, StatusBadge, Timeline, useToast } from '../components/ui'
+import { SupportChatPanel } from '../components/SupportChat'
 import { api } from '../lib/api'
 import { useAsync, useSeo } from '../lib/hooks'
 import { useAuth } from '../lib/auth'
@@ -54,6 +55,7 @@ export function CustomerDashboard() {
   const [trackingBusy, setTrackingBusy] = useState(false)
   const [invoiceBusy, setInvoiceBusy] = useState('')
   const [message, setMessage] = useState('')
+  const [selectedConversationId, setSelectedConversationId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => {
@@ -159,57 +161,50 @@ export function CustomerDashboard() {
           </section>}
         </section>
       )}
-      <section className="card stack">
+      <section className="support-section stack">
         <h2 className="h3">{t('dash.contactSupport')}</h2>
         <form className="stack" onSubmit={submitSupport}>
           <Field label={t('dash.supportMessage')}><textarea required maxLength={5000} value={message} onChange={(event) => setMessage(event.target.value)} /></Field>
           {error && <p className="notice notice-danger" role="alert">{error}</p>}
           <Button type="submit" variant="primary" busy={busy}><Icon name="send" size={16} />{t('dash.sendSupport')}</Button>
         </form>
-        <Async state={conversations}>{(items) => !items.length ? <p className="muted">{t('dash.noSupportConversations')}</p> : (
-          <ul className="list-cards">{items.map((item) => <CustomerSupportThread key={item.id} conversation={item} onReply={conversations.reload} />)}</ul>
-        )}</Async>
+        <Async state={conversations}>{(items) => {
+          const selected = items.find((item) => item.id === selectedConversationId) || items[0]
+          return !items.length ? <p className="muted">{t('dash.noSupportConversations')}</p> : (
+            <div className="support-inbox">
+              <ul className="support-thread-list">{items.map((item) => <li key={item.id}>
+                <button type="button" className="support-thread" aria-pressed={item.id === selected?.id} onClick={() => setSelectedConversationId(item.id)}>
+                  <span className="row between"><strong>{t('dash.supportTicket', { id: item.id })}</strong><Badge>{t(`dash.supportStatus.${item.status}`)}</Badge></span>
+                  <span>{item.messages.at(-1)?.content}</span><small>{date(new Date(item.updated_at))}</small>
+                </button>
+              </li>)}</ul>
+              <SupportChatPanel conversation={selected} title={t('dash.supportTicket', { id: selected.id })} subtitle={t(`dash.supportStatus.${selected.status}`)} disabled={['resolved', 'closed'].includes(selected.status)} onReply={async (content) => { await api.support.reply(selected.id, content); await conversations.reload() }} />
+            </div>
+          )
+        }}</Async>
       </section>
     </>
   )
 }
 
-function CustomerSupportThread({ conversation, onReply }) {
-  const { t, date } = useI18n()
-  const [message, setMessage] = useState('')
-  const [busy, setBusy] = useState(false)
-  const last = conversation.messages.at(-1)
-  const reply = async (event) => {
-    event.preventDefault()
-    setBusy(true)
-    try {
-      await api.support.reply(conversation.id, message)
-      setMessage('')
-      await onReply()
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <li className="card stack">
-      <div className="row between"><strong>{t('dash.supportTicket', { id: conversation.id })}</strong><Badge>{t(`dash.supportStatus.${conversation.status}`)}</Badge></div>
-      {last && <p>{last.content}</p>}
-      <small className="muted">{date(new Date(conversation.updated_at))}</small>
-      {!['resolved', 'closed'].includes(conversation.status) && <form className="row" onSubmit={reply}>
-        <input required aria-label={t('dash.supportReply')} value={message} onChange={(event) => setMessage(event.target.value)} />
-        <Button type="submit" size="sm" busy={busy}>{t('dash.reply')}</Button>
-      </form>}
-    </li>
-  )
-}
-
 export function StoreSupportDashboard() {
-  const { t } = useI18n()
+  const { t, date } = useI18n()
   const { store } = useSeller()
   const conversations = useAsync(() => api.support.conversations(), [])
+  const [selectedConversationId, setSelectedConversationId] = useState(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  useEffect(() => {
+    const threads = conversations.data?.filter((item) => item.store_id === store.id) || []
+    if (!threads.length) return undefined
+    const sources = threads.map((item) => {
+      const source = new EventSource(`/api/support/conversations/${item.id}/events`)
+      source.onmessage = () => conversations.reload()
+      return source
+    })
+    return () => sources.forEach((source) => source.close())
+  }, [conversations.data, conversations.reload, store.id])
   useSeo({ title: `${t('dash.contactSupport')} | NAVA` })
   const submit = async (event) => {
     event.preventDefault()
@@ -228,7 +223,7 @@ export function StoreSupportDashboard() {
   return (
     <>
       <DashboardHeader title={t('dash.contactSupport')} />
-      <section className="card stack">
+      <section className="support-section stack">
         <h2 className="h3">{store.name}</h2>
         <form className="stack" onSubmit={submit}>
           <Field label={t('dash.supportMessage')}><textarea required maxLength={5000} value={message} onChange={(event) => setMessage(event.target.value)} /></Field>
@@ -237,7 +232,18 @@ export function StoreSupportDashboard() {
         </form>
         <Async state={conversations}>{(items) => {
           const storeThreads = items.filter((item) => item.store_id === store.id)
-          return !storeThreads.length ? <p className="muted">{t('dash.noSupportConversations')}</p> : <ul className="list-cards">{storeThreads.map((item) => <CustomerSupportThread key={item.id} conversation={item} onReply={conversations.reload} />)}</ul>
+          const selected = storeThreads.find((item) => item.id === selectedConversationId) || storeThreads[0]
+          return !storeThreads.length ? <p className="muted">{t('dash.noSupportConversations')}</p> : (
+            <div className="support-inbox">
+              <ul className="support-thread-list">{storeThreads.map((item) => <li key={item.id}>
+                <button type="button" className="support-thread" aria-pressed={item.id === selected?.id} onClick={() => setSelectedConversationId(item.id)}>
+                  <span className="row between"><strong>{t('dash.supportTicket', { id: item.id })}</strong><Badge>{t(`dash.supportStatus.${item.status}`)}</Badge></span>
+                  <span>{item.messages.at(-1)?.content}</span><small>{date(new Date(item.updated_at))}</small>
+                </button>
+              </li>)}</ul>
+              <SupportChatPanel conversation={selected} title={t('dash.supportTicket', { id: selected.id })} subtitle={t(`dash.supportStatus.${selected.status}`)} disabled={['resolved', 'closed'].includes(selected.status)} onReply={async (content) => { await api.support.reply(selected.id, content); await conversations.reload() }} />
+            </div>
+          )
         }}</Async>
       </section>
     </>
@@ -246,29 +252,51 @@ export function StoreSupportDashboard() {
 
 export function SupportDashboard() {
   const { t, date, money } = useI18n()
+  const { user } = useAuth()
   const [statusFilter, setStatusFilter] = useState('')
-  const [selected, setSelected] = useState(null)
-  const [message, setMessage] = useState('')
+  const [selectedId, setSelectedId] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [storeSearchInput, setStoreSearchInput] = useState('')
+  const [storeSearch, setStoreSearch] = useState('')
+  const [targetStore, setTargetStore] = useState(null)
+  const [storeMessage, setStoreMessage] = useState('')
+  const [storeError, setStoreError] = useState('')
   const queue = useAsync(() => api.support.queue(statusFilter || undefined), [statusFilter])
+  const stores = useAsync(() => api.support.stores(storeSearch), [storeSearch])
+  const selected = queue.data?.find((item) => item.id === selectedId)
   useEffect(() => {
     const source = new EventSource('/api/support/queue/events')
     source.onmessage = () => queue.reload()
     return () => source.close()
   }, [queue.reload])
   useEffect(() => {
-    if (!selected) return undefined
-    const source = new EventSource(`/api/support/conversations/${selected.id}/events`)
+    if (!selectedId) return undefined
+    const source = new EventSource(`/api/support/conversations/${selectedId}/events`)
     source.onmessage = () => queue.reload()
     return () => source.close()
-  }, [selected?.id, queue.reload])
+  }, [selectedId, queue.reload])
   useSeo({ title: `${t('dash.support')} | NAVA` })
   const act = async (operation) => {
     setBusy(true)
     try {
       await operation()
       await queue.reload()
-      setSelected(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const startStoreConversation = async (event) => {
+    event.preventDefault()
+    setStoreError('')
+    setBusy(true)
+    try {
+      const conversation = await api.support.create({ store_id: targetStore.id, message: storeMessage })
+      setStoreMessage('')
+      setTargetStore(null)
+      setSelectedId(conversation.id)
+      await queue.reload()
+    } catch (error) {
+      setStoreError(error.message)
     } finally {
       setBusy(false)
     }
@@ -276,6 +304,23 @@ export function SupportDashboard() {
   return (
     <>
       <DashboardHeader title={t('dash.support')} />
+      <section className="support-store-search stack">
+        <h2 className="h3">{t('dash.searchStores')}</h2>
+        <form className="row form-row" onSubmit={(event) => { event.preventDefault(); setStoreSearch(storeSearchInput.trim()) }}>
+          <Field label={t('dash.storeSearchPlaceholder')}><input value={storeSearchInput} onChange={(event) => setStoreSearchInput(event.target.value)} /></Field>
+          <Button type="submit"><Icon name="search" size={16} />{t('dash.search')}</Button>
+        </form>
+        <Async state={stores}>{(items) => items.length ? <ul className="support-store-results">{items.map((store) => <li key={store.id}>
+          <span><strong>{store.name}</strong><small>#{store.id}</small></span>
+          <Button size="sm" variant="ghost" onClick={() => { setTargetStore(store); setStoreError('') }}>{t('dash.contactStore')}</Button>
+        </li>)}</ul> : <p className="muted">{t('dash.storeSearchEmpty')}</p>}</Async>
+        {targetStore && <form className="stack" onSubmit={startStoreConversation}>
+          <strong>{t('dash.contactStore')}: {targetStore.name}</strong>
+          <Field label={t('dash.newMessage')}><textarea required maxLength={5000} value={storeMessage} onChange={(event) => setStoreMessage(event.target.value)} /></Field>
+          {storeError && <p className="notice notice-danger" role="alert">{storeError}</p>}
+          <div className="row"><Button type="submit" variant="primary" busy={busy}><Icon name="send" size={16} />{t('dash.sendSupport')}</Button><Button type="button" variant="ghost" onClick={() => setTargetStore(null)}>{t('cancel')}</Button></div>
+        </form>}
+      </section>
       <div className="row">
         <Field label={t('dash.filterStatus')}><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
           <option value="">{t('dash.allStatuses')}</option>
@@ -284,23 +329,26 @@ export function SupportDashboard() {
       </div>
       <Async state={queue}>{(items) => !items.length ? <Empty title={t('dash.noSupportConversations')} /> : (
         <div className="two-col">
-          <ul className="list-cards">{items.map((item) => <li key={item.id} className="card stack">
-            <Button variant="ghost" size="sm" onClick={() => setSelected(item)}>{t('dash.supportTicket', { id: item.id })}</Button>
-            <span>{item.messages.at(-1)?.content}</span>
-            {item.customer && <small className="muted">{item.customer.name || item.customer.email}{item.store ? ` · ${item.store.name}` : ''}</small>}
-            <div className="row between"><Badge>{t(`dash.supportStatus.${item.status}`)}</Badge><small className="muted">{date(new Date(item.updated_at))}</small></div>
-            {item.assigned_to ? <small className="muted">{t('dash.assigned')}</small> : <Button size="sm" busy={busy} onClick={() => act(() => api.support.claim(item.id))}>{t('dash.claim')}</Button>}
+          <ul className="support-thread-list">{items.map((item) => <li key={item.id}>
+            <button type="button" className="support-thread" aria-pressed={item.id === selectedId} onClick={() => setSelectedId(item.id)}>
+              <span className="row between"><strong>{t('dash.supportTicket', { id: item.id })}</strong><Badge>{t(`dash.supportStatus.${item.status}`)}</Badge></span>
+              <span>{item.messages.at(-1)?.content}</span>
+              <small>{item.customer?.name || item.customer?.email}{item.store ? ` · ${item.store.name}` : ''}</small>
+              <small>{date(new Date(item.updated_at))}</small>
+            </button>
+            {!item.assigned_to && <Button size="sm" busy={busy} onClick={() => { setSelectedId(item.id); act(() => api.support.claim(item.id)) }}>{t('dash.claim')}</Button>}
           </li>)}</ul>
-          {selected && <section className="card stack" aria-label={t('dash.supportTicket', { id: selected.id })}>
-            <h2 className="h3">{t('dash.supportTicket', { id: selected.id })}</h2>
-            {selected.customer && <p className="muted">{selected.customer.name || selected.customer.email}{selected.customer.phone ? ` · ${selected.customer.phone}` : ''}{selected.store ? ` · ${selected.store.name}` : ''}</p>}
-            {selected.order && <p className="muted">{t('od.title', { id: selected.order.id })} · {t(`status.${selected.order.status}`)} · {money(selected.order.total_amount)}</p>}
-            <div className="transcript" role="log">{selected.messages.map((item) => <p key={item.id} className="bubble">{item.content}</p>)}</div>
-            <form className="stack" onSubmit={(event) => { event.preventDefault(); act(() => api.support.agentReply(selected.id, message)) }}>
-              <Field label={t('dash.supportReply')}><textarea required maxLength={5000} value={message} onChange={(event) => setMessage(event.target.value)} /></Field>
-              <div className="row"><Button type="submit" busy={busy}>{t('dash.reply')}</Button><Button type="button" variant="primary" busy={busy} onClick={() => act(() => api.support.setStatus(selected.id, 'resolved'))}>{t('dash.resolve')}</Button></div>
-            </form>
-          </section>}
+          {selected && <SupportChatPanel
+            conversation={selected}
+            title={selected.store?.name || selected.customer?.name || t('dash.supportTicket', { id: selected.id })}
+            subtitle={`${t('dash.supportTicket', { id: selected.id })} · ${t(`dash.supportStatus.${selected.status}`)}${selected.order ? ` · ${t('od.title', { id: selected.order.id })} · ${t(`status.${selected.order.status}`)} · ${money(selected.order.total_amount)}` : ''}`}
+            disabled={['resolved', 'closed'].includes(selected.status) || (selected.assigned_to && selected.assigned_to !== user?.id && user?.role !== 'god')}
+            busy={busy}
+            onReply={(content) => act(() => api.support.agentReply(selected.id, content))}
+          >
+            {selected.assigned_to ? <Badge>{t('dash.assigned')}</Badge> : <Button size="sm" busy={busy} onClick={() => act(() => api.support.claim(selected.id))}>{t('dash.claim')}</Button>}
+            {!['resolved', 'closed'].includes(selected.status) && <Button size="sm" variant="primary" busy={busy} onClick={() => act(() => api.support.setStatus(selected.id, 'resolved'))}>{t('dash.resolve')}</Button>}
+          </SupportChatPanel>}
         </div>
       )}</Async>
     </>

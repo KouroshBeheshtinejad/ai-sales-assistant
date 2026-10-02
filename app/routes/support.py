@@ -101,6 +101,20 @@ def _broadcast_support_event(event: str, conversation_id: int | None = None, pay
                 SUPPORT_EVENT_STREAMS.get(key, set()).discard(queue)
 
 
+@router.get("/stores")
+def search_support_stores(
+    q: str = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _require_support(user)
+    query = select(Store).order_by(Store.name).limit(25)
+    search = q.strip()
+    if search:
+        query = query.where(Store.name.ilike(f"%{search}%"))
+    return [{"id": store.id, "name": store.name} for store in db.scalars(query).all()]
+
+
 @router.get("/queue/events")
 async def support_queue_events(request: Request):
     queue: asyncio.Queue[str] = asyncio.Queue()
@@ -179,13 +193,15 @@ def create_support_conversation(
         and not has_store_permission(db, user, store_id, "support.contact")
     ):
         raise HTTPException(status_code=404, detail="Store not found")
+    is_support_initiated = user.role == "support" and store_id is not None
     item = Conversation(
         user_id=user.id,
         store_id=store_id,
         last_order_id=payload.order_id,
         kind="support",
-        support_status="new",
+        support_status="assigned" if is_support_initiated else "new",
         status="active",
+        assigned_to=user.id if is_support_initiated else None,
     )
     db.add(item)
     db.flush()
@@ -237,7 +253,12 @@ def customer_reply(
     item = _customer_item(db, conversation_id, user)
     if item.support_status in {"resolved", "closed"}:
         raise HTTPException(status_code=409, detail="Conversation is closed")
-    db.add(Message(conversation_id=item.id, role="user", content=payload.message.strip()))
+    is_support_initiated = item.store_id is not None and item.user is not None and item.user.role == "support"
+    db.add(Message(
+        conversation_id=item.id,
+        role="assistant" if is_support_initiated else "user",
+        content=payload.message.strip(),
+    ))
     item.support_status = "waiting_support"
     record_audit_log(
         db, actor=user, action="support.customer_replied", resource_type="conversation",
@@ -343,7 +364,12 @@ def support_reply(
         raise HTTPException(status_code=403, detail="Claim this conversation first")
     if item.support_status in {"resolved", "closed"}:
         raise HTTPException(status_code=409, detail="Conversation is closed")
-    db.add(Message(conversation_id=item.id, role="assistant", content=payload.message.strip()))
+    is_support_initiated = item.store_id is not None and item.user is not None and item.user.role == "support"
+    db.add(Message(
+        conversation_id=item.id,
+        role="user" if is_support_initiated else "assistant",
+        content=payload.message.strip(),
+    ))
     item.support_status = "waiting_customer"
     record_audit_log(
         db, actor=user, action="support.agent_replied", resource_type="conversation",

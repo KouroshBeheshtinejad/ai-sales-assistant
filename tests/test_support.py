@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.security import create_access_token, hash_password
 from app.db.database import Base, get_db
-from app.db.models import User
+from app.db.models import Store, User
 from app.main import app
 
 
@@ -23,6 +23,8 @@ def support_client():
         "other_agent": User(email="support-agent-two@example.com", password_hash=hash_password("StrongPass123!"), role="support"),
     }
     db.add_all(users.values())
+    db.commit()
+    db.add(Store(name="Northwind Store", owner_id=users["customer"].id))
     db.commit()
     tokens = {key: create_access_token(str(user.id), user.token_version) for key, user in users.items()}
     db.close()
@@ -121,3 +123,44 @@ def test_cookie_authenticated_legacy_api_mutation_requires_csrf_header(support_c
 
     assert blocked.status_code == 403
     assert passed_csrf.status_code == 404
+
+
+def test_support_can_search_stores_and_start_assigned_store_conversation(support_client):
+    client, headers = support_client
+    assert client.get("/api/support/stores?q=Northwind", headers=headers["customer"]).status_code == 403
+
+    search = client.get("/api/support/stores?q=Northwind", headers=headers["agent"])
+    assert search.status_code == 200
+    stores = search.json()
+    assert len(stores) == 1
+    assert stores[0]["name"] == "Northwind Store"
+
+    created = client.post(
+        "/api/support/conversations",
+        headers=headers["agent"],
+        json={"store_id": stores[0]["id"], "message": "We are following up on a customer complaint."},
+    )
+    assert created.status_code == 201
+    conversation_id = created.json()["id"]
+    queued = client.get("/api/support/queue", headers=headers["agent"]).json()
+    item = next(item for item in queued if item["id"] == conversation_id)
+    assert item["status"] == "assigned"
+    assert item["assigned_to"] is not None
+
+    replied = client.post(
+        f"/api/support/queue/{conversation_id}/reply",
+        headers=headers["agent"],
+        json={"message": "Could you confirm the order status?"},
+    )
+    assert replied.status_code == 200
+    store_reply = client.post(
+        f"/api/support/conversations/{conversation_id}/reply",
+        headers=headers["customer"],
+        json={"message": "The order is being prepared."},
+    )
+    assert store_reply.status_code == 200
+    detail = client.get(
+        f"/api/support/conversations/{conversation_id}", headers=headers["customer"]
+    )
+    assert detail.status_code == 200
+    assert [message["role"] for message in detail.json()["messages"]] == ["user", "user", "assistant"]

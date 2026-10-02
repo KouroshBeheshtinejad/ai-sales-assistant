@@ -58,8 +58,6 @@ function useScrollOnNavigate() {
 
 const SECTION_LINKS = [
   ['nav.about', '/about'],
-  ['nav.features', { pathname: '/about', hash: '#features' }],
-  ['nav.how', { pathname: '/about', hash: '#how' }],
   ['nav.stores', { pathname: '/', hash: '#stores' }],
   ['nav.businesses', { pathname: '/', hash: '#business-types' }],
   ['nav.faq', { pathname: '/about', hash: '#faq' }],
