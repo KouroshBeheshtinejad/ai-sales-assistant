@@ -420,6 +420,12 @@ def update_product(
 
     update_data = data.model_dump(exclude_unset=True)
 
+    if "stock" in update_data:
+        if update_data["stock"] is None:
+            update_data.pop("stock")
+        else:
+            update_data["stock"] += product.reserved_stock
+
     if "category_ids" in update_data:
         if update_data["category_ids"] is None:
             update_data.pop("category_ids")

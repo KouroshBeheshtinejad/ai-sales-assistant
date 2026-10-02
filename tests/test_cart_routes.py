@@ -298,6 +298,36 @@ def test_storefront_categories_and_theme_are_saved_and_public(client):
     assert product.json()["category_ids"] == ["drinks"]
 
 
+def test_product_edit_keeps_reserved_units_when_saving_available_stock(client):
+    user = create_user("reserved-stock-edit@example.com")
+    store = create_store(user.id)
+    product = create_product(store.id)
+    headers = auth_headers(user.id)
+
+    db = TestingSessionLocal()
+    try:
+        row = db.query(models.Product).filter_by(id=product.id).one()
+        row.stock = 21
+        row.reserved_stock = 11
+        db.commit()
+    finally:
+        db.close()
+
+    visible = client.get(f"/products/{product.id}", headers=headers)
+    assert visible.status_code == 200
+    assert visible.json()["stock"] == 10
+    assert visible.json()["reserved_stock"] == 11
+
+    updated = client.put(
+        f"/products/{product.id}",
+        headers=headers,
+        json={"stock": visible.json()["stock"], "category_ids": []},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["stock"] == 10
+    assert updated.json()["reserved_stock"] == 11
+
+
 def test_require_authentication(client):
     response = client.get("/cart/stores/1")
     assert response.status_code in (401, 403)
