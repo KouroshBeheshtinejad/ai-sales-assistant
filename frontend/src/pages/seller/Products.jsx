@@ -38,6 +38,7 @@ function ProductForm({ product, store, businessType, onSaved, onClose }) {
     price: product ? String(product.price) : '',
     stock: product ? String(product.stock) : '0',
     image: null,
+    category_ids: product?.category_ids || [],
     // size/color also live in real columns; keep old rows editable.
     attributes: { ...(product?.size ? { size: product.size } : {}), ...(product?.color ? { color: product.color } : {}), ...(product?.attributes || {}) },
   })
@@ -65,7 +66,7 @@ function ProductForm({ product, store, businessType, onSaved, onClose }) {
       else if (value === '' || value == null) delete attributes[definition.name]
       else attributes[definition.name] = definition.type === 'number' ? Number(toLatinDigits(value)) : value
     }
-    const payload = { name: form.name.trim(), description: form.description.trim() || null, price, stock, attributes }
+    const payload = { name: form.name.trim(), description: form.description.trim() || null, price, stock, attributes, category_ids: form.category_ids }
 
     setBusy(true)
     setFormError('')
@@ -89,6 +90,10 @@ function ProductForm({ product, store, businessType, onSaved, onClose }) {
       <Field label={t('p.stock')} error={errors.stock}><input inputMode="numeric" dir="ltr" value={form.stock} onChange={set('stock')} /></Field>
       <Field label={t('p.desc')} className="full"><textarea rows={3} maxLength={10000} value={form.description} onChange={set('description')} /></Field>
       <Field label={t('p.image')} className="full"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => setForm({ ...form, image: e.target.files?.[0] || null })} /></Field>
+      <fieldset className="category-picker full">
+        <legend>{t('p.categories')}</legend>
+        {store.categories?.length ? store.categories.map((category) => <Check key={category.id} label={category.name} checked={form.category_ids.includes(category.id)} onChange={(event) => setForm((current) => ({ ...current, category_ids: event.target.checked ? [...current.category_ids, category.id] : current.category_ids.filter((id) => id !== category.id) }))} />) : <p className="muted">{t('p.noCategories')}</p>}
+      </fieldset>
       {fields.length > 0 && <h3 className="h4 full">{t('p.typeFields', { type: bizLabel(businessType.slug, businessType.label) })}</h3>}
       {fields.map((definition) => (
         <AttributeField key={definition.name} definition={definition} value={form.attributes[definition.name]}

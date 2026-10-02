@@ -126,6 +126,9 @@ class Store(Base):
         default="clothing",
         index=True,
     )
+    categories: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    primary_color: Mapped[str] = mapped_column(String(7), nullable=False, default="#0d8a85", server_default="#0d8a85")
+    secondary_color: Mapped[str] = mapped_column(String(7), nullable=False, default="#f2f7f6", server_default="#f2f7f6")
 
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
@@ -309,6 +312,7 @@ class Product(Base):
         nullable=True,
         default=dict,
     )
+    category_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
 
     is_active: Mapped[bool] = mapped_column(
         Boolean,

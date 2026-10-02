@@ -6,6 +6,7 @@ import { Brand, LocaleToggle, PublicBackToTop, SkipLink, StoreFooter } from '../
 import { ErrorNote, Icon, Loading } from '../components/ui'
 import { useSeo } from '../lib/hooks'
 import { useI18n } from '../lib/i18n'
+import { storefrontStyle } from '../lib/storeTheme'
 import { useShop } from '../lib/useShop'
 
 // Owns everything that must survive navigation inside one store:
@@ -19,6 +20,7 @@ export default function StoreShell() {
   const [draft, setDraft] = useState('')
   const store = shop.catalog?.store
   const clearDraft = useCallback(() => setDraft(''), [])
+  const theme = storefrontStyle(store)
 
   useSeo({ title: store ? `${store.name} | NAVA` : 'NAVA | AI commerce', description: store?.description || undefined })
 
@@ -34,7 +36,7 @@ export default function StoreShell() {
   const ask = (text) => { setDraft(text); setChatOpen(true) }
 
   return (
-    <>
+    <div className="storefront" style={theme}>
       <SkipLink />
       <header className="topbar">
         <div className="wrap topbar-in">
@@ -61,6 +63,6 @@ export default function StoreShell() {
       <PublicBackToTop />
       <button type="button" className="btn btn-primary chat-fab" onClick={() => setChatOpen(true)}><Icon name="chat" />{t('chat.open')}</button>
       {cartOpen && <CartDrawer shop={shop} onClose={() => setCartOpen(false)} />}
-    </>
+    </div>
   )
 }

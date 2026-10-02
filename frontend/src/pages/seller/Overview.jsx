@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Async, Badge, Button, ConfirmButton, Empty, Field, Modal, useToast } from '../../components/ui'
+import { Async, Badge, Button, ConfirmButton, Empty, Field, Icon, Modal, useToast } from '../../components/ui'
 import { api } from '../../lib/api'
 import { useAsync, useSeo } from '../../lib/hooks'
 import { useI18n } from '../../lib/i18n'
@@ -12,7 +12,15 @@ import { useSeller } from './SellerContext'
 function StoreForm({ store, onSaved, onCancel }) {
   const { t, err, bizLabel } = useI18n()
   const { types } = useSeller()
-  const [form, setForm] = useState({ name: store?.name || '', description: store?.description || '', business_type: store?.business_type || 'clothing', logo: null })
+  const [form, setForm] = useState({
+    name: store?.name || '',
+    description: store?.description || '',
+    business_type: store?.business_type || 'clothing',
+    categories: store?.categories || [],
+    primary_color: store?.primary_color || '#0d8a85',
+    secondary_color: store?.secondary_color || '#f2f7f6',
+    logo: null,
+  })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const set = (name) => (e) => setForm({ ...form, [name]: e.target.value })
@@ -22,7 +30,14 @@ function StoreForm({ store, onSaved, onCancel }) {
     setBusy(true)
     setError('')
     try {
-      const payload = { name: form.name.trim(), description: form.description.trim() || null, business_type: form.business_type }
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        business_type: form.business_type,
+        categories: form.categories.map((category) => ({ ...category, name: category.name.trim() })),
+        primary_color: form.primary_color,
+        secondary_color: form.secondary_color,
+      }
       const saved = store ? await api.seller.updateStore(store.id, payload) : await api.seller.createStore(payload)
       if (form.logo) await api.seller.uploadStoreLogo(saved.store_id, form.logo)
       await onSaved(saved.store_id)
@@ -43,6 +58,18 @@ function StoreForm({ store, onSaved, onCancel }) {
       </Field>
       <Field label={t('s.storeDesc')}><textarea rows={3} maxLength={10000} value={form.description} onChange={set('description')} /></Field>
       <Field label={t('s.logo')}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => setForm({ ...form, logo: e.target.files?.[0] || null })} /></Field>
+      <fieldset className="store-category-editor">
+        <legend>{t('s.categoryTabs')}</legend>
+        {form.categories.map((category) => <div className="row" key={category.id}>
+          <Field label={t('s.categoryName')}><input required maxLength={60} value={category.name} onChange={(event) => setForm((current) => ({ ...current, categories: current.categories.map((item) => item.id === category.id ? { ...item, name: event.target.value } : item) }))} /></Field>
+          <button type="button" className="icon-btn" aria-label={t('s.removeCategory')} onClick={() => setForm((current) => ({ ...current, categories: current.categories.filter((item) => item.id !== category.id) }))}><Icon name="trash" size={18} /></button>
+        </div>)}
+        <Button type="button" size="sm" onClick={() => setForm((current) => ({ ...current, categories: [...current.categories, { id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: '' }] }))}><Icon name="plus" size={16} />{t('s.addCategory')}</Button>
+      </fieldset>
+      <div className="store-color-fields">
+        <Field label={t('s.primaryColor')}><input className="store-color-input" type="color" value={form.primary_color} onChange={set('primary_color')} /></Field>
+        <Field label={t('s.secondaryColor')}><input className="store-color-input" type="color" value={form.secondary_color} onChange={set('secondary_color')} /></Field>
+      </div>
       {error && <p className="notice notice-danger" role="alert">{error}</p>}
       <div className="row">
         <Button type="submit" variant="primary" busy={busy}>{store ? t('save') : t('create')}</Button>

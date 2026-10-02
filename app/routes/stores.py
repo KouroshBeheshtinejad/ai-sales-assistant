@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.business_types import get_business_type_label, normalize_business_type
 from app.core.csrf import require_csrf_header
 from app.db.database import get_db
-from app.db.models import Store, StoreMembership, User
+from app.db.models import Product, Store, StoreMembership, User
 from app.routes.auth import get_current_user, require_roles, store_owner_filter, store_owner_only_filter
 from app.services.cloudinary_service import delete_image, upload_image
 from app.services.image_validation import validate_image_content
@@ -50,6 +50,9 @@ class StoreCreateRequest(BaseModel):
     name: str = Field(..., max_length=255)
     description: str | None = Field(None, max_length=10000)
     business_type: str = Field("clothing", max_length=100)
+    categories: list[dict[str, str]] = Field(default_factory=list, max_length=30)
+    primary_color: str = Field("#0d8a85", pattern=r"^#[0-9a-fA-F]{6}$")
+    secondary_color: str = Field("#f2f7f6", pattern=r"^#[0-9a-fA-F]{6}$")
 
     @field_validator("name")
     @classmethod
@@ -58,6 +61,24 @@ class StoreCreateRequest(BaseModel):
         if not value:
             raise ValueError("Store name must not be blank")
         return value
+
+    @field_validator("categories")
+    @classmethod
+    def categories_must_have_unique_ids_and_names(cls, value: list[dict[str, str]]) -> list[dict[str, str]]:
+        cleaned = []
+        ids = set()
+        names = set()
+        for category in value:
+            category_id = category.get("id", "").strip()
+            name = category.get("name", "").strip()
+            if not category_id or not name or len(name) > 60:
+                raise ValueError("Categories need an id and a name of at most 60 characters")
+            if category_id in ids or name.casefold() in names:
+                raise ValueError("Category ids and names must be unique")
+            ids.add(category_id)
+            names.add(name.casefold())
+            cleaned.append({"id": category_id, "name": name})
+        return cleaned
 
 
 @router.post("/")
@@ -73,6 +94,9 @@ def create_store(
         name=data.name,
         description=data.description,
         business_type=normalized_business_type,
+        categories=data.categories,
+        primary_color=data.primary_color.lower(),
+        secondary_color=data.secondary_color.lower(),
         owner_id=current_user.id,
     )
 
@@ -85,7 +109,13 @@ def create_store(
         resource_type="store",
         resource_id=store.id,
         store_id=store.id,
-        after_state={"name": store.name, "business_type": store.business_type},
+        after_state={
+            "name": store.name,
+            "business_type": store.business_type,
+            "categories": store.categories or [],
+            "primary_color": store.primary_color,
+            "secondary_color": store.secondary_color,
+        },
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
@@ -99,6 +129,9 @@ def create_store(
         "logo_url": store.logo_url,
         "business_type": store.business_type,
         "business_type_label": get_business_type_label(store.business_type),
+        "categories": store.categories or [],
+        "primary_color": store.primary_color,
+        "secondary_color": store.secondary_color,
     }
 
 
@@ -121,6 +154,9 @@ def get_my_stores(
             "logo_url": store.logo_url,
             "business_type": store.business_type,
             "business_type_label": get_business_type_label(store.business_type),
+            "categories": store.categories or [],
+            "primary_color": store.primary_color,
+            "secondary_color": store.secondary_color,
             "created_at": store.created_at,
             **store_access(db, current_user, store.id),
         }
@@ -156,6 +192,9 @@ def get_store(
         "logo_url": store.logo_url,
         "business_type": store.business_type,
         "business_type_label": get_business_type_label(store.business_type),
+        "categories": store.categories or [],
+        "primary_color": store.primary_color,
+        "secondary_color": store.secondary_color,
         "created_at": store.created_at,
         **store_access(db, current_user, store.id),
     }
@@ -165,6 +204,9 @@ class StoreUpdateRequest(BaseModel):
     name: str | None = Field(None, max_length=255)
     description: str | None = Field(None, max_length=10000)
     business_type: str | None = Field(None, max_length=100)
+    categories: list[dict[str, str]] | None = Field(None, max_length=30)
+    primary_color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
+    secondary_color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
 
     @field_validator("name")
     @classmethod
@@ -175,6 +217,13 @@ class StoreUpdateRequest(BaseModel):
         if not value:
             raise ValueError("Store name must not be blank")
         return value
+
+    @field_validator("categories")
+    @classmethod
+    def categories_must_have_unique_ids_and_names(cls, value: list[dict[str, str]] | None) -> list[dict[str, str]] | None:
+        if value is None:
+            return None
+        return StoreCreateRequest.categories_must_have_unique_ids_and_names(value)
 
 
 @router.put("/{store_id}")
@@ -200,14 +249,34 @@ def update_store(
             detail="Store not found",
         )
 
-    before_state = {"name": store.name, "description": store.description, "business_type": store.business_type}
+    before_state = {
+        "name": store.name,
+        "description": store.description,
+        "business_type": store.business_type,
+        "categories": store.categories or [],
+        "primary_color": store.primary_color,
+        "secondary_color": store.secondary_color,
+    }
     update_data = data.model_dump(exclude_unset=True)
+
+    if update_data.get("categories") is None:
+        update_data.pop("categories", None)
+    for color_field in ("primary_color", "secondary_color"):
+        if update_data.get(color_field) is None:
+            update_data.pop(color_field, None)
+        else:
+            update_data[color_field] = update_data[color_field].lower()
 
     if "business_type" in update_data and update_data["business_type"] is not None:
         update_data["business_type"] = normalize_business_type(update_data["business_type"])
 
     for field, value in update_data.items():
         setattr(store, field, value)
+
+    if "categories" in update_data:
+        valid_category_ids = {category["id"] for category in store.categories or []}
+        for product in db.query(Product).filter(Product.store_id == store.id).all():
+            product.category_ids = [category_id for category_id in product.category_ids or [] if category_id in valid_category_ids]
 
     record_audit_log(
         db,
@@ -217,7 +286,14 @@ def update_store(
         resource_id=store.id,
         store_id=store.id,
         before_state=before_state,
-        after_state={"name": store.name, "description": store.description, "business_type": store.business_type},
+        after_state={
+            "name": store.name,
+            "description": store.description,
+            "business_type": store.business_type,
+            "categories": store.categories or [],
+            "primary_color": store.primary_color,
+            "secondary_color": store.secondary_color,
+        },
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
@@ -231,6 +307,9 @@ def update_store(
         "logo_url": store.logo_url,
         "business_type": store.business_type,
         "business_type_label": get_business_type_label(store.business_type),
+        "categories": store.categories or [],
+        "primary_color": store.primary_color,
+        "secondary_color": store.secondary_color,
     }
 
 

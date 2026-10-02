@@ -172,6 +172,9 @@ def public_store_catalog(store_id: int, db: Session = Depends(get_db)):
             "description": store.description,
             "logo_url": store.logo_url,
             "business_type": store.business_type,
+            "categories": store.categories or [],
+            "primary_color": store.primary_color,
+            "secondary_color": store.secondary_color,
         },
         "products": [
             {
@@ -184,6 +187,7 @@ def public_store_catalog(store_id: int, db: Session = Depends(get_db)):
                 "size": product.size,
                 "color": product.color,
                 "attributes": product.attributes or {},
+                "category_ids": product.category_ids or [],
                 "is_active": product.is_active,
             }
             for product in products

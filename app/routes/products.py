@@ -57,6 +57,7 @@ class ProductCreateRequest(BaseModel):
     size: str | None = Field(None, max_length=100)
     color: str | None = Field(None, max_length=100)
     attributes: dict[str, Any] | None = None
+    category_ids: list[str] = Field(default_factory=list, max_length=30)
 
     @field_validator("name")
     @classmethod
@@ -81,6 +82,7 @@ def _product_response(product: Product, message: str | None = None):
         "size": product.size,
         "color": product.color,
         "attributes": product.attributes or {},
+        "category_ids": product.category_ids or [],
         "is_active": product.is_active,
         "created_at": product.created_at,
         "updated_at": product.updated_at,
@@ -88,6 +90,14 @@ def _product_response(product: Product, message: str | None = None):
     if message is not None:
         response["message"] = message
     return response
+
+
+def _validated_category_ids(store: Store, category_ids: list[str]) -> list[str]:
+    valid_ids = {item.get("id") for item in store.categories or []}
+    unique_ids = list(dict.fromkeys(category_ids))
+    if any(category_id not in valid_ids for category_id in unique_ids):
+        raise HTTPException(status_code=422, detail="Product categories must belong to its store")
+    return unique_ids
 
 
 @router.post("/")
@@ -112,6 +122,8 @@ def create_product(
             detail="Store not found",
         )
 
+    category_ids = _validated_category_ids(store, data.category_ids)
+
     product = Product(
         name=data.name,
         description=data.description,
@@ -120,6 +132,7 @@ def create_product(
         size=(data.attributes or {}).get("size", data.size),
         color=(data.attributes or {}).get("color", data.color),
         attributes=data.attributes or {},
+        category_ids=category_ids,
         store_id=store.id,
     )
 
@@ -352,6 +365,7 @@ class ProductUpdateRequest(BaseModel):
     size: str | None = Field(None, max_length=100)
     color: str | None = Field(None, max_length=100)
     attributes: dict[str, Any] | None = None
+    category_ids: list[str] | None = Field(None, max_length=30)
     is_active: bool | None = None
 
     @field_validator("name")
@@ -405,6 +419,12 @@ def update_product(
     }
 
     update_data = data.model_dump(exclude_unset=True)
+
+    if "category_ids" in update_data:
+        if update_data["category_ids"] is None:
+            update_data.pop("category_ids")
+        else:
+            update_data["category_ids"] = _validated_category_ids(product.store, update_data["category_ids"])
 
     if "attributes" in update_data and update_data["attributes"] is not None:
         update_data["size"] = update_data["attributes"].get(

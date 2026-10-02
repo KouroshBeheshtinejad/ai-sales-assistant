@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { LOCALES, useI18n, getBrowserTimezone } from '../lib/i18n'
 import { copyText, downloadBlob, safeStorage, toLatinDigits, uuid } from '../lib/util'
+import { storefrontStyle } from '../lib/storeTheme'
 import { Button, Empty, Field, Icon, Modal, StatusBadge, useToast } from './ui'
 
 const CUSTOMER_KEY = 'nava_customer'
@@ -173,7 +174,7 @@ export default function CartDrawer({ shop, onClose }) {
     : { cart: t('cart.title'), checkout: t('checkout.title'), done: t('order.placed') }[view]
 
   return (
-    <Modal title={title} onClose={onClose} variant="drawer">
+    <Modal title={title} onClose={onClose} variant="drawer" className="storefront-modal" style={storefrontStyle(shop.catalog?.store)}>
       {view === 'cart' && <CartView shop={shop} onCheckout={() => setView('checkout')} />}
       {view === 'checkout' && <CheckoutView shop={shop} onBack={() => setView('cart')} onDone={(created) => { setOrder(created); setView('done') }} />}
       {view === 'done' && order && <DoneView shop={shop} order={order} onClose={onClose} onPaid={setOrder} />}

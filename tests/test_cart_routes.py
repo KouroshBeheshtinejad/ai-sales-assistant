@@ -250,6 +250,54 @@ def test_reject_invalid_quantity(client):
     assert response.status_code == 422
 
 
+def test_storefront_categories_and_theme_are_saved_and_public(client):
+    user = create_user("storefront-theme@example.com")
+    store = create_store(user.id)
+    headers = auth_headers(user.id)
+    categories = [
+        {"id": "bakery", "name": "Bakery"},
+        {"id": "drinks", "name": "Drinks"},
+    ]
+
+    updated_store = client.put(
+        f"/stores/{store.id}",
+        headers=headers,
+        json={"categories": categories, "primary_color": "#C04040", "secondary_color": "#FFF8F0"},
+    )
+    assert updated_store.status_code == 200
+    assert updated_store.json()["categories"] == categories
+    assert updated_store.json()["primary_color"] == "#c04040"
+    assert updated_store.json()["secondary_color"] == "#fff8f0"
+
+    created_product = client.post(
+        "/products/",
+        headers=headers,
+        json={"store_id": store.id, "name": "Sourdough", "price": 4, "category_ids": ["bakery", "drinks"]},
+    )
+    assert created_product.status_code == 200
+    assert created_product.json()["category_ids"] == ["bakery", "drinks"]
+
+    invalid_product = client.post(
+        "/products/",
+        headers=headers,
+        json={"store_id": store.id, "name": "Unknown category", "price": 4, "category_ids": ["missing"]},
+    )
+    assert invalid_product.status_code == 422
+
+    catalog = client.get(f"/public/stores/{store.id}/catalog").json()
+    assert catalog["store"]["categories"] == categories
+    assert catalog["store"]["primary_color"] == "#c04040"
+    assert catalog["products"][0]["category_ids"] == ["bakery", "drinks"]
+
+    removed_category = client.put(
+        f"/stores/{store.id}", headers=headers, json={"categories": [categories[1]]}
+    )
+    assert removed_category.status_code == 200
+    product = client.get(f"/products/{created_product.json()['id']}", headers=headers)
+    assert product.status_code == 200
+    assert product.json()["category_ids"] == ["drinks"]
+
+
 def test_require_authentication(client):
     response = client.get("/cart/stores/1")
     assert response.status_code in (401, 403)

@@ -11,12 +11,13 @@ export default function StoreHome() {
   const types = useBusinessTypes()
   const [query, setQuery] = useState('')
   const [inStockOnly, setInStockOnly] = useState(false)
+  const [categoryId, setCategoryId] = useState('')
   const { store, products } = shop.catalog
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    return products.filter((p) => (!inStockOnly || p.stock > 0) && (!needle || `${p.name} ${p.description || ''}`.toLowerCase().includes(needle)))
-  }, [products, query, inStockOnly])
+    return products.filter((p) => (!inStockOnly || p.stock > 0) && (!categoryId || (p.category_ids || []).includes(categoryId)) && (!needle || `${p.name} ${p.description || ''}`.toLowerCase().includes(needle)))
+  }, [products, query, inStockOnly, categoryId])
 
   const typeLabel = bizLabel(store.business_type, types.find((x) => x.slug === store.business_type)?.label)
 
@@ -38,6 +39,11 @@ export default function StoreHome() {
         <Check label={t('shop.inStockOnly')} checked={inStockOnly} onChange={(e) => setInStockOnly(e.target.checked)} />
         <span className="muted" aria-live="polite">{t('shop.count', { n: visible.length })}</span>
       </div>
+
+      {!!store.categories?.length && <div className="store-category-tabs" role="group" aria-label={t('shop.categories')}>
+        <button type="button" className={categoryId === '' ? 'on' : ''} aria-pressed={categoryId === ''} onClick={() => setCategoryId('')}>{t('shop.categoryAll')}</button>
+        {store.categories.map((category) => <button type="button" key={category.id} className={categoryId === category.id ? 'on' : ''} aria-pressed={categoryId === category.id} onClick={() => setCategoryId(category.id)}>{category.name}</button>)}
+      </div>}
 
       {visible.length ? (
         <div className="product-grid">

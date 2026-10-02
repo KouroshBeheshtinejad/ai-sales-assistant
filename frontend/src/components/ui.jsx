@@ -104,7 +104,7 @@ export function ConfirmButton({ onConfirm, children, busy, variant = 'ghost', si
   )
 }
 
-export function Modal({ title, onClose, children, variant = 'dialog' }) {
+export function Modal({ title, onClose, children, variant = 'dialog', className, style }) {
   const { t } = useI18n()
   const panel = useRef(null)
   const closeRef = useRef(onClose)
@@ -135,7 +135,7 @@ export function Modal({ title, onClose, children, variant = 'dialog' }) {
   }, [])
 
   return createPortal(
-    <div className={cx('overlay', variant)} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+    <div className={cx('overlay', variant, className)} style={style} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <div className="panel" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panel}>
         <div className="panel-head">
           <h2 id={titleId}>{title}</h2>
