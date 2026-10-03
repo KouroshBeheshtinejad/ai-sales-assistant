@@ -225,7 +225,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .chat-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--teal-ink); color: #fff; }
 .chat-head > div { display: grid; line-height: 1.4; flex: 1; min-width: 0; }
 .chat-head span:not(.chat-avatar) { font-size: .85rem; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chat-avatar { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--saffron); color: var(--ink); font-weight: 800; }
+.chat-avatar { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--saffron); color: var(--ink); font-weight: 800; object-fit: cover; }
 .chat-head .icon-btn { color: #fff; }
 .chat-head .icon-btn:hover { background: rgba(255, 255, 255, .15); color: #fff; }
 .chat-close, .chat-fab { display: none; }

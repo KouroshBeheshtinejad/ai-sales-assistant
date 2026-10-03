@@ -56,7 +56,7 @@ export default function StoreShell() {
 
       <div className="wrap shop-grid">
         <main id="main">{shop.catalog ? <Outlet context={{ shop, ask }} /> : <Loading />}</main>
-        <ChatDock key={id} shop={shop} storeName={store?.name} open={chatOpen} onClose={() => setChatOpen(false)} draft={draft} onDraftUsed={clearDraft} />
+        <ChatDock key={id} shop={shop} storeName={store?.name} storeLogoUrl={store?.logo_url} open={chatOpen} onClose={() => setChatOpen(false)} draft={draft} onDraftUsed={clearDraft} />
       </div>
 
       <StoreFooter />

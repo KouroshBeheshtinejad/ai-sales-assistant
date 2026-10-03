@@ -13,7 +13,7 @@ const SUGGESTIONS = ['chat.s1', 'chat.s2', 'chat.s3', 'chat.s4']
 
 // The server keeps the conversation but has no endpoint to read it back for guests,
 // so the transcript is mirrored in localStorage to survive a page reload.
-export default function ChatDock({ shop, storeName, open, onClose, draft, onDraftUsed }) {
+export default function ChatDock({ shop, storeName, storeLogoUrl, open, onClose, draft, onDraftUsed }) {
   const { t, err } = useI18n()
   const { storeId } = shop
   const [messages, setMessages] = useState(() => loadHistory(storeId))
@@ -61,7 +61,9 @@ export default function ChatDock({ shop, storeName, open, onClose, draft, onDraf
   return (
     <aside className={cx('chat', open && 'is-open')} aria-label={t('chat.title')}>
       <header className="chat-head">
-        <span className="chat-avatar" aria-hidden="true">{(storeName || '؟').charAt(0)}</span>
+        {storeLogoUrl
+          ? <img className="chat-avatar" src={storeLogoUrl} alt="" />
+          : <span className="chat-avatar" aria-hidden="true">{(storeName || '؟').charAt(0)}</span>}
         <div>
           <strong>{t('chat.title')}</strong>
           <span>{storeName}</span>
