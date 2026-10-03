@@ -389,6 +389,7 @@ s.noStoreTitle = Vous n'avez pas encore de boutique
 s.noStoreBody = Créez votre première boutique pour commencer à vendre avec l'assistant.
 s.storeName = Nom de la boutique
 s.businessType = Type de commerce
+s.noBusinessTypesMatch = Aucun type de commerce trouvé.
 s.storeDesc = Description
 s.logo = Logo
 s.editStore = Modifier la boutique

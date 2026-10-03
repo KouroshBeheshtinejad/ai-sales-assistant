@@ -391,6 +391,7 @@ s.noStoreTitle = You have no store yet
 s.noStoreBody = Create your first store to start selling with the assistant.
 s.storeName = Store name
 s.businessType = Business type
+s.noBusinessTypesMatch = No business types found.
 s.storeDesc = Description
 s.categoryTabs = Storefront categories
 s.categoryName = Category name

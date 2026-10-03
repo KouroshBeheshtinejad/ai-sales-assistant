@@ -389,6 +389,7 @@ s.noStoreTitle = Aún no tienes ninguna tienda
 s.noStoreBody = Crea tu primera tienda para empezar a vender con el asistente.
 s.storeName = Nombre de la tienda
 s.businessType = Tipo de negocio
+s.noBusinessTypesMatch = No se encontraron tipos de negocio.
 s.storeDesc = Descripción
 s.logo = Logotipo
 s.editStore = Editar tienda

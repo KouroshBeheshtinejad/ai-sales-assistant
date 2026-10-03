@@ -389,6 +389,7 @@ s.noStoreTitle = Sie haben noch keinen Shop
 s.noStoreBody = Erstellen Sie Ihren ersten Shop, um mit dem Assistenten zu verkaufen.
 s.storeName = Shop-Name
 s.businessType = Branche
+s.noBusinessTypesMatch = Keine Branchen gefunden.
 s.storeDesc = Beschreibung
 s.logo = Logo
 s.editStore = Shop bearbeiten

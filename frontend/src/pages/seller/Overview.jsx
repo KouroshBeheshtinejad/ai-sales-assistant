@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Async, Badge, Button, ConfirmButton, Empty, Field, Icon, Modal, useToast } from '../../components/ui'
 import { api } from '../../lib/api'
@@ -9,8 +9,51 @@ import { copyText, parseDate } from '../../lib/util'
 import { PageHead } from './SellerLayout'
 import { useSeller } from './SellerContext'
 
+export function BusinessTypePicker({ types, value, onChange, label }) {
+  const { t, bizLabel } = useI18n()
+  const pickerId = useId()
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const rootRef = useRef(null)
+  const searchRef = useRef(null)
+  const selectedType = types.find((type) => type.slug === value)
+  const filteredTypes = types.filter((type) => bizLabel(type.slug, type.label).toLowerCase().includes(query.trim().toLowerCase()))
+
+  useEffect(() => {
+    if (!open) return undefined
+    searchRef.current?.focus()
+    const closeOnOutsideClick = (event) => {
+      if (!rootRef.current?.contains(event.target)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick)
+  }, [open])
+
+  const close = () => {
+    setOpen(false)
+    setQuery('')
+  }
+
+  return (
+    <div className="field business-type-field" ref={rootRef}>
+      <label htmlFor={pickerId}>{label}</label>
+      <button id={pickerId} type="button" className="business-type-trigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+        <span>{selectedType ? bizLabel(selectedType.slug, selectedType.label) : ''}</span>
+        <Icon name="chevron" size={18} />
+      </button>
+      {open && <div className="business-type-menu">
+        <input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); close() } }} placeholder={t('dash.search')} aria-label={`${label} ${t('dash.search')}`} />
+        <div className="business-type-options" role="listbox" aria-label={label}>
+          {filteredTypes.map((type) => <button type="button" role="option" aria-selected={type.slug === value} className={type.slug === value ? 'selected' : ''} key={type.slug} onClick={() => { onChange(type.slug); close() }}>{bizLabel(type.slug, type.label)}</button>)}
+          {!filteredTypes.length && <p className="muted business-type-empty">{t('s.noBusinessTypesMatch')}</p>}
+        </div>
+      </div>}
+    </div>
+  )
+}
+
 function StoreForm({ store, onSaved, onCancel }) {
-  const { t, err, bizLabel } = useI18n()
+  const { t, err } = useI18n()
   const { types } = useSeller()
   const [form, setForm] = useState({
     name: store?.name || '',
@@ -23,10 +66,7 @@ function StoreForm({ store, onSaved, onCancel }) {
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [businessTypeQuery, setBusinessTypeQuery] = useState('')
   const set = (name) => (e) => setForm({ ...form, [name]: e.target.value })
-  const filteredTypes = types.filter((type) => bizLabel(type.slug, type.label).toLowerCase().includes(businessTypeQuery.trim().toLowerCase()))
-  const selectedType = types.find((type) => type.slug === form.business_type)
 
   const submit = async (event) => {
     event.preventDefault()
@@ -54,15 +94,7 @@ function StoreForm({ store, onSaved, onCancel }) {
   return (
     <form className="stack" onSubmit={submit}>
       <Field label={t('s.storeName')}><input required maxLength={255} value={form.name} onChange={set('name')} data-autofocus /></Field>
-      <Field label={t('dash.search')}>
-        <input type="search" value={businessTypeQuery} onChange={(event) => setBusinessTypeQuery(event.target.value)} aria-label={t('s.businessType')} />
-      </Field>
-      <Field label={t('s.businessType')}>
-        <select value={form.business_type} onChange={set('business_type')}>
-          {selectedType && !filteredTypes.some((type) => type.slug === selectedType.slug) && <option value={selectedType.slug}>{bizLabel(selectedType.slug, selectedType.label)}</option>}
-          {filteredTypes.map((type) => <option key={type.slug} value={type.slug}>{bizLabel(type.slug, type.label)}</option>)}
-        </select>
-      </Field>
+      <BusinessTypePicker types={types} value={form.business_type} onChange={(business_type) => setForm((current) => ({ ...current, business_type }))} label={t('s.businessType')} />
       <Field label={t('s.storeDesc')}><textarea rows={3} maxLength={10000} value={form.description} onChange={set('description')} /></Field>
       <Field label={t('s.logo')}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => setForm({ ...form, logo: e.target.files?.[0] || null })} /></Field>
       <fieldset className="store-category-editor">

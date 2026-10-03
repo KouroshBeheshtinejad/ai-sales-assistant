@@ -387,6 +387,7 @@ s.noStoreTitle = هنوز فروشگاهی ندارید
 s.noStoreBody = اولین فروشگاه خود را بسازید تا با دستیار شروع به فروش کنید.
 s.storeName = نام فروشگاه
 s.businessType = نوع کسب‌وکار
+s.noBusinessTypesMatch = نوع کسب‌وکاری پیدا نشد.
 s.storeDesc = توضیحات
 s.categoryTabs = دسته‌بندی‌های ویترین
 s.categoryName = نام دسته‌بندی
