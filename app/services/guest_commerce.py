@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Cart, Product
 from app.services.cart_service import CartService
+from app.services.text_utils import format_price
 
 _PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 _ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
@@ -23,6 +24,15 @@ _QUANTITY_WORDS = {
     "چهار": 4,
     "پنج تا": 5,
     "پنج": 5,
+    "شش تا": 6,
+    "هفت تا": 7,
+    "هشت تا": 8,
+    "ده تا": 10,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
 }
 
 
@@ -35,8 +45,19 @@ def extract_quantity(text: str) -> int | None:
     for phrase, quantity in sorted(_QUANTITY_WORDS.items(), key=lambda item: -len(item[0])):
         if re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", normalized):
             return quantity
-    match = re.search(r"(?<!\w)(\d{1,3})\s*(?:عدد|تا|دانه)(?!\w)", normalized)
+    match = re.search(r"(?<!\w)(\d{1,3})\s*(?:عدد|تا|دانه|تایی)(?!\w)", normalized)
     if match:
+        return int(match.group(1))
+    english = re.search(r"(?<!\w)(?:want|take|add|buy|order|need)\s+(\d{1,3})(?!\w)", normalized)
+    if english:
+        return int(english.group(1))
+    return None
+
+
+def extract_bare_quantity(text: str) -> int | None:
+    """A lone number ("3") — only valid as the answer to «چه تعدادی؟»."""
+    match = re.fullmatch(r"\s*(\d{1,3})\s*[.!،]?\s*", normalize_digits(text))
+    if match and 1 <= int(match.group(1)) <= 100:
         return int(match.group(1))
     return None
 
@@ -112,8 +133,10 @@ def cart_summary(cart: Cart) -> str:
         price = Decimal(str(item.product.price))
         subtotal = price * item.quantity
         total += subtotal
-        lines.append(f"- {item.product.name}: {item.quantity} عدد × {price} = {subtotal}")
-    lines.append(f"مبلغ کل: {total}")
+        lines.append(
+            f"- {item.product.name}: {item.quantity} عدد × {format_price(price)} = {format_price(subtotal)} تومان"
+        )
+    lines.append(f"مبلغ کل: {format_price(total)} تومان")
     return "\n".join(lines)
 
 

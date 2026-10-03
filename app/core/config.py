@@ -118,8 +118,16 @@ def validate_production_configuration() -> None:
     if otp_provider == "sms" and not os.getenv("SMS_WEBHOOK_URL", "").strip():
         raise RuntimeError("OTP_PROVIDER=sms requires SMS_WEBHOOK_URL")
     chat_provider = os.getenv("AI_CHAT_PROVIDER", "disabled").strip().casefold()
-    if chat_provider == "openai" and not os.getenv("AI_CHAT_API_KEY", "").strip():
-        raise RuntimeError("AI_CHAT_API_KEY is required when AI_CHAT_PROVIDER=openai")
+    keyless = {"", "disabled", "off", "none", "offline", "mock", "ollama", "lmstudio", "custom", "openai_compatible"}
+    hosted = {"openai", "openrouter", "groq", "together", "deepseek", "gemini", "mistral", "anthropic"}
+    if chat_provider not in keyless | hosted:
+        raise RuntimeError("Unsupported AI_CHAT_PROVIDER")
+    if chat_provider in hosted and not os.getenv("AI_CHAT_API_KEY", "").strip():
+        raise RuntimeError(f"AI_CHAT_API_KEY is required when AI_CHAT_PROVIDER={chat_provider}")
+    if chat_provider in {"openrouter", "together", "anthropic", "ollama", "lmstudio", "custom", "openai_compatible"} and not os.getenv(
+        "AI_CHAT_MODEL", ""
+    ).strip():
+        raise RuntimeError(f"AI_CHAT_MODEL is required when AI_CHAT_PROVIDER={chat_provider}")
     if not all(
         os.getenv(name, "").strip()
         for name in ("CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET")

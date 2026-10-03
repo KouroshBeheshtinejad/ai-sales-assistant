@@ -65,6 +65,46 @@ def _hash_embedding(text: str, dimension: int) -> list[float]:
     return [value / magnitude for value in values]
 
 
+def _hashing_embedding(text: str, dimension: int) -> list[float]:
+    """Offline, deterministic *semantic-ish* vector (no model download needed).
+
+    Feature hashing of stemmed words, domain synonym groups/concepts, word
+    bigrams and character trigrams.  Texts that share vocabulary, inflections,
+    typos or domain synonyms get a high cosine similarity, so hybrid retrieval
+    works meaningfully even without a neural embedding model.
+    """
+    from app.services.text_utils import content_tokens, trigrams
+
+    vector = [0.0] * dimension
+
+    def add(feature: str, weight: float) -> None:
+        digest = hashlib.blake2b(feature.encode("utf-8"), digest_size=8).digest()
+        number = int.from_bytes(digest, "big")
+        sign = 1.0 if (number >> 63) & 1 else -1.0
+        vector[number % dimension] += sign * weight
+
+    tokens = content_tokens(text)
+    for token in tokens:
+        add(f"w:{token}", 1.0)
+        for gram in trigrams(token):
+            add(f"g:{gram}", 0.25)
+    for left, right in zip(tokens, tokens[1:]):
+        add(f"b:{left}_{right}", 0.5)
+    try:  # domain synonyms (گوشی ↔ phone, ارسال ↔ delivery ...)
+        from app.services.chat_retrieval import concepts_in, synonym_groups_in
+
+        for name in synonym_groups_in(tokens):
+            add(f"s:{name}", 1.5)
+        for name in concepts_in(text, tokens):
+            add(f"c:{name}", 1.5)
+    except ImportError:  # pragma: no cover - circular import safety
+        pass
+    magnitude = math.sqrt(sum(value * value for value in vector))
+    if not magnitude:
+        return _hash_embedding(text, dimension)
+    return [value / magnitude for value in vector]
+
+
 class UnavailableEmbeddingProvider:
     dimension = DEFAULT_EMBEDDING_DIMENSION
 
@@ -85,14 +125,28 @@ class MockEmbeddingProvider:
     def _embed(self, text: str) -> list[float]:
         vector = self.vectors.get(_normalize_key(text))
         if vector is None:
-            return _hash_embedding(text, self.dimension)
+            return _hashing_embedding(text, self.dimension)
         return _validate_vector(vector, self.dimension)
+
 
     def embed_query(self, text: str) -> list[float]:
         return self._embed(text)
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         return [self._embed(text) for text in texts]
+
+
+@dataclass(frozen=True)
+class HashingEmbeddingProvider:
+    """Production-safe offline embeddings (no network, no model download)."""
+
+    dimension: int = DEFAULT_EMBEDDING_DIMENSION
+
+    def embed_query(self, text: str) -> list[float]:
+        return _hashing_embedding(text, self.dimension)
+
+    def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        return [_hashing_embedding(text, self.dimension) for text in texts]
 
 
 @lru_cache(maxsize=2)
@@ -183,6 +237,8 @@ def rag_is_enabled() -> bool:
 
 def get_embedding_provider() -> EmbeddingProvider:
     provider_name = os.getenv("AI_RAG_EMBEDDING_PROVIDER", "disabled").casefold()
+    if provider_name in {"hashing", "offline"}:
+        return HashingEmbeddingProvider()
     if provider_name == "mock":
         return MockEmbeddingProvider()
     if provider_name == "local":

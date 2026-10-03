@@ -204,13 +204,13 @@ Chat is **disabled by default** and never blocks the app from starting.
 
 | Variable | Purpose |
 |---|---|
-| `AI_CHAT_PROVIDER` | `disabled` (default) · `mock` (deterministic, for tests/demos) · `openai` (any OpenAI-compatible endpoint) |
+| `AI_CHAT_PROVIDER` | `disabled`/`offline`/`mock` (built-in grounded assistant, no model needed) · `openai`, `openrouter`, `groq`, `together`, `deepseek`, `gemini`, `mistral` (OpenAI-compatible) · `ollama`, `lmstudio`, `custom` (local/self-hosted) · `anthropic` |
 | `AI_CHAT_API_KEY` / `_MODEL` / `_ENDPOINT` / `_TIMEOUT_SECONDS` | Provider credentials and behavior |
 | `AI_CHAT_RATE_LIMIT_REQUESTS` / `_WINDOW_SECONDS` / `_MAX_KEYS` | Per-client chat rate limiting (process-local; add a shared gateway/Redis policy for multi-worker deployments) |
 | `AI_RAG_ENABLED` | Enables the optional hybrid semantic retrieval index (pgvector) |
-| `AI_RAG_EMBEDDING_PROVIDER` | `mock` · `local` (`sentence-transformers`, needs the optional dependency) · `openai` |
+| `AI_RAG_EMBEDDING_PROVIDER` | `hashing` (offline, no download) · `mock` · `local` (`sentence-transformers`) · `openai` |
 
-If the chat provider is disabled or unreachable, the endpoint returns a safe generic message and never leaks provider details — the rest of the app is unaffected.
+If the chat provider is disabled, misconfigured, slow or returns something ungrounded, the assistant still answers: the built-in grounded assistant writes the reply from the store's real data (Persian or English). Provider details are never leaked.
 
 Backfill semantic documents after enabling RAG:
 

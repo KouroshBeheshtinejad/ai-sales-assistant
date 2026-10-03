@@ -111,7 +111,8 @@ def test_unauthenticated_guest_chat_to_order_and_seller_visibility(client):
         json={"question": "قوانین ارسال چیست؟"},
     )
     assert unrelated.status_code == 200
-    assert "No matching information" in unrelated.json()["answer"]
+    assert "پیدا نشد" in unrelated.json()["answer"]
+    assert "«بله»" in unrelated.json()["answer"]  # checkout reminder is appended
 
     confirmed = client.post(
         f"/public/stores/{store_id}/chat",

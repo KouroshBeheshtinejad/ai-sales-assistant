@@ -8,10 +8,10 @@ services:
       APP_ALLOWED_HOSTS: ${APP_ALLOWED_HOSTS:-localhost,127.0.0.1}
       AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-disabled}
       AI_CHAT_API_KEY: ${AI_CHAT_API_KEY:-}
-      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-gpt-4o-mini}
-      AI_CHAT_ENDPOINT: ${AI_CHAT_ENDPOINT:-https://api.openai.com/v1/chat/completions}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-}
+      AI_CHAT_ENDPOINT: ${AI_CHAT_ENDPOINT:-}
       AI_RAG_ENABLED: ${AI_RAG_ENABLED:-false}
-      AI_RAG_EMBEDDING_PROVIDER: ${AI_RAG_EMBEDDING_PROVIDER:-mock}
+      AI_RAG_EMBEDDING_PROVIDER: ${AI_RAG_EMBEDDING_PROVIDER:-hashing}
       DATABASE_URL: postgresql://${POSTGRES_USER:-nava}:${POSTGRES_PASSWORD:-nava-development-password}@db:5432/${POSTGRES_DB:-nava}
       DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
       DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-10}

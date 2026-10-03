@@ -295,55 +295,76 @@ def test_public_store_page_and_input_validation(client):
     ).status_code == 404
 
 
-def test_provider_failure_is_safe_and_does_not_expose_internal_error(client):
-    store = create_store()
+def _store_with_delivery_faq(name):
+    store = create_store(name)
+    add_faq(store.id, "Do you deliver?", "Yes, delivery takes two days.")
+    return store
+
+
+def test_provider_failure_falls_back_to_grounded_answer_without_leaking_errors(client):
+    store = _store_with_delivery_faq("Failing Provider Store")
     app.dependency_overrides[
         __import__("app.routes.chat", fromlist=["get_llm_provider"]).get_llm_provider
     ] = lambda: FailingProvider()
 
     response = client.post(
-        f"/public/stores/{store.id}/chat", json={"question": "Hello"}
+        f"/public/stores/{store.id}/chat", json={"question": "Do you deliver?"}
     )
 
-    assert response.status_code == 503
-    assert response.json()["success"] is False
+    assert response.status_code == 200
+    assert response.json()["success"] is True
     assert "provider failed" not in response.text
-    assert "temporarily unavailable" in response.json()["answer"]
+    assert "delivery takes two days" in response.json()["answer"]
 
 
-def test_unexpected_provider_failure_is_safe_and_logged(client, caplog):
-    store = create_store("Unexpected Provider Store")
+def test_unexpected_provider_failure_falls_back_and_is_logged(client, caplog):
+    store = _store_with_delivery_faq("Unexpected Provider Store")
     app.dependency_overrides[
         __import__("app.routes.chat", fromlist=["get_llm_provider"]).get_llm_provider
     ] = lambda: UnexpectedFailingProvider()
-    caplog.set_level(logging.ERROR, logger="app.routes.chat")
+    caplog.set_level(logging.ERROR, logger="app.services.sales_agent")
 
     response = client.post(
-        f"/public/stores/{store.id}/chat", json={"question": "Hello"}
+        f"/public/stores/{store.id}/chat", json={"question": "Do you deliver?"}
     )
 
-    assert response.status_code == 503
-    assert response.json()["success"] is False
+    assert response.status_code == 200
+    assert response.json()["success"] is True
     assert "unexpected provider failure" not in response.text
-    assert "temporarily unavailable" in response.json()["answer"]
+    assert "delivery takes two days" in response.json()["answer"]
     assert "Unexpected chat response-generation failure" in caplog.text
 
 
-def test_empty_provider_response_is_safe_and_logged(client, caplog):
-    store = create_store("Empty Provider Store")
+def test_empty_provider_response_falls_back_and_is_logged(client, caplog):
+    store = _store_with_delivery_faq("Empty Provider Store")
     app.dependency_overrides[
         __import__("app.routes.chat", fromlist=["get_llm_provider"]).get_llm_provider
     ] = lambda: RecordingProvider(answer="   ")
-    caplog.set_level(logging.WARNING, logger="app.routes.chat")
+    caplog.set_level(logging.WARNING, logger="app.services.sales_agent")
 
     response = client.post(
-        f"/public/stores/{store.id}/chat", json={"question": "Hello"}
+        f"/public/stores/{store.id}/chat", json={"question": "Do you deliver?"}
     )
 
-    assert response.status_code == 503
-    assert response.json()["success"] is False
-    assert "could not produce an answer" in response.json()["answer"]
+    assert response.status_code == 200
+    assert "delivery takes two days" in response.json()["answer"]
     assert "empty response" in caplog.text
+
+
+def test_ungrounded_model_numbers_are_replaced_by_database_values(client):
+    store = create_store("Grounding Store")
+    add_product(store.id, "Phone X", "A fast phone", 799, 4)
+    app.dependency_overrides[
+        __import__("app.routes.chat", fromlist=["get_llm_provider"]).get_llm_provider
+    ] = lambda: RecordingProvider(answer="Phone X costs 123456 and is in stock.")
+
+    response = client.post(
+        f"/public/stores/{store.id}/chat", json={"question": "What is the price of Phone X?"}
+    )
+
+    assert response.status_code == 200
+    assert "123456" not in response.json()["answer"]
+    assert "799" in response.json()["answer"]
 
 
 def test_retrieval_failure_is_safe_and_logged(client, monkeypatch, caplog):
@@ -370,18 +391,18 @@ def test_retrieval_failure_is_safe_and_logged(client, monkeypatch, caplog):
     assert "Sales agent retrieval failed" in caplog.text
 
 
-def test_missing_provider_configuration_returns_safe_response(client, monkeypatch):
-    store = create_store()
+def test_missing_provider_configuration_uses_offline_assistant(client, monkeypatch):
+    store = _store_with_delivery_faq("No Provider Store")
     monkeypatch.delenv("AI_CHAT_PROVIDER", raising=False)
     app.dependency_overrides[get_llm_provider] = get_llm_provider
 
     response = client.post(
-        f"/public/stores/{store.id}/chat", json={"question": "Hello"}
+        f"/public/stores/{store.id}/chat", json={"question": "Do you deliver?"}
     )
 
-    assert response.status_code == 503
-    assert response.json()["success"] is False
-    assert "temporarily unavailable" in response.json()["answer"]
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert "delivery takes two days" in response.json()["answer"]
 
 
 def test_rate_limiter_rejects_requests_after_configured_limit():
@@ -410,7 +431,7 @@ def test_mock_provider_returns_faq_answer_not_question():
         "FAQs:\n- Q: Is it always available?\n  A: It is available on weekends.",
     )
 
-    assert answer == "طبق اطلاعات ثبت‌شدهٔ فروشگاه، It is available on weekends."
+    assert answer == "According to the store's information, It is available on weekends."
 
 
 def test_mock_provider_uses_product_data_for_price_and_stock_questions():
@@ -424,8 +445,8 @@ def test_mock_provider_uses_product_data_for_price_and_stock_questions():
         "Products:\n- چلوگوشت زرندی: Traditional dish; price=285000.0; stock=8",
     )
 
-    assert "285000.0" in answer
-    assert "8 عدد" in answer
+    assert "285,000" in answer
+    assert "8 in stock" in answer
 
 
 def test_multiword_unrelated_questions_do_not_match_one_common_token(client):
@@ -458,7 +479,7 @@ def test_prompt_injection_gets_store_scope_response(client):
     )
 
     assert response.status_code == 200
-    assert response.json()["answer"] == "فقط می‌توانم دربارهٔ محصولات و قوانین همین فروشگاه پاسخ بدهم."
+    assert response.json()["answer"] == "I can only help with this store's products and policies."
     assert provider.user_prompt == ""
 
 
@@ -502,7 +523,7 @@ def test_near_product_name_retrieves_product_and_real_price_stock(client):
 
     assert response.status_code == 200
     assert "گوشی گلکسی A55" in response.json()["answer"]
-    assert "18990000.00" in response.json()["answer"]
+    assert "18,990,000" in response.json()["answer"]
     assert "7 عدد" in response.json()["answer"]
 
 
@@ -819,4 +840,4 @@ def test_follow_up_question_uses_product_from_conversation_history(client):
     )
 
     assert second_response.status_code == 200
-    assert "3200000.00" in second_response.json()["answer"]
+    assert "3,200,000" in second_response.json()["answer"]

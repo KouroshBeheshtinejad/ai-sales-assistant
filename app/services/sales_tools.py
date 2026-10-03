@@ -6,9 +6,24 @@ from typing import Any
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.db.models import Product
-from app.db.models import Conversation, Order
+from app.db.models import Conversation, Order, Product, Store
 from app.services.cart_service import CartService
+
+
+def _product_dict(product: Product) -> dict[str, Any]:
+    available = product.stock - product.reserved_stock
+    return {
+        "id": product.id,
+        "name": product.name,
+        "description": product.description,
+        "price": str(product.price),
+        "stock": available,
+        "in_stock": available > 0,
+        "size": product.size,
+        "color": product.color,
+        "attributes": product.attributes or {},
+        "is_active": product.is_active,
+    }
 
 
 def search_products(
@@ -19,75 +34,87 @@ def search_products(
     """
     Search active products in one store.
 
-    This is a transactional catalog tool, not a replacement for the
-    general RAG retrieval layer.
+    Uses the same typo-tolerant, synonym-aware retrieval as the RAG layer; a
+    generic request ("products", "menu") returns the in-stock catalog.
     """
-    normalized_query = " ".join(query.strip().lower().split())
+    from app.services.chat_retrieval import retrieve_store_context  # local: avoids import cycle
 
-    products_query = (
-        db.query(Product)
-        .filter(
-            Product.store_id == store_id,
-            Product.is_active.is_(True),
-        )
-    )
+    cleaned = " ".join((query or "").strip().split())
+    products: list[Product] = []
+    if cleaned:
+        context = retrieve_store_context(db, store_id, cleaned)
+        if context is not None:
+            products = list(context.products)
+    if not products:
+        pattern = f"%{cleaned.lower()}%"
+        base = db.query(Product).filter(Product.store_id == store_id, Product.is_active.is_(True))
+        if cleaned and cleaned.lower() not in _GENERIC_QUERIES:
+            base = base.filter(or_(Product.name.ilike(pattern), Product.description.ilike(pattern)))
+        products = base.order_by(Product.id).limit(20).all()
+    return [_product_dict(product) for product in products[:20]]
 
-    # A generic product request should return the active catalog.
-    generic_queries = {
-        "",
-        "محصول",
-        "محصولات",
-        "کالا",
-        "کالاها",
-        "product",
-        "products",
-        "item",
-        "items",
-        "لیست محصولات",
-        "لیست کالا",
-        "محصولات موجود",
-        "کالاهای موجود",
-        "چه محصولاتی",
-        "چه کالاهایی",
-        "show products",
-        "list products",
-        "available products",
-        "محصولات موجود را نشان بده",
-        "کالاهای موجود را نشان بده",
+
+_GENERIC_QUERIES = {
+    "", "محصول", "محصولات", "کالا", "کالاها", "product", "products", "item", "items",
+    "لیست محصولات", "لیست کالا", "محصولات موجود", "کالاهای موجود", "چه محصولاتی",
+    "چه کالاهایی", "show products", "list products", "available products", "menu", "منو",
+}
+
+
+def search_knowledge(db: Session, store_id: int, query: str) -> dict[str, Any]:
+    """Look up the store's FAQs and knowledge-base passages (policies, hours, ...)."""
+    from app.services.chat_retrieval import retrieve_store_context
+
+    context = retrieve_store_context(db, store_id, (query or "").strip())
+    if context is None:
+        raise ValueError("Store not found")
+    passages = {match.record.id: match.passages for match in context.matches if match.passages}
+    return {
+        "faqs": [{"question": faq.question, "answer": faq.answer} for faq in context.faqs],
+        "knowledge": [
+            {
+                "title": entry.title,
+                "content": " … ".join(passages.get(entry.id, ())) or entry.content,
+            }
+            for entry in context.knowledge_entries
+        ],
+        "found": bool(context.faqs or context.knowledge_entries),
     }
 
-    if normalized_query not in generic_queries:
-        search_pattern = f"%{normalized_query}%"
-        products_query = products_query.filter(
-            or_(
-                Product.name.ilike(search_pattern),
-                Product.description.ilike(search_pattern),
-            )
-        )
 
-    products = products_query.order_by(Product.id).limit(20).all()
+def compare_products(db: Session, store_id: int, product_ids: list[int]) -> dict[str, Any]:
+    ids = list(dict.fromkeys(product_ids))
+    if len(ids) < 2:
+        raise ValueError("Provide at least two product ids to compare")
+    products = [get_product(db, store_id, pid) for pid in ids[:4]]
+    priced = sorted(products, key=lambda item: float(item["price"]))
+    return {
+        "products": products,
+        "cheapest_product_id": priced[0]["id"],
+        "most_expensive_product_id": priced[-1]["id"],
+    }
 
-    results: list[dict[str, Any]] = []
 
-    for product in products:
-        price = product.price
-        price_value = str(price) if isinstance(price, Decimal) else str(price)
+def get_store_info(db: Session, store_id: int) -> dict[str, Any]:
+    store = db.get(Store, store_id)
+    if store is None:
+        raise ValueError("Store not found")
+    return {
+        "name": store.name,
+        "description": store.description,
+        "business_type": store.business_type,
+        "categories": [item.get("name") for item in (store.categories or []) if isinstance(item, dict)],
+    }
 
-        results.append(
-            {
-                "id": product.id,
-                "name": product.name,
-                "description": product.description,
-                "price": price_value,
-                "stock": product.stock - product.reserved_stock,
-                "size": product.size,
-                "color": product.color,
-                "attributes": product.attributes or {},
-                "is_active": product.is_active,
-            }
-        )
 
-    return results
+def track_order(db: Session, store_id: int, tracking_number: str) -> dict[str, Any]:
+    """Look up an order by its 10-digit tracking number (the number is the secret)."""
+    from app.services.order_service import OrderService
+
+    order = OrderService.get_order_by_tracking_number(db, (tracking_number or "").strip())
+    if order is None or order.store_id != store_id or (not order.paid_at and not order.tracking_number):
+        raise ValueError("Order not found")
+    return {"tracking_number": order.tracking_number, "status": order.status, "total_amount": str(order.total_amount)}
 
 
 def get_product(db: Session, store_id: int, product_id: int) -> dict[str, Any]:
@@ -116,7 +143,31 @@ def get_product_stock(db: Session, store_id: int, product_id: int) -> dict[str, 
 
 
 def _identity(context: dict[str, Any]) -> tuple[int | None, str | None]:
-    return context.get("user_id"), context.get("guest_token")
+    user_id, guest_token = context.get("user_id"), context.get("guest_token")
+    if user_id is None and not guest_token:
+        raise ValueError("No customer session is available for this action")
+    return user_id, guest_token
+
+
+def _cart_payload(cart) -> dict[str, Any]:
+    items = []
+    total = Decimal("0")
+    for item in cart.items:
+        product = item.product
+        price = Decimal(str(product.price)) if product else None
+        subtotal = price * item.quantity if price is not None else None
+        if subtotal is not None:
+            total += subtotal
+        items.append(
+            {
+                "product_id": item.product_id,
+                "name": product.name if product else None,
+                "quantity": item.quantity,
+                "price": str(product.price) if product else None,
+                "subtotal": str(subtotal) if subtotal is not None else None,
+            }
+        )
+    return {"cart_id": cart.id, "items": items, "total": str(total)}
 
 
 def add_to_cart(db: Session, store_id: int, product_id: int, quantity: int, context: dict[str, Any]) -> dict[str, Any]:
@@ -124,7 +175,7 @@ def add_to_cart(db: Session, store_id: int, product_id: int, quantity: int, cont
         raise ValueError("Quantity must be between 1 and 100")
     user_id, guest_token = _identity(context)
     cart = CartService.add_item(db, user_id, store_id, product_id, quantity, guest_token)
-    return {"cart_id": cart.id, "items": [{"product_id": item.product_id, "quantity": item.quantity} for item in cart.items]}
+    return _cart_payload(cart)
 
 
 def update_cart_quantity(db: Session, store_id: int, product_id: int, quantity: int, context: dict[str, Any]) -> dict[str, Any]:
@@ -132,19 +183,18 @@ def update_cart_quantity(db: Session, store_id: int, product_id: int, quantity: 
         raise ValueError("Quantity must be between 1 and 100")
     user_id, guest_token = _identity(context)
     cart = CartService.update_item(db, user_id, store_id, product_id, quantity, guest_token)
-    return {"cart_id": cart.id, "items": [{"product_id": item.product_id, "quantity": item.quantity} for item in cart.items]}
+    return _cart_payload(cart)
 
 
 def remove_from_cart(db: Session, store_id: int, product_id: int, context: dict[str, Any]) -> dict[str, Any]:
     user_id, guest_token = _identity(context)
     cart = CartService.remove_item(db, user_id, store_id, product_id, guest_token)
-    return {"cart_id": cart.id, "items": [{"product_id": item.product_id, "quantity": item.quantity} for item in cart.items]}
+    return _cart_payload(cart)
 
 
 def get_cart(db: Session, store_id: int, context: dict[str, Any]) -> dict[str, Any]:
     user_id, guest_token = _identity(context)
-    cart = CartService.get_or_create_cart(db, user_id, store_id, guest_token)
-    return {"cart_id": cart.id, "items": [{"product_id": item.product_id, "name": item.product.name if item.product else None, "quantity": item.quantity, "price": str(item.product.price) if item.product else None} for item in cart.items]}
+    return _cart_payload(CartService.get_or_create_cart(db, user_id, store_id, guest_token))
 
 
 def clear_cart(db: Session, store_id: int, context: dict[str, Any]) -> dict[str, Any]:
@@ -156,7 +206,13 @@ def clear_cart(db: Session, store_id: int, context: dict[str, Any]) -> dict[str,
 def get_order(db: Session, order_id: int, context: dict[str, Any]) -> dict[str, Any]:
     user_id, guest_token = _identity(context)
     order = db.get(Order, order_id)
-    if order is None or (user_id is not None and order.user_id != user_id) or (user_id is None and order.guest_token != guest_token):
+    store_id = context.get("store_id")
+    if (
+        order is None
+        or (store_id is not None and order.store_id != store_id)
+        or (user_id is not None and order.user_id != user_id)
+        or (user_id is None and (guest_token is None or order.guest_token != guest_token))
+    ):
         raise ValueError("Order not found")
     return {"id": order.id, "status": order.status, "tracking_number": order.tracking_number, "total_amount": str(order.total_amount)}
 

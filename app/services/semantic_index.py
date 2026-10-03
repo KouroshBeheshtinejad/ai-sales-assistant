@@ -70,11 +70,13 @@ def get_rag_settings() -> RagSettings:
     if total_weight == 0:
         lexical_weight, semantic_weight = 0.70, 0.30
         total_weight = 1.0
+    offline_provider = os.getenv("AI_RAG_EMBEDDING_PROVIDER", "").strip().casefold() in {"hashing", "offline", "mock"}
+    default_threshold = 0.30 if offline_provider else 0.72
     return RagSettings(
         enabled=rag_is_enabled(),
         lexical_top_k=_bounded_int("AI_RAG_LEXICAL_TOP_K", 3, 1, 10),
         semantic_top_k=_bounded_int("AI_RAG_SEMANTIC_TOP_K", 3, 1, 10),
-        semantic_threshold=_bounded_float("AI_RAG_SEMANTIC_THRESHOLD", 0.72, -1.0, 1.0),
+        semantic_threshold=_bounded_float("AI_RAG_SEMANTIC_THRESHOLD", default_threshold, -1.0, 1.0),
         lexical_weight=lexical_weight / total_weight,
         semantic_weight=semantic_weight / total_weight,
     )

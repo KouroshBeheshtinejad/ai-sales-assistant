@@ -60,6 +60,6 @@ def test_mock_llm_returns_safe_answer_without_context():
     provider = MockLLMProvider()
     answer = provider.complete(
         "system",
-        "Customer question:\nhello\n\nResponse guidance:\nDirect answer.\n\nRetrieved store data:\nNo matching information was found.",
+        "Customer question:\nعطر دارید\n\nResponse guidance:\nDirect answer.\n\nRetrieved store data:\nNo matching information was found.",
     )
     assert "پیدا نشد" in answer
