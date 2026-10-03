@@ -76,7 +76,7 @@ function AccountActions({ store, signOut, onNavigate, showAccount = true }) {
 function TabBar({ nav, attentionCount }) {
   const { t } = useI18n()
   return (
-    <nav className="seller-tabbar" aria-label={t('s.overview')}>
+    <nav className="seller-tabbar" aria-label={t('s.overview')} tabIndex={0}>
       {nav.map(([to, label, end, icon]) => (
         <NavLink key={to} to={to} end={end} className="seller-tab">
           <Icon name={icon} size={22} />

@@ -21,6 +21,7 @@ export default function ChatDock({ shop, storeName, storeLogoUrl, open, onClose,
   const [busy, setBusy] = useState(false)
   const logRef = useRef(null)
   const inputRef = useRef(null)
+  const sendingRef = useRef(false)
 
   useEffect(() => {
     safeStorage.set(storageKey(storeId), JSON.stringify(messages.filter((m) => !m.error).slice(-MAX_SAVED)))
@@ -39,7 +40,8 @@ export default function ChatDock({ shop, storeName, storeLogoUrl, open, onClose,
 
   const send = async (text) => {
     const question = text.trim()
-    if (!question || busy) return
+    if (!question || sendingRef.current) return
+    sendingRef.current = true
     setValue('')
     setBusy(true)
     setMessages((list) => [...list, { role: 'user', content: question }])
@@ -53,6 +55,7 @@ export default function ChatDock({ shop, storeName, storeLogoUrl, open, onClose,
     } catch (error) {
       setMessages((list) => [...list, { role: 'assistant', content: err(error), error: true }])
     } finally {
+      sendingRef.current = false
       setBusy(false)
       inputRef.current?.focus()
     }

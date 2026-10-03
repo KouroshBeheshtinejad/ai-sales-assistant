@@ -241,6 +241,15 @@ def test_security_headers_are_present(client):
     assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
 
 
+def test_swagger_docs_are_public_and_allow_the_ui_initializer(client):
+    response = client.get("/docs")
+
+    assert response.status_code == 200
+    assert "swagger-ui" in response.text
+    assert "'unsafe-inline'" in response.headers["content-security-policy"]
+    assert client.get("/openapi.json").status_code == 200
+
+
 def test_login_rate_limit_can_be_configured(client, monkeypatch):
     monkeypatch.setenv("AUTH_RATE_LIMIT_REQUESTS", "1")
     token1, code1 = _solved_captcha(client)

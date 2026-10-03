@@ -129,10 +129,13 @@ async def request_id_middleware(request: Request, call_next):
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
+    script_policy = "'self' https://cdn.jsdelivr.net"
+    if request.url.path in {"/docs", "/redoc", "/docs/oauth2-redirect"}:
+        script_policy += " 'unsafe-inline'"
     response.headers.setdefault(
     "Content-Security-Policy",
     "default-src 'self'; "
-    "script-src 'self' https://cdn.jsdelivr.net; "
+    f"script-src {script_policy}; "
     "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; "
     "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self' https://res.cloudinary.com data:; "

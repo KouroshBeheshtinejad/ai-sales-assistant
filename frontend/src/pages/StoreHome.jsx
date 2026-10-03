@@ -1,9 +1,45 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import ProductCard from '../components/ProductCard'
-import { Check, Empty, Swatch } from '../components/ui'
+import { Check, Empty, Icon, Swatch } from '../components/ui'
 import { useBusinessTypes } from '../lib/hooks'
 import { useI18n } from '../lib/i18n'
+
+function CategoryTabs({ categories, categoryId, onSelect, label }) {
+  const { t } = useI18n()
+  const tabsRef = useRef(null)
+  const [showScrollControls, setShowScrollControls] = useState(false)
+
+  useEffect(() => {
+    const tabs = tabsRef.current
+    if (!tabs) return undefined
+    const updateOverflow = () => setShowScrollControls(tabs.scrollWidth > tabs.clientWidth + 1)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateOverflow)
+    observer?.observe(tabs)
+    window.addEventListener('resize', updateOverflow)
+    updateOverflow()
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updateOverflow)
+    }
+  }, [categories.length])
+
+  const scroll = (direction) => {
+    const tabs = tabsRef.current
+    if (tabs) tabs.scrollBy({ left: direction * Math.max(180, tabs.clientWidth * 0.75), behavior: 'smooth' })
+  }
+
+  return (
+    <div className="store-category-rail">
+      {showScrollControls && <button type="button" className="store-category-arrow" aria-label={t('shop.scrollLeft')} title={t('shop.scrollLeft')} onClick={() => scroll(-1)}><Icon name="chevron" className="scroll-left" /></button>}
+      <div className="store-category-tabs" ref={tabsRef} role="group" aria-label={label}>
+        <button type="button" className={categoryId === '' ? 'on' : ''} aria-pressed={categoryId === ''} onClick={() => onSelect('')}>{t('shop.categoryAll')}</button>
+        {categories.map((category) => <button type="button" key={category.id} className={categoryId === category.id ? 'on' : ''} aria-pressed={categoryId === category.id} onClick={() => onSelect(category.id)}>{category.name}</button>)}
+      </div>
+      {showScrollControls && <button type="button" className="store-category-arrow" aria-label={t('shop.scrollRight')} title={t('shop.scrollRight')} onClick={() => scroll(1)}><Icon name="chevron" className="scroll-right" /></button>}
+    </div>
+  )
+}
 
 export default function StoreHome() {
   const { shop, ask } = useOutletContext()
@@ -40,10 +76,7 @@ export default function StoreHome() {
         <span className="muted" aria-live="polite">{t('shop.count', { n: visible.length })}</span>
       </div>
 
-      {!!store.categories?.length && <div className="store-category-tabs" role="group" aria-label={t('shop.categories')}>
-        <button type="button" className={categoryId === '' ? 'on' : ''} aria-pressed={categoryId === ''} onClick={() => setCategoryId('')}>{t('shop.categoryAll')}</button>
-        {store.categories.map((category) => <button type="button" key={category.id} className={categoryId === category.id ? 'on' : ''} aria-pressed={categoryId === category.id} onClick={() => setCategoryId(category.id)}>{category.name}</button>)}
-      </div>}
+      {!!store.categories?.length && <CategoryTabs categories={store.categories} categoryId={categoryId} onSelect={setCategoryId} label={t('shop.categories')} />}
 
       {visible.length ? (
         <div className="product-grid">

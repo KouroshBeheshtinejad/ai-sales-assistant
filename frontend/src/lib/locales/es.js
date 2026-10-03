@@ -284,6 +284,8 @@ account.savedNeedsVerify = Tu cuenta se ha actualizado. Como cambiaste tu correo
 
 # ---- storefront
 shop.search = Buscar productos…
+shop.scrollLeft = Desplazar categorías a la izquierda
+shop.scrollRight = Desplazar categorías a la derecha
 shop.inStockOnly = Solo disponibles
 shop.count = {n} productos
 shop.count_one = {n} producto

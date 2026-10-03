@@ -284,6 +284,8 @@ account.savedNeedsVerify = Votre compte a été mis à jour. Comme vous avez cha
 
 # ---- storefront
 shop.search = Rechercher des produits…
+shop.scrollLeft = Faire défiler les catégories vers la gauche
+shop.scrollRight = Faire défiler les catégories vers la droite
 shop.inStockOnly = En stock uniquement
 shop.count = {n} produits
 shop.count_one = {n} produit

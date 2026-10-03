@@ -6,7 +6,9 @@ export function SupportChatPanel({ conversation, title, subtitle, onReply, disab
   const { t, date } = useI18n()
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [sending, setSending] = useState(false)
   const logRef = useRef(null)
+  const sendingRef = useRef(false)
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
@@ -15,13 +17,18 @@ export function SupportChatPanel({ conversation, title, subtitle, onReply, disab
   const submit = async (event) => {
     event.preventDefault()
     const content = message.trim()
-    if (!content || busy) return
+    if (!content || busy || sendingRef.current) return
+    sendingRef.current = true
+    setSending(true)
     setError('')
     try {
       await onReply(content)
       setMessage('')
     } catch (cause) {
       setError(cause.message)
+    } finally {
+      sendingRef.current = false
+      setSending(false)
     }
   }
 
@@ -43,8 +50,8 @@ export function SupportChatPanel({ conversation, title, subtitle, onReply, disab
       </div>
       {onReply && <form className="support-chat-form" onSubmit={submit}>
         {error && <p className="notice notice-danger" role="alert">{error}</p>}
-        <input value={message} onChange={(event) => setMessage(event.target.value)} maxLength={5000} autoComplete="off" disabled={disabled} placeholder={disabled ? t('dash.chatClosed') : t('dash.typeReply')} aria-label={t('dash.typeReply')} />
-        <Button type="submit" variant="primary" busy={busy} disabled={disabled || !message.trim()} aria-label={t('dash.reply')}><Icon name="send" size={18} /></Button>
+        <input value={message} onChange={(event) => setMessage(event.target.value)} maxLength={5000} autoComplete="off" disabled={disabled || sending || busy} placeholder={disabled ? t('dash.chatClosed') : t('dash.typeReply')} aria-label={t('dash.typeReply')} />
+        <Button type="submit" variant="primary" busy={sending || busy} disabled={disabled || sending || busy || !message.trim()} aria-label={t('dash.reply')}><Icon name="send" size={18} /></Button>
       </form>}
     </section>
   )

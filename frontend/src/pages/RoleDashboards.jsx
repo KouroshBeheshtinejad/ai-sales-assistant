@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Async, Badge, Button, ConfirmButton, Empty, Field, Icon, StatusBadge, Timeline, useToast } from '../components/ui'
 import { SupportChatPanel } from '../components/SupportChat'
@@ -57,6 +57,7 @@ export function CustomerDashboard() {
   const [message, setMessage] = useState('')
   const [selectedConversationId, setSelectedConversationId] = useState(null)
   const [busy, setBusy] = useState(false)
+  const supportSendingRef = useRef(false)
   const [error, setError] = useState('')
   useEffect(() => {
     if (!conversations.data?.length) return undefined
@@ -69,6 +70,8 @@ export function CustomerDashboard() {
   }, [conversations.data])
   const submitSupport = async (event) => {
     event.preventDefault()
+    if (supportSendingRef.current) return
+    supportSendingRef.current = true
     setBusy(true)
     setError('')
     try {
@@ -78,6 +81,7 @@ export function CustomerDashboard() {
     } catch (cause) {
       setError(cause.message)
     } finally {
+      supportSendingRef.current = false
       setBusy(false)
     }
   }
@@ -194,6 +198,7 @@ export function StoreSupportDashboard() {
   const [selectedConversationId, setSelectedConversationId] = useState(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const supportSendingRef = useRef(false)
   const [error, setError] = useState('')
   useEffect(() => {
     const threads = conversations.data?.filter((item) => item.store_id === store.id) || []
@@ -208,6 +213,8 @@ export function StoreSupportDashboard() {
   useSeo({ title: `${t('dash.contactSupport')} | NAVA` })
   const submit = async (event) => {
     event.preventDefault()
+    if (supportSendingRef.current) return
+    supportSendingRef.current = true
     setBusy(true)
     setError('')
     try {
@@ -217,6 +224,7 @@ export function StoreSupportDashboard() {
     } catch (cause) {
       setError(cause.message)
     } finally {
+      supportSendingRef.current = false
       setBusy(false)
     }
   }
@@ -261,6 +269,7 @@ export function SupportDashboard() {
   const [targetStore, setTargetStore] = useState(null)
   const [storeMessage, setStoreMessage] = useState('')
   const [storeError, setStoreError] = useState('')
+  const conversationSendingRef = useRef(false)
   const queue = useAsync(() => api.support.queue(statusFilter || undefined), [statusFilter])
   const stores = useAsync(() => api.support.stores(storeSearch), [storeSearch])
   const selected = queue.data?.find((item) => item.id === selectedId)
@@ -287,6 +296,8 @@ export function SupportDashboard() {
   }
   const startStoreConversation = async (event) => {
     event.preventDefault()
+    if (conversationSendingRef.current) return
+    conversationSendingRef.current = true
     setStoreError('')
     setBusy(true)
     try {
@@ -298,6 +309,7 @@ export function SupportDashboard() {
     } catch (error) {
       setStoreError(error.message)
     } finally {
+      conversationSendingRef.current = false
       setBusy(false)
     }
   }

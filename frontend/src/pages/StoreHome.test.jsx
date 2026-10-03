@@ -48,4 +48,22 @@ describe('public store category tabs', () => {
     expect(screen.getByText('Espresso')).toBeTruthy()
     expect(screen.queryByText('Croissant')).toBeNull()
   })
+
+  it('shows left and right controls when the category list overflows', () => {
+    render(<MemoryRouter initialEntries={['/store']}><Routes>
+      <Route element={<StoreContext />}><Route path="/store" element={<StoreHome />} /></Route>
+    </Routes></MemoryRouter>)
+
+    const tabs = screen.getByRole('group', { name: 'shop.categories' })
+    Object.defineProperties(tabs, {
+      scrollWidth: { configurable: true, value: 500 },
+      clientWidth: { configurable: true, value: 200 },
+    })
+    tabs.scrollBy = vi.fn()
+    fireEvent(window, new Event('resize'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'shop.scrollLeft' }))
+    expect(tabs.scrollBy).toHaveBeenCalledWith({ left: -180, behavior: 'smooth' })
+    expect(screen.getByRole('button', { name: 'shop.scrollRight' })).toBeTruthy()
+  })
 })

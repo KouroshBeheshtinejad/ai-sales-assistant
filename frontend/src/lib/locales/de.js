@@ -284,6 +284,8 @@ account.savedNeedsVerify = Ihr Konto wurde aktualisiert. Da Sie Ihre E-Mail-Adre
 
 # ---- storefront
 shop.search = Produkte suchen…
+shop.scrollLeft = Kategorien nach links scrollen
+shop.scrollRight = Kategorien nach rechts scrollen
 shop.inStockOnly = Nur lieferbar
 shop.count = {n} Produkte
 shop.count_one = {n} Produkt

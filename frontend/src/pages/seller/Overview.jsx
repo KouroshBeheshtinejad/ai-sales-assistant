@@ -23,7 +23,10 @@ function StoreForm({ store, onSaved, onCancel }) {
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [businessTypeQuery, setBusinessTypeQuery] = useState('')
   const set = (name) => (e) => setForm({ ...form, [name]: e.target.value })
+  const filteredTypes = types.filter((type) => bizLabel(type.slug, type.label).toLowerCase().includes(businessTypeQuery.trim().toLowerCase()))
+  const selectedType = types.find((type) => type.slug === form.business_type)
 
   const submit = async (event) => {
     event.preventDefault()
@@ -51,9 +54,13 @@ function StoreForm({ store, onSaved, onCancel }) {
   return (
     <form className="stack" onSubmit={submit}>
       <Field label={t('s.storeName')}><input required maxLength={255} value={form.name} onChange={set('name')} data-autofocus /></Field>
+      <Field label={t('dash.search')}>
+        <input type="search" value={businessTypeQuery} onChange={(event) => setBusinessTypeQuery(event.target.value)} aria-label={t('s.businessType')} />
+      </Field>
       <Field label={t('s.businessType')}>
         <select value={form.business_type} onChange={set('business_type')}>
-          {types.map((type) => <option key={type.slug} value={type.slug}>{bizLabel(type.slug, type.label)}</option>)}
+          {selectedType && !filteredTypes.some((type) => type.slug === selectedType.slug) && <option value={selectedType.slug}>{bizLabel(selectedType.slug, selectedType.label)}</option>}
+          {filteredTypes.map((type) => <option key={type.slug} value={type.slug}>{bizLabel(type.slug, type.label)}</option>)}
         </select>
       </Field>
       <Field label={t('s.storeDesc')}><textarea rows={3} maxLength={10000} value={form.description} onChange={set('description')} /></Field>
