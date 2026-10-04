@@ -199,18 +199,18 @@ def login_form(
             status_code=401,
         )
     _sync_god_role(user)
-    if not user.is_verified or user.approval_status != "active":
-        return templates.TemplateResponse(
-            request=request,
-            name="auth_login.html",
-            context={"error": "Account verification or approval is required."},
-            status_code=403,
-        )
     if role and role != user.role:
         return templates.TemplateResponse(
             request=request,
             name="auth_login.html",
             context={"error": "Selected role does not match this account."},
+            status_code=409,
+        )
+    if not user.is_verified or user.approval_status != "active":
+        return templates.TemplateResponse(
+            request=request,
+            name="auth_login.html",
+            context={"error": "Account verification or approval is required."},
             status_code=403,
         )
     db.commit()
@@ -434,19 +434,20 @@ def login(
             detail="Invalid email or password",
         )
 
+    _sync_god_role(user)
+    if data.role is not None and data.role != user.role:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected role does not match this account")
+
     if not user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account verification is required",
         )
 
-    _sync_god_role(user)
     if user.approval_status == "pending":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account approval is pending")
     if user.approval_status != "active":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account access was rejected")
-    if data.role is not None and data.role != user.role:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Selected role does not match this account")
     db.commit()
 
     access_token = create_access_token(user.id, user.token_version)

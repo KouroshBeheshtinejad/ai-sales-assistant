@@ -74,6 +74,7 @@ const humanize = (name) => String(name).replace(/[_-]+/g, ' ').replace(/^./, (c)
 // Maps the English messages the API sends (FastAPI `detail`) to translation keys.
 const SERVER_MESSAGES = [
   [/invalid email or password/i, 'err.m.invalidCredentials'],
+  [/selected role does not match this account/i, 'err.m.roleMismatch'],
   [/email already registered/i, 'err.m.emailTaken'],
   [/invalid or expired verification code/i, 'err.m.invalidCode'],
   [/invalid or expired reset token/i, 'err.m.invalidReset'],

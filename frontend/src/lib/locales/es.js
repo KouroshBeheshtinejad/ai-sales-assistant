@@ -37,6 +37,7 @@ err.auth = Inicia sesión de nuevo.
 err.notFound = No encontramos lo que buscabas.
 err.server = El servidor tuvo un problema. Inténtalo más tarde.
 err.m.invalidCredentials = Correo o contraseña incorrectos.
+err.m.roleMismatch = El rol seleccionado no coincide con esta cuenta.
 err.m.emailTaken = Este correo ya está registrado.
 err.m.invalidCode = El código no es válido o ha caducado.
 err.m.invalidReset = El token de restablecimiento no es válido o ha caducado.

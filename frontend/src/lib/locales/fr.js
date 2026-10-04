@@ -37,6 +37,7 @@ err.auth = Veuillez vous reconnecter.
 err.notFound = Nous n'avons pas trouvé ce que vous cherchiez.
 err.server = Le serveur a rencontré un problème. Veuillez réessayer plus tard.
 err.m.invalidCredentials = E-mail ou mot de passe incorrect.
+err.m.roleMismatch = Le rôle choisi ne correspond pas à ce compte.
 err.m.emailTaken = Cette adresse e-mail est déjà enregistrée.
 err.m.invalidCode = Le code est invalide ou a expiré.
 err.m.invalidReset = Le jeton de réinitialisation est invalide ou a expiré.

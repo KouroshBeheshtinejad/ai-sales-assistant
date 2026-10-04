@@ -37,6 +37,7 @@ err.auth = Please sign in again.
 err.notFound = We could not find what you were looking for.
 err.server = The server ran into a problem. Please try again later.
 err.m.invalidCredentials = Invalid email or password.
+err.m.roleMismatch = The selected role does not match this account.
 err.m.emailTaken = This email is already registered.
 err.m.invalidCode = The code is invalid or has expired.
 err.m.invalidReset = The reset token is invalid or has expired.

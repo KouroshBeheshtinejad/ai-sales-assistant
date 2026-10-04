@@ -37,6 +37,7 @@ err.auth = Bitte melden Sie sich erneut an.
 err.notFound = Wir konnten nicht finden, was Sie suchen.
 err.server = Auf dem Server ist ein Problem aufgetreten. Bitte versuchen Sie es später erneut.
 err.m.invalidCredentials = E-Mail oder Passwort ist falsch.
+err.m.roleMismatch = Die ausgewählte Rolle stimmt nicht mit diesem Konto überein.
 err.m.emailTaken = Diese E-Mail-Adresse ist bereits registriert.
 err.m.invalidCode = Der Code ist ungültig oder abgelaufen.
 err.m.invalidReset = Das Zurücksetzungs-Token ist ungültig oder abgelaufen.

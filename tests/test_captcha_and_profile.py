@@ -189,7 +189,22 @@ class TestRegisterAndLoginRequireCaptcha:
             "captcha_token": token,
             "captcha_answer": code,
         })
-        assert response.status_code == 403
+        assert response.status_code == 409
+        assert response.json()["detail"] == "Selected role does not match this account"
+
+    def test_login_rejects_wrong_role_before_requesting_verification(self, client):
+        db = _db(client)
+        _register_user(db, role="store_owner", is_verified=False)
+        token, code = _solved_captcha(client)
+        response = client.post("/api/auth/login", json={
+            "email": "seller@example.com",
+            "password": "Secret123!",
+            "role": "support",
+            "captcha_token": token,
+            "captcha_answer": code,
+        })
+
+        assert response.status_code == 409
         assert response.json()["detail"] == "Selected role does not match this account"
 
     def test_login_rejects_verified_but_unapproved_support_account(self, client):

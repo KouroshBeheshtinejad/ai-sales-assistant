@@ -57,4 +57,14 @@ describe('automatic visitor language selection', () => {
     expect(document.documentElement.dir).toBe('rtl')
     expect(document.documentElement.lang).toBe('fa')
   })
+
+  it('localizes a role mismatch from the login API', () => {
+    localStorage.setItem('nava_locale', 'fa')
+    function Probe() {
+      const { err } = useI18n()
+      return <p>{err({ message: 'Selected role does not match this account', status: 409 })}</p>
+    }
+    render(<I18nProvider><Probe /></I18nProvider>)
+    expect(screen.getByText('نقش انتخاب‌شده با نقش ثبت‌شده برای این حساب مطابقت ندارد.')).toBeTruthy()
+  })
 })

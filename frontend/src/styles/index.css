@@ -197,6 +197,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .store-category-arrow .scroll-left { transform: rotate(90deg); }
 .store-category-arrow .scroll-right { transform: rotate(-90deg); }
 .store-category-tabs { display: flex; flex: 1 1 auto; gap: 8px; min-width: 0; overflow-x: auto; padding: 4px 1px 12px; margin-block: 8px 12px; scrollbar-width: thin; overscroll-behavior-x: contain; scroll-behavior: smooth; }
+[dir='rtl'] .store-category-tabs { direction: rtl; }
 .store-category-tabs button { flex: 0 0 auto; min-height: 40px; padding: 6px 16px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink); font-weight: 600; white-space: nowrap; }
 .store-category-tabs button.on { border-color: var(--store-primary); background: var(--store-primary); color: var(--store-on-primary); }
 .store-color-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }

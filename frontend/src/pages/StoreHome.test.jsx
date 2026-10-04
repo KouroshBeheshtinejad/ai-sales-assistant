@@ -24,6 +24,7 @@ vi.mock('../lib/i18n', () => ({
   useI18n: () => ({
     t: (key, params) => key === 'shop.count' ? `${params.n} products` : key,
     bizLabel: (value) => value,
+    meta: { dir: 'rtl' },
   }),
 }))
 
@@ -42,6 +43,7 @@ describe('public store category tabs', () => {
     expect(screen.getByText('Espresso')).toBeTruthy()
     expect(screen.getByText('Croissant')).toBeTruthy()
     const tabs = screen.getByRole('group', { name: 'shop.categories' })
+    expect(tabs.getAttribute('dir')).toBe('rtl')
     expect(within(tabs).getAllByRole('button')[0].textContent).toBe('shop.categoryAll')
 
     fireEvent.click(within(tabs).getByRole('button', { name: 'Coffee' }))

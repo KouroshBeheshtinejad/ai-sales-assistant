@@ -6,7 +6,7 @@ import { useBusinessTypes } from '../lib/hooks'
 import { useI18n } from '../lib/i18n'
 
 function CategoryTabs({ categories, categoryId, onSelect, label }) {
-  const { t } = useI18n()
+  const { t, meta } = useI18n()
   const tabsRef = useRef(null)
   const [showScrollControls, setShowScrollControls] = useState(false)
 
@@ -32,7 +32,7 @@ function CategoryTabs({ categories, categoryId, onSelect, label }) {
   return (
     <div className="store-category-rail">
       {showScrollControls && <button type="button" className="store-category-arrow" aria-label={t('shop.scrollLeft')} title={t('shop.scrollLeft')} onClick={() => scroll(-1)}><Icon name="chevron" className="scroll-left" /></button>}
-      <div className="store-category-tabs" ref={tabsRef} role="group" aria-label={label}>
+      <div className="store-category-tabs" ref={tabsRef} dir={meta.dir} role="group" aria-label={label}>
         <button type="button" className={categoryId === '' ? 'on' : ''} aria-pressed={categoryId === ''} onClick={() => onSelect('')}>{t('shop.categoryAll')}</button>
         {categories.map((category) => <button type="button" key={category.id} className={categoryId === category.id ? 'on' : ''} aria-pressed={categoryId === category.id} onClick={() => onSelect(category.id)}>{category.name}</button>)}
       </div>
