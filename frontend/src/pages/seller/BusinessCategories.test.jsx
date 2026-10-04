@@ -1,16 +1,16 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
-import BusinessCategories from './BusinessCategories'
+import BusinessCategories from '../BusinessCategories'
 
-vi.mock('../lib/i18n', () => ({
+vi.mock('../../lib/i18n', () => ({
   useI18n: () => ({
     t: (key, params) => (params ? `${key}:${params.n}` : key),
     num: (value) => String(value),
     bizLabel: (slug, label) => label || slug,
   }),
 }))
-vi.mock('../components/ui', () => ({
+vi.mock('../../components/ui', () => ({
   Button: ({ children, ...rest }) => <button type="button" {...rest}>{children}</button>,
   Icon: () => <span aria-hidden="true" />,
 }))
