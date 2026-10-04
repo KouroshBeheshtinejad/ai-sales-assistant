@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
-import BusinessCategories from '../BusinessCategories'
+import BusinessCategories, { BUSINESS_CATEGORY_ICONS } from '../BusinessCategories'
 
 vi.mock('../../lib/i18n', () => ({
   useI18n: () => ({
@@ -20,6 +20,11 @@ const makeTypes = (count) => Array.from({ length: count }, (_, i) => ({ slug: `t
 afterEach(() => cleanup())
 
 describe('business category grid', () => {
+  it('assigns a unique icon to every business category', () => {
+    const icons = Object.values(BUSINESS_CATEGORY_ICONS)
+    expect(new Set(icons).size).toBe(icons.length)
+  })
+
   it('keeps every category in the DOM and links each one to its store list', () => {
     render(<MemoryRouter><BusinessCategories types={makeTypes(30)} /></MemoryRouter>)
     expect(screen.getAllByRole('link')).toHaveLength(30)
