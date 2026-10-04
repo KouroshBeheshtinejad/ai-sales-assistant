@@ -289,6 +289,31 @@ function FinalCta() {
   )
 }
 
+// Home hero: says what NAVA is and gives two clear next steps before the directory below.
+// It reuses the marketing copy of /about; the full demo chat stays on that page.
+function HomeHero() {
+  const { t } = useI18n()
+  return (
+    <section className="hero-wrap home-hero" aria-labelledby="home-title">
+      <div className="wrap home-hero-in">
+        <div className="home-hero-copy">
+          <span className="eyebrow"><Icon name="sparkle" size={16} />{t('landing.badge')}</span>
+          <h1 id="home-title">{t('landing.title')}</h1>
+          <p className="lead">{t('landing.lead')}</p>
+          <div className="row">
+            <Link className="btn btn-primary btn-lg" to={`/store/${DEMO_STORE_ID}`}>{t('landing.cta')}<Icon name="arrow" size={18} className="flip-rtl" /></Link>
+            <Link className="btn btn-lg" to="/register">{t('landing.ctaSeller')}</Link>
+          </div>
+        </div>
+        <div className="demo-chat home-hero-art" aria-hidden="true">
+          <div className="bubble user">{t('landing.q1')}</div>
+          <div className="bubble assistant">{t('landing.a1')}</div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export function AboutProject() {
   const { t } = useI18n()
   const types = useBusinessTypes()
@@ -318,6 +343,7 @@ export default function Landing() {
 
   return (
     <>
+      <HomeHero />
       <BusinessCategories types={types} />
       <Showcase showcase={showcase} types={types} />
     </>

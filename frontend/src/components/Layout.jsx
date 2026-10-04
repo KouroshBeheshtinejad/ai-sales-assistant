@@ -207,13 +207,22 @@ export function StoreFooter() {
 export function PublicBackToTop() {
   const { t } = useI18n()
   const [visible, setVisible] = useState(false)
+  const [overFooter, setOverFooter] = useState(false)
   useEffect(() => {
     const update = () => setVisible(window.scrollY > 320)
     window.addEventListener('scroll', update, { passive: true })
     update()
     return () => window.removeEventListener('scroll', update)
   }, [])
-  if (!visible) return null
+  // The footer has its own "back to top" link; a floating button on top of it only covers links.
+  useEffect(() => {
+    const footer = document.querySelector('.footer, .store-footer')
+    if (!footer || typeof IntersectionObserver === 'undefined') return undefined
+    const observer = new IntersectionObserver(([entry]) => setOverFooter(entry.isIntersecting))
+    observer.observe(footer)
+    return () => observer.disconnect()
+  }, [])
+  if (!visible || overFooter) return null
   return (
     <button
       type="button"
