@@ -276,6 +276,23 @@ class PaymentService:
     @staticmethod
     def _provider_for_payment(db: Session, payment: Payment, expected_store_id: int) -> PaymentProvider:
         account = db.get(StorePaymentAccount, payment.provider_account_id) if payment.provider_account_id is not None else None
+        context = payment.provider_context or {}
+
+        if payment.provider == "mock" and account is None:
+            if context.get("store_id") not in (None, expected_store_id):
+                raise PaymentProviderNotConfigured("Payment Store account is unavailable")
+            account_context = PaymentAccountContext(
+                provider=payment.provider,
+                store_id=context.get("store_id") or expected_store_id,
+                account_id=None,
+                external_account_id=context.get("external_account_id"),
+                credential_reference=context.get("credential_reference"),
+                country_code=context.get("country_code", ""),
+                currency=context.get("currency", payment.currency),
+                credential_ciphertext=context.get("credential_ciphertext"),
+            )
+            return get_payment_provider(payment.provider, account_context)
+
         if (
             account is None
             or account.store_id != expected_store_id
@@ -283,7 +300,6 @@ class PaymentService:
             or (payment.provider == "zarinpal" and not account.credential_fingerprint)
         ):
             raise PaymentProviderNotConfigured("Payment Store account is unavailable")
-        context = payment.provider_context or {}
         if context:
             if context.get("store_id") != expected_store_id:
                 raise PaymentProviderNotConfigured("Payment Store account is unavailable")
@@ -316,11 +332,25 @@ class PaymentService:
             raise ValueError("Only pending orders can be paid")
 
         store = db.get(Store, order.store_id)
-        if store is None or store.payment_provider == "disabled":
+        if store is None:
             raise PaymentProviderNotConfigured("Payment is not configured for this Store")
-        account = PaymentService._payment_account(db, store.id, store.payment_provider)
-        if account.currency != order.currency or account.currency != store.currency:
-            raise PaymentProviderNotConfigured("Store payment account currency does not match the order")
+
+        selected_provider = store.payment_provider if store.payment_provider != "disabled" else os.getenv("PAYMENT_PROVIDER", "disabled").strip().casefold()
+        if selected_provider == "disabled":
+            raise PaymentProviderNotConfigured("Payment is not configured for this Store")
+
+        account = None
+        if selected_provider == "mock":
+            account = db.scalar(
+                select(StorePaymentAccount).where(
+                    StorePaymentAccount.store_id == store.id,
+                    StorePaymentAccount.provider == "mock",
+                )
+            )
+        else:
+            account = PaymentService._payment_account(db, store.id, selected_provider)
+            if account.currency != order.currency or account.currency != store.currency:
+                raise PaymentProviderNotConfigured("Store payment account currency does not match the order")
 
         existing = db.scalar(select(Payment).where(Payment.order_id == order_id, Payment.idempotency_key == idempotency_key))
         if existing is not None:
@@ -335,8 +365,20 @@ class PaymentService:
         if pending_payment is not None:
             return pending_payment
 
-        account_context = PaymentAccountContext.from_account(account)
-        provider = get_payment_provider(store.payment_provider, account_context)
+        if account is not None:
+            account_context = PaymentAccountContext.from_account(account)
+        else:
+            account_context = PaymentAccountContext(
+                provider=selected_provider,
+                store_id=store.id,
+                account_id=None,
+                external_account_id=None,
+                credential_reference=None,
+                country_code=store.country_code,
+                currency=order.currency,
+                credential_ciphertext=None,
+            )
+        provider = get_payment_provider(selected_provider, account_context)
         details = provider.create_payment(
             amount=Decimal(str(order.total_amount)),
             currency=order.currency,
@@ -346,7 +388,7 @@ class PaymentService:
         payment = Payment(
             order_id=order.id,
             provider=provider.name,
-            provider_account_id=account.id,
+            provider_account_id=account.id if account else None,
             provider_context=account_context.snapshot(),
             amount=order.total_amount,
             currency=order.currency,
