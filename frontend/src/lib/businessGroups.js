@@ -1,12 +1,13 @@
 export const BUSINESS_GROUPS = [
-  { id: 'food', types: ['restaurant', 'fast_food', 'cafe', 'bakery', 'grocery'] },
+  { id: 'food', types: ['restaurant', 'fast_food', 'cafe', 'bakery', 'grocery', 'grocery_delivery'] },
   { id: 'fashion', types: ['clothing', 'jewelry', 'cosmetics', 'beauty_salon'] },
-  { id: 'home', types: ['furniture', 'home_decor', 'hardware'] },
-  { id: 'health', types: ['pharmacy', 'fitness'] },
-  { id: 'nature', types: ['pet_store', 'sports'] },
-  { id: 'arts', types: ['stationery', 'books_music', 'toys'] },
-  { id: 'travel', types: ['automotive'] },
-  { id: 'events', types: ['flowers'] },
+  { id: 'home', types: ['furniture', 'home_decor', 'hardware', 'construction', 'landscaping', 'cleaning', 'laundry', 'real_estate'] },
+  { id: 'tech', types: ['electronics', 'software', 'digital_products', 'productivity', 'agency'] },
+  { id: 'health', types: ['pharmacy', 'medical_clinic', 'dental', 'fitness', 'yoga', 'sports'] },
+  { id: 'nature', types: ['pet_store', 'veterinary', 'aquarium', 'agricultural', 'garden', 'camping'] },
+  { id: 'arts', types: ['stationery', 'books_music', 'educational', 'artist_shop', 'handmade', 'toys', 'printing'] },
+  { id: 'travel', types: ['automotive', 'car_rental', 'boat', 'travel'] },
+  { id: 'events', types: ['event_planning', 'wedding', 'flowers'] },
 ]
 
 export function groupBusinessTypes(slugs) {

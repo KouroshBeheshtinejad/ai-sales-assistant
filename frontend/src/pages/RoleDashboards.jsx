@@ -417,6 +417,10 @@ export function GodDashboard() {
     <main className="wrap page-narrow">
       <DashboardHeader title={t('dash.god')} />
       <Link className="btn btn-primary" to="/seller">{t('dash.openOperations')}</Link>
+      <Link className="card stack" to="/seller/platform/home-sections" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <h2 className="h3">{t('homeSec.nav')}</h2>
+        <p className="muted">{t('homeSec.navHint')}</p>
+      </Link>
       <Async state={state}>{([users, stores, products, orders, auditLogs, databaseSummary, supportQueue]) => <>
         <dl className="stats">
           {[[t('dash.users'), users.length], [t('dash.stores'), stores.length], [t('dash.products'), products.length], [t('dash.orders'), orders.length], [t('dash.openSupport'), supportQueue.filter((item) => !['resolved', 'closed'].includes(item.status)).length]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{id(value)}</dd></div>)}

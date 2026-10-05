@@ -8,6 +8,14 @@
 
 `APP_ENV=production`، `DATABASE_URL`، `SECRET_KEY` قوی و `APP_ALLOWED_HOSTS` را الزامی کنید. پورت PostgreSQL را عمومی نکنید، provider key را فقط در secret manager/environment قرار دهید، لاگ‌ها را بدون password/API key نگه دارید و health checkهای `/health/live` و `/health/ready` را monitor کنید.
 
+در Render، متغیر `PAYMENT_CREDENTIAL_ENCRYPTION_KEY` را در بخش Environment سرویس Web به‌عنوان Secret تنظیم کنید؛ مقدار آن را با دستور زیر به‌صورت محلی بسازید و در log یا Git قرار ندهید:
+
+```bash
+python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+```
+
+پس از ذخیره متغیر، سرویس را redeploy کنید. در تمام replicaها از یک مقدار ثابت استفاده کنید و آن را بدون برنامه مهاجرت عوض نکنید؛ این کلید برای رمزگشایی credentialهای پرداخت ذخیره‌شده لازم است.
+
 برای دسترسی سراسری God، `GOD_USER_EMAIL` را در secret manager روی ایمیل حساب تأییدشده‌ی خودتان تنظیم کنید. این نقش در API قابل واگذاری نیست؛ God می‌تواند از `/api/admin/users` نقش `support` یا `seller` را مدیریت کند. نقش Support فقط فهرست سفارش‌های نهایی‌شده را می‌خواند. آدرس بازگشت درگاه را روی `/api/payments/callback` تنظیم کنید. ساعت فاکتور فارسی همیشه تهران و شمسی است؛ چهار زبان دیگر از timezone مرورگر خریدار استفاده می‌کنند.
 
 پرداخت بر اساس تنظیم هر Store انتخاب می‌شود. Merchant ID زرین‌پال از پنل Store دریافت و با `PAYMENT_CREDENTIAL_ENCRYPTION_KEY` در دیتابیس رمز می‌شود؛ این کلید را فقط در secret manager نگه دارید، بین replicaها یکسان تنظیم کنید و بدون برنامه مهاجرت تغییر ندهید. دستور ساخت کلید در `.env.example` است. `PAYMENT_CALLBACK_URL` باید عمومی و HTTPS باشد. Merchant ID از API به frontend برنمی‌گردد؛ referenceهای قدیمی `PAYMENT_SECRET_<REFERENCE>` فقط برای سازگاری پشتیبانی می‌شوند و نمی‌توانند بین Storeها مشترک باشند. ZarinPal create، inquiry و verify از credential snapshot همان Store/Payment استفاده می‌کنند. Inquiry فقط وضعیت را می‌خواند و `PAID` نیز برای نهایی‌شدن باید server-side verify شود؛ `unknown` pending می‌ماند. Reverse فقط برگشت کامل تا ۳۰ دقیقه را پشتیبانی می‌کند؛ partial/late refund انجام نمی‌شود. `PAYMENT_PROVIDER=mock` فقط برای توسعه است و adapterهای بین‌المللی فعال نیستند.
