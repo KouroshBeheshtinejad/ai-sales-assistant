@@ -58,6 +58,18 @@ export function useShowcase(stores = 6, products = 8) {
   return { ...state, shuffle: () => setRound((n) => n + 1) }
 }
 
+export function useHomeSections() {
+  const [state, setState] = useState({ sections: [], loading: true })
+  useEffect(() => {
+    let live = true
+    api.homeSections()
+      .then((data) => { if (live) setState({ sections: Array.isArray(data?.sections) ? data.sections : [], loading: false }) })
+      .catch(() => { if (live) setState({ sections: [], loading: false }) })
+    return () => { live = false }
+  }, [])
+  return state
+}
+
 // The small "type the number you see" human check used on login, registration, and
 // the seller account form. A challenge is single-use: get a fresh one after every
 // submit attempt (successful or not), never reuse a solved/failed token.

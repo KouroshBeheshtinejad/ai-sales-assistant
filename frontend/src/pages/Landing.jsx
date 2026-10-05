@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { DEMO_STORE_ID } from '../components/Layout'
 import { ProductVisual, StockBadge } from '../components/ProductCard'
 import { Button, Icon, Swatch } from '../components/ui'
+import HomeSections from '../components/HomeSections'
 import { useBusinessTypes, useSeo, useShowcase } from '../lib/hooks'
 import { LOCALES, useI18n } from '../lib/i18n'
 import { cx } from '../lib/util'
@@ -345,6 +346,7 @@ export default function Landing() {
     <>
       <HomeHero />
       <BusinessCategories types={types} />
+      <HomeSections />
       <Showcase showcase={showcase} types={types} />
     </>
   )

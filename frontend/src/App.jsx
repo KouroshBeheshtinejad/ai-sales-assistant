@@ -28,6 +28,7 @@ const Products = lazy(() => import('./pages/seller/Products'))
 const Knowledge = lazy(() => import('./pages/seller/Knowledge'))
 const Account = lazy(() => import('./pages/seller/Account'))
 const Team = lazy(() => import('./pages/seller/Team'))
+const HomeSectionsAdmin = lazy(() => import('./pages/seller/HomeSectionsAdmin'))
 const RoleDashboardRouter = lazy(() => import('./pages/RoleDashboards').then((module) => ({ default: module.RoleDashboardRouter })))
 const CustomerDashboard = lazy(() => import('./pages/RoleDashboards').then((module) => ({ default: module.CustomerDashboard })))
 const SupportDashboard = lazy(() => import('./pages/RoleDashboards').then((module) => ({ default: module.SupportDashboard })))
@@ -84,6 +85,7 @@ export default function App() {
                   <Route path="support" element={<RequireRoles roles={['support', 'god']}><SupportDashboard /></RequireRoles>} />
                   <Route path="customer" element={<RequireRoles roles={['customer']}><CustomerDashboard /></RequireRoles>} />
                   <Route path="platform" element={<RequireRoles roles={['god']}><GodDashboard /></RequireRoles>} />
+                  <Route path="platform/home-sections" element={<RequireRoles roles={['god']}><HomeSectionsAdmin /></RequireRoles>} />
                 </Route>
               </Routes>
             </Suspense>

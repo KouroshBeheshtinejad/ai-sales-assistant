@@ -58,6 +58,7 @@ export const api = {
   catalog: (storeId) => request(`/public/stores/${storeId}/catalog`),
   // Random live stores and products for the landing page.
   showcase: (stores = 6, products = 8) => request(`/public/showcase?stores=${stores}&products=${products}`),
+  homeSections: () => request('/public/home-sections'),
   storesByBusinessType: (businessType, limit = 100) => request(`/public/stores?business_type=${encodeURIComponent(businessType)}&limit=${limit}`),
   chat: (storeId, question, guest) =>
     request(`/public/stores/${storeId}/chat`, { method: 'POST', guest, body: { question, guest_token: guest || undefined } }),
@@ -116,6 +117,14 @@ export const api = {
     systemOverview: () => seller('/admin/system/overview'),
     databaseRecords: (entity, query = '') => seller(`/admin/database/${encodeURIComponent(entity)}?q=${encodeURIComponent(query)}`),
     databaseRecord: (entity, id) => seller(`/admin/database/${encodeURIComponent(entity)}/${id}`),
+    homeSections: {
+      list: () => seller('/admin/home-sections'),
+      create: (payload) => seller('/admin/home-sections', { method: 'POST', body: payload }),
+      update: (id, payload) => seller(`/admin/home-sections/${id}`, { method: 'PATCH', body: payload }),
+      remove: (id) => seller(`/admin/home-sections/${id}`, { method: 'DELETE' }),
+      reorder: (ids) => seller('/admin/home-sections/order', { method: 'PUT', body: { ids } }),
+      preview: (id) => seller(`/admin/home-sections/${id}/preview`),
+    },
   },
 
   support: {

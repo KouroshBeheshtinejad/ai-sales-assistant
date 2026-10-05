@@ -36,6 +36,7 @@ from app.routes.support import router as support_router
 from app.routes.business_types import router as business_types_router
 from app.routes.payments import router as payments_router
 from app.routes.showcase import router as showcase_router
+from app.routes.home_sections import router as home_sections_router
 from app.routes.auth import get_current_user
 
 @asynccontextmanager
@@ -166,6 +167,7 @@ app.include_router(support_router)
 app.include_router(business_types_router)
 app.include_router(payments_router)
 app.include_router(showcase_router)
+app.include_router(home_sections_router)
 app.include_router(captcha_router)
 
 # Versioned API surface. The unprefixed routes above remain compatibility
@@ -187,6 +189,7 @@ for api_router in (
     business_types_router,
     payments_router,
     showcase_router,
+    home_sections_router,
     captcha_router,
 ):
     app.include_router(api_router, prefix="/api")

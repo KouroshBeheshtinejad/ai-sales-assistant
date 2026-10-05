@@ -16,6 +16,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.type_api import UserDefinedType
@@ -223,6 +224,29 @@ class StoreMembership(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     user: Mapped["User"] = relationship()
     store: Mapped["Store"] = relationship()
+
+
+class HomeSection(Base):
+    """A curated, randomly sampled row on the public home page managed by the platform admin."""
+
+    __tablename__ = "home_sections"
+    __table_args__ = (
+        CheckConstraint("kind IN ('stores', 'products')", name="ck_home_sections_kind"),
+        CheckConstraint("item_limit >= 1 AND item_limit <= 24", name="ck_home_sections_item_limit"),
+        Index("ix_home_sections_active_position", "is_active", "position"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    titles: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default="{}")
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="stores", server_default="stores")
+    business_types: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    background_color: Mapped[str] = mapped_column(String(7), nullable=False, default="#f2f7f6", server_default="#f2f7f6")
+    item_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=12, server_default="12")
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=true())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
 
 class AuditLog(Base):
