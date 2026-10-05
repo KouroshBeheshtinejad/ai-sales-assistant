@@ -25,7 +25,7 @@ from app.db.database import get_db
 from app.db.models import HomeSection, Product, Store, User
 from app.routes.admin import _require_god
 from app.routes.auth import get_current_user
-from app.routes.showcase import DESCRIPTION_LIMIT, _sellable, _shorten
+from app.routes.showcase import _sellable, _shorten
 from app.services.audit_service import record_audit_log
 
 
@@ -40,14 +40,14 @@ _COLOR_PATTERN = r"^#[0-9a-fA-F]{6}$"
 
 def _clean_titles(value: dict[str, str] | None) -> dict[str, str]:
     cleaned: dict[str, str] = {}
-    for code, text in (value or {}).items():
+    for code, title_text in (value or {}).items():
         if code not in SUPPORTED_LOCALES:
             raise ValueError(f"Unsupported language: {code}")
-        text = " ".join(str(text).split())
-        if len(text) > 120:
+        title_text = " ".join(str(title_text).split())
+        if len(title_text) > 120:
             raise ValueError("Titles can be at most 120 characters")
-        if text:
-            cleaned[code] = text
+        if title_text:
+            cleaned[code] = title_text
     return cleaned
 
 
