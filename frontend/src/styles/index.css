@@ -49,6 +49,8 @@ button { cursor: pointer; }
 .dim { opacity: .6; }
 
 .wrap { width: min(1180px, 100% - 32px); margin-inline: auto; }
+.public-layout { min-height: 100vh; display: flex; flex-direction: column; }
+.public-layout > main { flex: 1; }
 .storefront, .storefront-modal {
   --paper: var(--store-secondary);
   --surface: color-mix(in srgb, var(--store-secondary) 94%, var(--store-on-secondary));
@@ -492,7 +494,8 @@ img.store-mark { display: block; object-fit: cover; }
 .cover-link:focus-visible { outline: none; }
 .cover-link:focus-visible::after { outline: 3px solid var(--lapis); outline-offset: 2px; }
 .mini-product { overflow: hidden; display: grid; grid-template-rows: auto 1fr; }
-.mini-media img, .mini-media .swatch { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.mini-media img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.mini-media .swatch { width: 100%; aspect-ratio: 4 / 3; }
 .mini-body { display: grid; gap: 6px; align-content: start; padding: 14px; }
 .mini-body p { font-size: .9rem; overflow-wrap: anywhere; }
 .empty-card { display: grid; gap: 14px; justify-items: start; }

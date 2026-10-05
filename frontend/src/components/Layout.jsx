@@ -242,13 +242,13 @@ export function PublicBackToTop() {
 export function PublicLayout() {
   useScrollOnNavigate()
   return (
-    <>
+    <div className="public-layout">
       <SkipLink />
       <SiteHeader />
       <main id="main"><Outlet /></main>
       <SiteFooter />
       <PublicBackToTop />
-    </>
+    </div>
   )
 }
 
