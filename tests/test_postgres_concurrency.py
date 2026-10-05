@@ -7,9 +7,10 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
-from app.db.models import Product, Store, User
+from app.db.models import Order, Payment, Product, Store, User
 from app.services.cart_service import CartService
 from app.services.order_service import OrderService
+from app.services.payment_service import PaymentService
 
 
 DATABASE_URL = os.getenv("TEST_DATABASE_URL")
@@ -83,3 +84,48 @@ def test_concurrent_orders_cannot_oversell(postgres_db):
     assert product.stock == 1
     assert product.reserved_stock == 1
     assert product.reserved_stock <= product.stock
+
+
+def test_concurrent_payment_creation_reuses_one_pending_payment(postgres_db, monkeypatch):
+    db, session_factory = postgres_db
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+    seller = User(email="pg-payment-seller@example.com", password_hash="hash", is_verified=True)
+    customer = User(email="pg-payment-customer@example.com", password_hash="hash", is_verified=True)
+    db.add_all([seller, customer])
+    db.flush()
+    store = Store(name="Postgres payment store", owner_id=seller.id)
+    db.add(store)
+    db.flush()
+    order = Order(
+        user_id=customer.id,
+        store_id=store.id,
+        status="pending",
+        customer_name="Customer",
+        customer_phone="09120000000",
+        customer_address="Tehran",
+        total_amount=Decimal("12500.00"),
+    )
+    db.add(order)
+    db.commit()
+    order_id = order.id
+    customer_id = customer.id
+
+    def create_payment(key: str):
+        session = session_factory()
+        try:
+            payment = PaymentService.create_payment(
+                db=session,
+                order_id=order_id,
+                idempotency_key=key,
+                user_id=customer_id,
+            )
+            return payment.id
+        finally:
+            session.close()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        payment_ids = list(executor.map(create_payment, ["pg-payment-a", "pg-payment-b"]))
+
+    assert payment_ids[0] == payment_ids[1]
+    assert db.query(Payment).filter_by(order_id=order_id, status="pending").count() == 1

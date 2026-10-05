@@ -25,7 +25,7 @@ function CartView({ shop, onCheckout }) {
       <ul className="cart-list">
         {items.map((item) => (
           <li key={item.product_id}>
-            <div className="cart-name"><strong>{item.product_name}</strong><span className="muted">{money(item.unit_price)}</span></div>
+            <div className="cart-name"><strong>{item.product_name}</strong><span className="muted">{money(item.unit_price, item.currency || shop.cart.currency)}</span></div>
             <div className="qty" role="group" aria-label={item.product_name}>
               <button type="button" disabled={busy === item.product_id} aria-label={t('cart.dec', { name: item.product_name })}
                 onClick={() => run(item.product_id, () => (item.quantity > 1 ? shop.setQuantity(item.product_id, item.quantity - 1) : shop.removeItem(item.product_id)))}><Icon name="minus" size={16} /></button>
@@ -33,12 +33,12 @@ function CartView({ shop, onCheckout }) {
               <button type="button" disabled={busy === item.product_id || item.quantity >= 100} aria-label={t('cart.inc', { name: item.product_name })}
                 onClick={() => run(item.product_id, () => shop.setQuantity(item.product_id, item.quantity + 1))}><Icon name="plus" size={16} /></button>
             </div>
-            <strong className="cart-line">{money(item.line_total)}</strong>
+            <strong className="cart-line">{money(item.line_total, item.currency || shop.cart.currency)}</strong>
             <button type="button" className="icon-btn" aria-label={t('cart.remove', { name: item.product_name })} onClick={() => run(item.product_id, () => shop.removeItem(item.product_id))}><Icon name="trash" size={18} /></button>
           </li>
         ))}
       </ul>
-      <div className="cart-total"><span>{t('cart.total')}</span><strong>{money(shop.cart.total_amount)}</strong></div>
+      <div className="cart-total"><span>{t('cart.total')}</span><strong>{money(shop.cart.total_amount, shop.cart.currency)}</strong></div>
       <div className="stack">
         <Button variant="primary" onClick={onCheckout}>{t('cart.checkout')}</Button>
         <Button variant="ghost" size="sm" busy={busy === 'clear'} onClick={() => run('clear', shop.clearCart)}>{t('cart.clear')}</Button>
@@ -137,10 +137,10 @@ function DoneView({ shop, order, onClose, onPaid }) {
                 <dd className="row">{id(paidOrder.tracking_number)}<Button size="sm" onClick={async () => toast((await copyText(paidOrder.tracking_number)) ? t('copied') : t('err.generic'))}>{t('copy')}</Button></dd>
               </div>
               <div><dt>{t('o.status')}</dt><dd><StatusBadge status={paidOrder.status} /></dd></div>
-              <div><dt>{t('cart.total')}</dt><dd><strong>{money(paidOrder.total_amount)}</strong></dd></div>
+              <div><dt>{t('cart.total')}</dt><dd><strong>{money(paidOrder.total_amount, paidOrder.currency)}</strong></dd></div>
             </dl>
             <ul className="plain-list" aria-label={t('order.items')}>
-              {paidOrder.items.map((item) => <li key={item.id}><span>{item.product_name} × {id(item.quantity)}</span><span>{money(item.line_total)}</span></li>)}
+              {paidOrder.items.map((item) => <li key={item.id}><span>{item.product_name} × {id(item.quantity)}</span><span>{money(item.line_total, paidOrder.currency)}</span></li>)}
             </ul>
             <Field label={t('order.invoiceLanguage')}>
               <select value={invoiceLocale} onChange={(event) => setInvoiceLocale(event.target.value)}>
@@ -156,7 +156,7 @@ function DoneView({ shop, order, onClose, onPaid }) {
       ) : (
         <>
           <p>{t('order.paymentRequired')}</p>
-          <p><strong>{t('cart.total')}: {money(order.total_amount)}</strong></p>
+          <p><strong>{t('cart.total')}: {money(order.total_amount, order.currency)}</strong></p>
           <Button variant="primary" busy={busy === 'pay'} onClick={pay}>{t('order.pay')}</Button>
         </>
       )}

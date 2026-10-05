@@ -205,7 +205,7 @@ function Showcase({ showcase, types }) {
                   <h3><Link className="cover-link" to={`/store/${product.store_id}/product/${product.id}`}>{product.name}</Link></h3>
                   <p className="muted">{t('landing.by', { store: product.store_name })}</p>
                   <div className="product-meta">
-                    <strong className="price">{money(product.price)}</strong>
+                    <strong className="price">{money(product.price, product.currency)}</strong>
                     <StockBadge stock={product.stock} />
                   </div>
                 </div>

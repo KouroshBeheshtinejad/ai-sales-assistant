@@ -1,18 +1,31 @@
+import json
+import os
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
+from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.security import create_access_token, hash_password
 from app.db.database import Base, get_db
-from app.db.models import AuditLog, FAQ, KnowledgeBaseEntry, Order, Payment, Product, Store, StoreMembership, User
+from app.db.models import AuditLog, FAQ, KnowledgeBaseEntry, Order, Payment, Product, Store, StoreMembership, StorePaymentAccount, User
 from app.main import app
-from app.services.payment_service import PaymentProviderNotConfigured, get_payment_provider
-from app.services.payment_service import MockPaymentProvider
+from app.services.payment_service import (
+    MockPaymentProvider,
+    PaymentAccountContext,
+    PaymentService,
+    PaymentProviderNotConfigured,
+    ZarinpalPaymentProvider,
+    get_payment_provider,
+    payment_provider_registry,
+)
 from app.services.audit_service import content_audit_state
+from app.security.payment_credentials import decrypt_payment_credential, encrypt_payment_credential
 
 
 @pytest.fixture()
@@ -114,6 +127,28 @@ def create_order(client, context):
     )
     assert order.status_code == 201
     created = order.json()
+    selected_provider = os.getenv("PAYMENT_PROVIDER", "disabled").strip().casefold()
+    if selected_provider in {"mock", "zarinpal"}:
+        db = next(app.dependency_overrides[get_db]())
+        try:
+            store = db.get(Store, context["store_id"])
+            store.payment_provider = selected_provider
+            account = db.query(StorePaymentAccount).filter_by(
+                store_id=store.id,
+                provider=selected_provider,
+            ).one_or_none()
+            if account is None:
+                db.add(StorePaymentAccount(
+                    store_id=store.id,
+                    provider=selected_provider,
+                    external_account_id="test-merchant" if selected_provider == "zarinpal" else "test-account",
+                    status="active",
+                    country_code="IR",
+                    currency="IRT",
+                ))
+            db.commit()
+        finally:
+            db.close()
     assert created["tracking_number"] is None
     assert created["invoice_number"] is None
     assert client.get(f"/orders/{created['id']}/invoice", headers=auth_headers(context)).status_code == 404
@@ -126,9 +161,13 @@ def create_order(client, context):
     return created
 
 
-def test_payment_requires_configured_provider(payment_context, monkeypatch):
+@pytest.mark.parametrize("provider", [None, "disabled"])
+def test_payment_requires_configured_provider(payment_context, monkeypatch, provider):
     client, context = payment_context
-    monkeypatch.delenv("PAYMENT_PROVIDER", raising=False)
+    if provider is None:
+        monkeypatch.delenv("PAYMENT_PROVIDER", raising=False)
+    else:
+        monkeypatch.setenv("PAYMENT_PROVIDER", provider)
     order = create_order(client, context)
 
     response = client.post(
@@ -137,7 +176,7 @@ def test_payment_requires_configured_provider(payment_context, monkeypatch):
     )
 
     assert response.status_code == 503
-    assert response.json()["detail"] == "Payment provider is not configured"
+    assert response.json()["detail"] == "Payment is not configured for this Store"
 
 
 def test_production_rejects_mock_payment_provider(monkeypatch):
@@ -146,6 +185,708 @@ def test_production_rejects_mock_payment_provider(monkeypatch):
 
     with pytest.raises(PaymentProviderNotConfigured):
         get_payment_provider()
+
+
+def test_zarinpal_uses_rials_and_v4_response_envelope(monkeypatch):
+    monkeypatch.setenv("PAYMENT_SECRET_ZARINPAL_TEST", "merchant-id")
+    monkeypatch.setenv("PAYMENT_CALLBACK_URL", "https://nava.example/api/payments/callback")
+    provider = ZarinpalPaymentProvider(PaymentAccountContext(
+        provider="zarinpal", store_id=1, account_id=1,
+        external_account_id=None, credential_reference="ZARINPAL_TEST",
+        country_code="IR", currency="IRT",
+    ))
+    requests = []
+    responses = iter((
+        {"data": {"code": 100, "authority": "A-authority"}, "errors": []},
+        {"data": {"code": 101, "ref_id": 12345}, "errors": []},
+    ))
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps(next(responses)).encode()
+
+    def fake_urlopen(request, timeout):
+        requests.append((request, timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.payment_service.urllib_request.urlopen", fake_urlopen)
+
+    created = provider.create_payment(amount=Decimal("12500.00"), currency="IRT", order_id=7)
+    verified = provider.verify_payment(amount=Decimal("12500.00"), currency="IRT", authority="A-authority")
+
+    assert created == {
+        "authority": "A-authority",
+        "payment_url": "https://payment.zarinpal.com/pg/StartPay/A-authority",
+    }
+    assert verified == {"transaction_id": "12345"}
+    request_payloads = [json.loads(request.data) for request, _timeout in requests]
+    assert request_payloads[0]["amount"] == 125000
+    assert request_payloads[0]["currency"] == "IRR"
+    assert request_payloads[1]["amount"] == 125000
+    assert all(timeout == 15 for _request, timeout in requests)
+
+
+@pytest.mark.parametrize(
+    ("gateway_status", "expected_status"),
+    [
+        ("VERIFIED", "paid"),
+        ("PAID", "paid"),
+        ("IN_BANK", "pending"),
+        ("FAILED", "failed"),
+        ("REVERSED", "cancelled"),
+        ("UNRECOGNIZED", "unknown"),
+    ],
+)
+def test_zarinpal_inquiry_maps_statuses_with_store_credential(monkeypatch, gateway_status, expected_status):
+    key = Fernet.generate_key().decode()
+    monkeypatch.setenv("PAYMENT_CREDENTIAL_ENCRYPTION_KEY", key)
+    monkeypatch.setenv("PAYMENT_CALLBACK_URL", "https://nava.example/api/payments/callback")
+    merchant_id = "11111111-1111-4111-8111-111111111111"
+    context = PaymentAccountContext(
+        provider="zarinpal",
+        store_id=17,
+        account_id=23,
+        external_account_id=None,
+        credential_reference=None,
+        country_code="IR",
+        currency="IRT",
+        credential_ciphertext=encrypt_payment_credential(merchant_id),
+    )
+    provider = ZarinpalPaymentProvider(context)
+    payloads = []
+    monkeypatch.setattr(
+        provider,
+        "_post",
+        lambda path, payload: payloads.append((path, payload)) or {"data": {"status": gateway_status}},
+    )
+
+    assert provider.get_status(authority="A-authority", currency="IRT") == expected_status
+    assert payloads == [("inquiry.json", {"merchant_id": merchant_id, "authority": "A-authority"})]
+
+
+def test_store_credentials_are_encrypted_unique_and_never_returned(payment_context, monkeypatch, caplog):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_CALLBACK_URL", "https://nava.example/api/payments/callback")
+    monkeypatch.setenv("PAYMENT_CREDENTIAL_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    merchant_one = "11111111-1111-4111-8111-111111111111"
+    merchant_two = "22222222-2222-4222-8222-222222222222"
+
+    def configure(store_id, headers, merchant_id):
+        return client.put(
+            f"/stores/{store_id}/payment-settings",
+            headers=headers,
+            json={"country_code": "IR", "currency": "IRT", "provider": "zarinpal", "merchant_id": merchant_id},
+        )
+
+    first = configure(context["store_id"], auth_headers(context), merchant_one)
+    assert first.status_code == 200
+    assert merchant_one not in first.text
+    assert "credential_ciphertext" not in first.json()
+    assert "merchant_id" not in first.json()
+
+    duplicate = configure(
+        context["other_store_id"],
+        {"Authorization": f"Bearer {context['support_token']}"},
+        merchant_one,
+    )
+    assert duplicate.status_code == 409
+    assert merchant_one not in duplicate.text
+
+    second = configure(
+        context["other_store_id"],
+        {"Authorization": f"Bearer {context['support_token']}"},
+        merchant_two,
+    )
+    assert second.status_code == 200
+    assert merchant_two not in second.text
+    assert merchant_one not in caplog.text
+    assert merchant_two not in caplog.text
+
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        accounts = db.query(StorePaymentAccount).filter_by(provider="zarinpal").all()
+        assert len(accounts) == 2
+        assert {decrypt_payment_credential(account.credential_ciphertext) for account in accounts} == {merchant_one, merchant_two}
+        assert all(account.credential_reference is None for account in accounts)
+    finally:
+        db.close()
+
+
+def test_database_rejects_duplicate_store_credential_fingerprints(payment_context):
+    _client, context = payment_context
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        fingerprint = "a" * 64
+        db.add_all((
+            StorePaymentAccount(
+                store_id=context["store_id"], provider="zarinpal", status="active",
+                country_code="IR", currency="IRT", credential_fingerprint=fingerprint,
+            ),
+            StorePaymentAccount(
+                store_id=context["other_store_id"], provider="zarinpal", status="active",
+                country_code="IR", currency="IRT", credential_fingerprint=fingerprint,
+            ),
+        ))
+        with pytest.raises(IntegrityError):
+            db.commit()
+        db.rollback()
+    finally:
+        db.close()
+
+
+def test_zarinpal_payment_uses_snapshotted_store_credential_and_finalizes_once(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("PAYMENT_PROVIDER", "zarinpal")
+    monkeypatch.setenv("PAYMENT_CALLBACK_URL", "https://nava.example/api/payments/callback")
+    monkeypatch.setenv("PAYMENT_CREDENTIAL_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    merchant_id = "11111111-1111-4111-8111-111111111111"
+    order = create_order(client, context)
+    settings = client.put(
+        f"/stores/{context['store_id']}/payment-settings",
+        headers=auth_headers(context),
+        json={"country_code": "IR", "currency": "IRT", "provider": "zarinpal", "merchant_id": merchant_id},
+    )
+    assert settings.status_code == 200
+
+    responses = iter((
+        {"data": {"code": 100, "authority": "A-order-authority"}, "errors": []},
+        {"data": {"status": "UNRECOGNIZED"}, "errors": []},
+        {"data": {"status": "PAID"}, "errors": []},
+        {"data": {"code": 101, "ref_id": 12345}, "errors": []},
+        {"data": {"code": 100, "message": "Reversed"}, "errors": []},
+    ))
+    request_payloads = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps(next(responses)).encode()
+
+    def fake_urlopen(request, timeout):
+        request_payloads.append(json.loads(request.data))
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.payment_service.urllib_request.urlopen", fake_urlopen)
+    created = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "zarinpal-create-once"},
+    )
+    assert created.status_code == 201
+    assert request_payloads[0]["merchant_id"] == merchant_id
+    reconciled = client.post(f"/payments/{created.json()['id']}/reconcile", headers=auth_headers(context))
+    assert reconciled.status_code == 200
+    assert reconciled.json()["status"] == "pending"
+    duplicate_create = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "zarinpal-create-retry"},
+    )
+    assert duplicate_create.status_code == 201
+    assert duplicate_create.json()["id"] == created.json()["id"]
+    assert len(request_payloads) == 2
+
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        account = db.query(StorePaymentAccount).filter_by(store_id=context["store_id"], provider="zarinpal").one()
+        account.credential_ciphertext = encrypt_payment_credential("33333333-3333-4333-8333-333333333333")
+        db.commit()
+    finally:
+        db.close()
+
+    reconciled_paid = client.post(f"/payments/{created.json()['id']}/reconcile", headers=auth_headers(context))
+    assert reconciled_paid.status_code == 200
+    assert reconciled_paid.json()["status"] == "paid"
+    verified = client.post(
+        f"/payments/{created.json()['id']}/verify",
+        headers=auth_headers(context),
+        json={"authority": created.json()["authority"]},
+    )
+    repeated = client.post(
+        f"/payments/{created.json()['id']}/verify",
+        headers=auth_headers(context),
+        json={"authority": created.json()["authority"]},
+    )
+    assert verified.status_code == repeated.status_code == 200
+    assert verified.json()["status"] == "paid"
+    assert request_payloads[3]["merchant_id"] == merchant_id
+    assert len(request_payloads) == 4
+
+    refund_headers = {**auth_headers(context), "Idempotency-Key": "zarinpal-full-reverse"}
+    partial_refund = client.post(
+        f"/payments/{created.json()['id']}/refunds",
+        headers={**auth_headers(context), "Idempotency-Key": "zarinpal-partial-reverse"},
+        json={"amount": "6.25"},
+    )
+    assert partial_refund.status_code == 400
+    assert len(request_payloads) == 4
+
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        stored_payment = db.get(Payment, created.json()["id"])
+        stored_payment.paid_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=31)
+        db.commit()
+    finally:
+        db.close()
+    expired_refund = client.post(
+        f"/payments/{created.json()['id']}/refunds",
+        headers={**auth_headers(context), "Idempotency-Key": "zarinpal-expired-reverse"},
+        json={"amount": "12.50"},
+    )
+    assert expired_refund.status_code == 400
+    assert len(request_payloads) == 4
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        db.get(Payment, created.json()["id"]).paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        db.commit()
+    finally:
+        db.close()
+
+    refund = client.post(
+        f"/payments/{created.json()['id']}/refunds",
+        headers=refund_headers,
+        json={"amount": "12.50"},
+    )
+    repeated_refund = client.post(
+        f"/payments/{created.json()['id']}/refunds",
+        headers=refund_headers,
+        json={"amount": "12.50"},
+    )
+    assert refund.status_code == repeated_refund.status_code == 201
+    assert refund.json()["id"] == repeated_refund.json()["id"]
+    assert request_payloads[4] == {"merchant_id": merchant_id, "authority": "A-order-authority"}
+    assert len(request_payloads) == 5
+
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        stored_order = db.get(Order, order["id"])
+        stored_payment = db.get(Payment, created.json()["id"])
+        assert stored_payment.status == "refunded"
+        assert stored_order.paid_at is not None
+        assert stored_order.tracking_number
+        assert stored_order.invoice_number
+        assert db.get(Product, context["product_id"]).stock == 1
+        assert len([item for item in stored_payment.transactions if item.transaction_type == "verification"]) == 1
+        assert len([item for item in stored_payment.transactions if item.transaction_type == "refund"]) == 1
+    finally:
+        db.close()
+
+
+def test_negative_and_repeated_callbacks_do_not_double_finalize(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+    order = create_order(client, context)
+    created = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "callback-create"},
+    )
+    payment = created.json()
+    verification_calls = 0
+    original_verify = MockPaymentProvider.verify_payment
+
+    def counted_verify(self, *, amount, currency, authority):
+        nonlocal verification_calls
+        verification_calls += 1
+        return original_verify(self, amount=amount, currency=currency, authority=authority)
+
+    monkeypatch.setattr(MockPaymentProvider, "verify_payment", counted_verify)
+    negative = client.get(
+        f"/payments/callback?Authority={payment['authority']}&Status=NOK",
+        follow_redirects=False,
+    )
+    assert negative.status_code == 303
+    assert "payment=failed" in negative.headers["location"]
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        stored_order = db.get(Order, order["id"])
+        stored_payment = db.get(Payment, payment["id"])
+        assert stored_payment.status == "pending"
+        assert stored_order.paid_at is None
+        assert stored_order.tracking_number is None
+        assert stored_order.invoice_number is None
+        assert db.get(Product, context["product_id"]).stock == 2
+    finally:
+        db.close()
+
+    for _ in range(2):
+        success = client.get(
+            f"/payments/callback?Authority={payment['authority']}&Status=OK",
+            follow_redirects=False,
+        )
+        assert success.status_code == 303
+        assert "payment=success" in success.headers["location"]
+    repeated_verify = client.post(
+        f"/payments/{payment['id']}/verify",
+        headers=auth_headers(context),
+        json={"authority": payment["authority"]},
+    )
+    assert repeated_verify.status_code == 200
+    assert verification_calls == 1
+
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        stored_order = db.get(Order, order["id"])
+        stored_payment = db.get(Payment, payment["id"])
+        assert stored_order.paid_at is not None
+        assert stored_order.tracking_number
+        assert stored_order.invoice_number
+        assert db.get(Product, context["product_id"]).stock == 1
+        assert len([item for item in stored_payment.transactions if item.transaction_type == "verification"]) == 1
+    finally:
+        db.close()
+
+
+def test_failed_zarinpal_verification_never_finalizes_order(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_PROVIDER", "zarinpal")
+    monkeypatch.setenv("PAYMENT_CALLBACK_URL", "https://nava.example/api/payments/callback")
+    monkeypatch.setenv("PAYMENT_CREDENTIAL_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    order = create_order(client, context)
+    merchant_id = "11111111-1111-4111-8111-111111111111"
+    settings = client.put(
+        f"/stores/{context['store_id']}/payment-settings",
+        headers=auth_headers(context),
+        json={"country_code": "IR", "currency": "IRT", "provider": "zarinpal", "merchant_id": merchant_id},
+    )
+    assert settings.status_code == 200
+    responses = iter((
+        {"data": {"code": 100, "authority": "A-failed-authority"}, "errors": []},
+        {"data": {"code": -51, "message": "Payment not successful"}, "errors": []},
+    ))
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps(next(responses)).encode()
+
+    monkeypatch.setattr(
+        "app.services.payment_service.urllib_request.urlopen",
+        lambda request, timeout: FakeResponse(),
+    )
+    created = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "zarinpal-failed-create"},
+    )
+    failed = client.post(
+        f"/payments/{created.json()['id']}/verify",
+        headers=auth_headers(context),
+        json={"authority": created.json()["authority"]},
+    )
+    assert failed.status_code == 400
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        stored_order = db.get(Order, order["id"])
+        stored_payment = db.get(Payment, created.json()["id"])
+        assert stored_payment.status == "failed"
+        assert stored_order.paid_at is None
+        assert stored_order.tracking_number is None
+        assert stored_order.invoice_number is None
+        assert db.get(Product, context["product_id"]).stock == 2
+    finally:
+        db.close()
+
+
+def test_payment_with_cross_store_account_snapshot_cannot_be_verified(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+    order = create_order(client, context)
+    created = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "cross-store-create"},
+    )
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        stored_payment = db.get(Payment, created.json()["id"])
+        stored_payment.provider_context = {
+            **stored_payment.provider_context,
+            "store_id": context["other_store_id"],
+        }
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        f"/payments/{created.json()['id']}/verify",
+        headers=auth_headers(context),
+        json={"authority": created.json()["authority"]},
+    )
+    assert response.status_code == 503
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        assert db.get(Payment, created.json()["id"]).status == "pending"
+        assert db.get(Order, order["id"]).paid_at is None
+    finally:
+        db.close()
+
+
+def test_zarinpal_rejects_fractional_rial_amount(monkeypatch):
+    monkeypatch.setenv("PAYMENT_SECRET_ZARINPAL_TEST", "merchant-id")
+    monkeypatch.setenv("PAYMENT_CALLBACK_URL", "https://nava.example/api/payments/callback")
+    provider = ZarinpalPaymentProvider(PaymentAccountContext(
+        provider="zarinpal", store_id=1, account_id=1,
+        external_account_id=None, credential_reference="ZARINPAL_TEST",
+        country_code="IR", currency="IRT",
+    ))
+
+    with pytest.raises(ValueError, match="whole rial"):
+        provider.create_payment(amount=Decimal("1.25"), currency="IRT", order_id=7)
+
+
+def test_store_payment_settings_are_conditional_and_never_return_account_ids(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_CALLBACK_URL", "https://nava.example/api/payments/callback")
+    monkeypatch.setenv("PAYMENT_CREDENTIAL_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setenv("PAYMENT_SECRET_ZARINPAL_STORE_ONE", "merchant-store-one")
+    headers = auth_headers(context)
+    initial = client.get(f"/stores/{context['store_id']}/payment-settings", headers=headers)
+    assert initial.status_code == 200
+    assert initial.json()["provider"] == "disabled"
+
+    zarinpal = client.put(
+        f"/stores/{context['store_id']}/payment-settings",
+        headers=headers,
+        json={
+            "country_code": "IR",
+            "currency": "IRT",
+            "provider": "zarinpal",
+            "credential_reference": "ZARINPAL_STORE_ONE",
+        },
+    )
+    assert zarinpal.status_code == 200
+    assert zarinpal.json()["status"] == "active"
+    assert zarinpal.json()["account_configured"] is True
+    assert "external_account_id" not in zarinpal.json()
+    assert "credential_reference" not in zarinpal.json()
+    assert "ZARINPAL_STORE_ONE" not in zarinpal.text
+
+    duplicate_legacy_credential = client.put(
+        f"/stores/{context['other_store_id']}/payment-settings",
+        headers={"Authorization": f"Bearer {context['support_token']}"},
+        json={
+            "country_code": "IR",
+            "currency": "IRT",
+            "provider": "zarinpal",
+            "credential_reference": "ZARINPAL_STORE_ONE",
+        },
+    )
+    assert duplicate_legacy_credential.status_code == 409
+    assert "merchant-store-one" not in duplicate_legacy_credential.text
+
+    international = client.put(
+        f"/stores/{context['store_id']}/payment-settings",
+        headers=headers,
+        json={
+            "country_code": "US",
+            "currency": "USD",
+            "provider": "stripe_connect",
+            "external_account_id": "acct_store_one",
+        },
+    )
+    assert international.status_code == 200
+    assert international.json()["provider"] == "stripe_connect"
+    assert international.json()["status"] == "pending"
+    assert international.json()["adapter_available"] is False
+    assert "merchant-store-one" not in international.text
+
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        store = db.get(Store, context["store_id"])
+        assert store.country_code == "US"
+        assert store.currency == "USD"
+        assert store.payment_provider == "stripe_connect"
+        assert db.query(StorePaymentAccount).filter_by(store_id=store.id, provider="zarinpal").one().credential_reference == "ZARINPAL_STORE_ONE"
+    finally:
+        db.close()
+
+
+def test_legacy_zarinpal_account_requires_settings_resave_for_fingerprint(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_CALLBACK_URL", "https://nava.example/api/payments/callback")
+    monkeypatch.setenv("PAYMENT_CREDENTIAL_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setenv("PAYMENT_SECRET_LEGACY_STORE", "legacy-merchant-credential")
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        store = db.get(Store, context["store_id"])
+        store.payment_provider = "zarinpal"
+        db.add(StorePaymentAccount(
+            store_id=store.id,
+            provider="zarinpal",
+            credential_reference="LEGACY_STORE",
+            status="active",
+            country_code="IR",
+            currency="IRT",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    headers = auth_headers(context)
+    settings = client.get(f"/stores/{context['store_id']}/payment-settings", headers=headers)
+    assert settings.status_code == 200
+    assert settings.json()["status"] == "pending"
+
+    resaved = client.put(
+        f"/stores/{context['store_id']}/payment-settings",
+        headers=headers,
+        json={"country_code": "IR", "currency": "IRT", "provider": "zarinpal"},
+    )
+    assert resaved.status_code == 200
+    assert resaved.json()["status"] == "active"
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        account = db.query(StorePaymentAccount).filter_by(store_id=context["store_id"], provider="zarinpal").one()
+        assert account.credential_fingerprint
+    finally:
+        db.close()
+
+
+def test_two_stores_select_distinct_payment_adapters_and_accounts(payment_context, monkeypatch):
+    _client, context = payment_context
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("PAYMENT_PROVIDER", "disabled")
+
+    class AccountBoundProvider:
+        name = "stripe_connect"
+
+        def __init__(self, account):
+            self.account = account
+
+        def create_payment(self, *, amount, currency, order_id, callback_url=None):
+            return {"authority": f"{self.account.external_account_id}-{order_id}", "payment_url": "https://checkout.example.test"}
+
+        def verify_payment(self, *, amount, currency, authority):
+            return {"transaction_id": f"tx-{authority}"}
+
+        def get_status(self, *, authority, currency):
+            return "pending"
+
+        def refund(self, *, transaction_id, amount, currency):
+            return {"status": "refunded"}
+
+    payment_provider_registry.register("stripe_connect", lambda account: AccountBoundProvider(account))
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        first_store = db.get(Store, context["store_id"])
+        second_store = db.get(Store, context["other_store_id"])
+        first_store.payment_provider = "mock"
+        second_store.payment_provider = "stripe_connect"
+        second_store.country_code = "US"
+        second_store.currency = "USD"
+        first_account = StorePaymentAccount(
+            store_id=first_store.id, provider="mock", external_account_id="mock-account-one",
+            status="active", country_code="IR", currency="IRT",
+        )
+        second_account = StorePaymentAccount(
+            store_id=second_store.id, provider="stripe_connect", external_account_id="acct_connected_two",
+            status="active", country_code="US", currency="USD",
+        )
+        db.add_all([first_account, second_account])
+        first_order = Order(
+            user_id=context["user_id"], store_id=first_store.id, status="pending",
+            customer_name="One", customer_phone="0912", customer_address="Tehran",
+            total_amount=Decimal("12500.00"), currency="IRT",
+        )
+        second_order = Order(
+            user_id=context["support_user_id"], store_id=second_store.id, status="pending",
+            customer_name="Two", customer_phone="+12025550123", customer_address="New York",
+            total_amount=Decimal("12.50"), currency="USD",
+        )
+        db.add_all([first_order, second_order])
+        db.commit()
+
+        first_payment = PaymentService.create_payment(db, first_order.id, "store-one-key", user_id=context["user_id"])
+        second_payment = PaymentService.create_payment(db, second_order.id, "store-two-key", user_id=context["support_user_id"])
+
+        assert first_payment.provider == "mock"
+        assert first_payment.currency == "IRT"
+        assert first_payment.provider_context["external_account_id"] == "mock-account-one"
+        assert second_payment.provider == "stripe_connect"
+        assert second_payment.currency == "USD"
+        assert second_payment.provider_context["external_account_id"] == "acct_connected_two"
+    finally:
+        db.close()
+        payment_provider_registry.unregister("stripe_connect")
+
+
+def test_reconciliation_expires_payment_and_allows_a_safe_retry(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+    order = create_order(client, context)
+    created = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "reconcile-expiry-1"},
+    )
+    payment = created.json()
+    monkeypatch.setattr(MockPaymentProvider, "get_status", lambda self, *, authority, currency: "expired")
+
+    reconciled = client.post(
+        f"/payments/{payment['id']}/reconcile",
+        headers=auth_headers(context),
+    )
+
+    assert reconciled.status_code == 200
+    assert reconciled.json()["status"] == "expired"
+    retry = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "reconcile-expiry-2"},
+    )
+    assert retry.status_code == 201
+    assert retry.json()["id"] != payment["id"]
+    assert client.get(f"/orders/{order['id']}", headers=auth_headers(context)).status_code == 404
+
+
+def test_refund_is_idempotent_and_cannot_exceed_paid_amount(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+    order = create_order(client, context)
+    created = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "refund-payment-create"},
+    )
+    payment = created.json()
+    verified = client.post(
+        f"/payments/{payment['id']}/verify",
+        headers=auth_headers(context),
+        json={"authority": payment["authority"]},
+    )
+    assert verified.status_code == 200
+
+    headers = {**auth_headers(context), "Idempotency-Key": "refund-half"}
+    first = client.post(f"/payments/{payment['id']}/refunds", headers=headers, json={"amount": "6.25"})
+    repeated = client.post(f"/payments/{payment['id']}/refunds", headers=headers, json={"amount": "6.25"})
+    assert first.status_code == 201
+    assert repeated.status_code == 201
+    assert repeated.json()["id"] == first.json()["id"]
+
+    excess = client.post(
+        f"/payments/{payment['id']}/refunds",
+        headers={**auth_headers(context), "Idempotency-Key": "refund-overflow"},
+        json={"amount": "6.26"},
+    )
+    assert excess.status_code == 400
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        stored_payment = db.get(Payment, payment["id"])
+        refunds = [item for item in stored_payment.transactions if item.transaction_type == "refund"]
+        assert len(refunds) == 1
+        assert refunds[0].status == "refunded"
+    finally:
+        db.close()
 
 
 def test_god_role_is_server_managed_and_support_is_read_only(payment_context, monkeypatch):
@@ -621,7 +1362,7 @@ def test_failed_gateway_verification_never_finalizes_or_deducts_stock(payment_co
     )
     payment = created.json()
 
-    def fail_verification(self, *, amount, authority):
+    def fail_verification(self, *, amount, currency, authority):
         raise ValueError("Payment verification failed")
 
     monkeypatch.setattr(MockPaymentProvider, "verify_payment", fail_verification)
@@ -650,14 +1391,13 @@ def test_failed_gateway_verification_never_finalizes_or_deducts_stock(payment_co
 
 
 @pytest.mark.parametrize(
-    ("gateway_status", "expected_payment_status"),
-    [("Cancelled", "cancelled"), ("Expired", "expired"), ("Failed", "failed")],
+    "gateway_status",
+    ["Cancelled", "Expired", "Failed"],
 )
-def test_unsuccessful_gateway_outcomes_cannot_finalize_or_be_verified_later(
+def test_unverified_gateway_outcomes_cannot_finalize_or_duplicate_payment(
     payment_context,
     monkeypatch,
     gateway_status,
-    expected_payment_status,
 ):
     client, context = payment_context
     monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
@@ -674,19 +1414,72 @@ def test_unsuccessful_gateway_outcomes_cannot_finalize_or_be_verified_later(
     )
     assert callback.status_code == 303
     assert "payment=failed" in callback.headers["location"]
-    assert client.post(
-        f"/payments/{payment['id']}/verify",
-        headers=auth_headers(context),
-        json={"authority": payment["authority"]},
-    ).status_code == 400
     assert client.get(f"/orders/{order['id']}", headers=auth_headers(context)).status_code == 404
+    retry = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "payment-retry-after-nok"},
+    )
+    assert retry.status_code == 201
+    assert retry.json()["id"] == payment["id"]
     db = next(app.dependency_overrides[get_db]())
     try:
         stored_order = db.get(Order, order["id"])
         stored_payment = db.get(Payment, payment["id"])
         assert stored_order.tracking_number is None
         assert stored_order.invoice_number is None
-        assert stored_payment.status == expected_payment_status
+        assert stored_payment.status == "pending"
+    finally:
+        db.close()
+
+
+def test_unverified_failure_callback_does_not_block_later_verified_success(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+    order = create_order(client, context)
+    payment = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "payment-fake-nok"},
+    ).json()
+
+    failed_callback = client.get(
+        "/api/payments/callback",
+        params={"Authority": payment["authority"], "Status": "NOK"},
+        follow_redirects=False,
+    )
+    success_callback = client.get(
+        "/api/payments/callback",
+        params={"Authority": payment["authority"], "Status": "OK"},
+        follow_redirects=False,
+    )
+
+    assert "payment=failed" in failed_callback.headers["location"]
+    assert "payment=success" in success_callback.headers["location"]
+    assert client.get(f"/orders/{order['id']}", headers=auth_headers(context)).json()["tracking_number"]
+
+
+def test_pending_payment_blocks_order_cancellation(payment_context, monkeypatch):
+    client, context = payment_context
+    monkeypatch.setenv("PAYMENT_PROVIDER", "mock")
+    order = create_order(client, context)
+    payment = client.post(
+        f"/payments/orders/{order['id']}",
+        headers={**auth_headers(context), "Idempotency-Key": "payment-before-cancel"},
+    ).json()
+
+    response = client.post(f"/orders/{order['id']}/cancel", headers=auth_headers(context))
+
+    assert response.status_code == 400
+    assert "Pending payments" in response.json()["detail"]
+    assert client.get(f"/orders/{order['id']}", headers=auth_headers(context)).status_code == 404
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        stored_order = db.get(Order, order["id"])
+        stored_payment = db.get(Payment, payment["id"])
+        product = db.get(Product, context["product_id"])
+        assert stored_order.status == "pending"
+        assert stored_payment.status == "pending"
+        assert product.stock == 2
+        assert product.reserved_stock == 1
     finally:
         db.close()
 

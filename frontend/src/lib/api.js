@@ -134,6 +134,8 @@ export const api = {
   // Seller (Bearer token)
   seller: {
     stores: () => seller('/stores/'),
+    paymentSettings: (storeId) => seller(`/stores/${storeId}/payment-settings`),
+    updatePaymentSettings: (storeId, payload) => seller(`/stores/${storeId}/payment-settings`, { method: 'PUT', body: payload }),
     createStore: (payload) => seller('/stores/', { method: 'POST', body: payload }),
     updateStore: (id, payload) => seller(`/stores/${id}`, { method: 'PUT', body: payload }),
     uploadStoreLogo: (id, file) => {

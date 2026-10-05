@@ -177,13 +177,17 @@ export function Swatch({ seed, label, className }) {
   const [ink, ground] = PALETTES[h % PALETTES.length]
   const motif = Math.floor(h / 7) % 3
   return (
-    <div className={cx('swatch', className)} style={{ background: ground, color: ink }} aria-hidden="true">
+    <div
+      className={cx('swatch', className)}
+      style={{ background: ground, color: ink, display: 'grid', placeItems: 'center' }}
+      aria-hidden="true"
+    >
       <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" fill="none" stroke="currentColor" strokeWidth="1.4" opacity=".4">
         {motif === 0 && <><rect x="22" y="22" width="56" height="56" /><rect x="22" y="22" width="56" height="56" transform="rotate(45 50 50)" /><rect x="6" y="6" width="88" height="88" /></>}
         {motif === 1 && [46, 35, 24, 13].map((r) => <circle key={r} cx="50" cy="50" r={r} />)}
         {motif === 2 && <><path d="M50 4 96 50 50 96 4 50Z" /><path d="M50 22 78 50 50 78 22 50Z" /><path d="M50 40 60 50 50 60 40 50Z" /></>}
       </svg>
-      <span>{String(label || '').trim().charAt(0)}</span>
+      <span style={{ display: 'grid', placeItems: 'center', width: '100%', height: '100%', lineHeight: 1 }}>{String(label || '').trim().charAt(0)}</span>
     </div>
   )
 }

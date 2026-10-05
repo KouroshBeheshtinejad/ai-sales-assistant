@@ -6,7 +6,7 @@ import logging
 from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
-from app.db.models import Cart, CartItem, Conversation, Order, OrderItem, Product
+from app.db.models import Cart, CartItem, Conversation, Order, OrderItem, Product, Store
 
 
 class OrderService:
@@ -21,6 +21,8 @@ class OrderService:
         """Release an unpaid order's reservation exactly once."""
         if any(payment.status == "paid" for payment in order.payments):
             raise ValueError("Paid orders require a refund before cancellation")
+        if any(payment.status == "pending" for payment in order.payments):
+            raise ValueError("Pending payments must finish before order cancellation")
         for item in order.items:
             if item.product_id is None:
                 continue
@@ -56,6 +58,10 @@ class OrderService:
 
         if user_id is None and not guest_token:
             raise ValueError("A user or guest token is required")
+
+        store = db.get(Store, store_id)
+        if store is None:
+            raise ValueError("Store not found")
 
         if guest_token:
             conversation = db.scalar(
@@ -160,6 +166,7 @@ class OrderService:
             customer_phone=customer_phone,
             customer_address=customer_address,
             total_amount=total_amount,
+            currency=store.currency,
             idempotency_key=idempotency_key,
         )
 
@@ -301,11 +308,11 @@ class OrderService:
 
         order = db.scalar(
             select(Order)
-            .options(joinedload(Order.items))
             .where(
                 Order.id == order_id,
                 Order.user_id == user_id,
             )
+            .with_for_update()
         )
 
         if order is None:

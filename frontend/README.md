@@ -39,7 +39,7 @@ src/pages      Landing, Auth, Track, StoreShell/StoreHome/ProductPage, seller/*
 ## How it talks to the backend
 
 - **Guest identity**: a guest token is the token of a store-scoped `Conversation`, so it is kept per store in `localStorage` (`nava_guest_token_{storeId}`, the same key the server-rendered page uses). The API only creates one through the chat endpoint, so the first cart action sends the deterministic "view cart" message, which needs no LLM call.
-- **Checkout**: one `Idempotency-Key` per checkout attempt; retries cannot create duplicate orders. Payment uses `payment_url` when the gateway returns one, otherwise the sandbox confirm step.
+- **Checkout**: one `Idempotency-Key` per checkout attempt; retries cannot create duplicate orders. Payment uses `payment_url` when ZarinPal returns one. The development-only `mock` provider has a sandbox confirmation step; `disabled` rejects payment attempts.
 - **Seller session**: Bearer JWT in `localStorage`, expiry read from the token; any 401 signs the seller out and redirects to `/login?next=...`.
 - Timestamps from the API are naive UTC; they are parsed as UTC before formatting.
 

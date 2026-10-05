@@ -40,6 +40,7 @@ def _cart_response(cart):
                 "product_id": item.product_id,
                 "product_name": item.product.name,
                 "unit_price": unit_price,
+                "currency": cart.store.currency,
                 "quantity": item.quantity,
                 "stock": item.product.stock - item.product.reserved_stock,
                 "line_total": line_total,
@@ -53,6 +54,7 @@ def _cart_response(cart):
         "user_id": cart.user_id,
         "guest_token": cart.guest_token,
         "store_id": cart.store_id,
+        "currency": cart.store.currency,
         "items": items,
         "total_amount": total,
     }

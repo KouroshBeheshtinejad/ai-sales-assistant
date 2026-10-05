@@ -7,8 +7,7 @@ import fr from './locales/fr'
 import { LISTS } from './locales/lists'
 import { safeStorage, toLatinDigits } from './util'
 
-// One entry per supported language. `unit` is the currency word used next to prices
-// (the catalogue is priced in Toman, see the server-rendered store page).
+// One entry per supported language. `unit` is the legacy default currency label.
 export const LOCALES = [
   { code: 'fa', name: 'فارسی', short: 'FA', dir: 'rtl', tag: 'fa-IR', unit: 'تومان' },
   { code: 'en', name: 'English', short: 'EN', dir: 'ltr', tag: 'en-US', unit: 'Toman' },
@@ -111,7 +110,14 @@ function createTranslator(code) {
     const text = String(value ?? '')
     return meta.code === 'fa' ? text.replace(/\d/g, (d) => FA_DIGITS[d]) : text
   }
-  const money = (value) => `${moneyFormat.format(Number(value) || 0)} ${meta.unit}`
+  const money = (value, currency = 'IRT') => {
+    const amount = Number(value) || 0
+    const code = String(currency || 'IRT').toUpperCase()
+    if (code === 'IRT') return `${moneyFormat.format(amount)} ${meta.unit}`
+    if (code === 'IRR') return `${moneyFormat.format(amount)} ${meta.code === 'fa' ? 'ریال' : 'IRR'}`
+    try { return new Intl.NumberFormat(meta.tag, { style: 'currency', currency: code }).format(amount) }
+    catch { return `${moneyFormat.format(amount)} ${code}` }
+  }
   const date = (value) => (value instanceof Date && !Number.isNaN(value.getTime()) ? dateFormat.format(value) : '')
 
   const t = (key, params) => {

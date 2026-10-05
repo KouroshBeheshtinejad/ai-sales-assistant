@@ -284,6 +284,26 @@ account.passwordMismatch = Las contraseñas no coinciden.
 account.captchaHint = Resuelve el código de seguridad para guardar los cambios.
 account.saved = Tu cuenta se ha actualizado.
 account.savedNeedsVerify = Tu cuenta se ha actualizado. Como cambiaste tu correo, verifícalo de nuevo.
+pay.settings = Configuración de pagos de la tienda
+pay.country = Código de país de la tienda (ISO)
+pay.currency = Moneda de la tienda (ISO 4217)
+pay.provider = Proveedor de pago
+pay.provider.disabled = Desactivado
+pay.provider.zarinpal = ZarinPal
+pay.provider.stripe_connect = Stripe Connect
+pay.provider.paypal_multiparty = PayPal Multiparty
+pay.provider.adyen_platforms = Adyen for Platforms
+pay.provider.mollie_connect = Mollie Connect
+pay.provider.mock = Simulado (solo desarrollo)
+pay.accountId = ID de cuenta conectada de la tienda
+pay.credentialReference = Merchant ID de ZarinPal
+pay.credentialHint = Introduce el Merchant ID de 36 caracteres. Se cifra en la base de datos y no vuelve a mostrarse; la verificación real se realiza durante el primer pago.
+pay.status.active = Merchant ID guardado; la verificación real se realiza al pagar
+pay.status.pending = La conexión del proveedor aún no está activa
+pay.status.resave = Guarda de nuevo esta configuración para activar la credencial cifrada de la tienda.
+pay.status.disabled = Los pagos están desactivados
+pay.adapterPending = Este adaptador aún no está implementado ni habilitado en NAVA.
+pay.save = Guardar configuración de pago
 
 # ---- storefront
 shop.search = Buscar productos…

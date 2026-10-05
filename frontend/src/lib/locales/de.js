@@ -284,6 +284,26 @@ account.passwordMismatch = Die Passwörter stimmen nicht überein.
 account.captchaHint = Lösen Sie den Sicherheitscode, um Ihre Änderungen zu speichern.
 account.saved = Ihr Konto wurde aktualisiert.
 account.savedNeedsVerify = Ihr Konto wurde aktualisiert. Da Sie Ihre E-Mail-Adresse geändert haben, bestätigen Sie sie bitte erneut.
+pay.settings = Zahlungseinstellungen des Shops
+pay.country = Ländercode des Shops (ISO)
+pay.currency = Währung des Shops (ISO 4217)
+pay.provider = Zahlungsanbieter
+pay.provider.disabled = Deaktiviert
+pay.provider.zarinpal = ZarinPal
+pay.provider.stripe_connect = Stripe Connect
+pay.provider.paypal_multiparty = PayPal Multiparty
+pay.provider.adyen_platforms = Adyen for Platforms
+pay.provider.mollie_connect = Mollie Connect
+pay.provider.mock = Mock (nur Entwicklung)
+pay.accountId = Verbundene Konto-ID des Shops
+pay.credentialReference = ZarinPal-Händlerkennung (Merchant ID)
+pay.credentialHint = Geben Sie die 36-stellige Händlerkennung ein. Sie wird verschlüsselt gespeichert und nicht erneut angezeigt; die Live-Prüfung erfolgt bei der ersten Zahlung.
+pay.status.active = Händlerkennung gespeichert; Live-Prüfung erfolgt bei der Zahlung
+pay.status.pending = Anbieter-Verbindung ist noch nicht aktiv
+pay.status.resave = Speichern Sie diese Einstellungen erneut, um den verschlüsselten Shop-Zugang zu aktivieren.
+pay.status.disabled = Zahlungen sind deaktiviert
+pay.adapterPending = Dieser Anbieteradapter ist in NAVA noch nicht implementiert oder aktiviert.
+pay.save = Zahlungseinstellungen speichern
 
 # ---- storefront
 shop.search = Produkte suchen…

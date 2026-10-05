@@ -46,7 +46,7 @@ export default function PaymentResult() {
         <div><dt>{t('order.number')}</dt><dd>{id(order.id)}</dd></div>
         <div><dt>{t('order.tracking')}</dt><dd dir="ltr">{order.tracking_number}</dd></div>
         <div><dt>{t('o.status')}</dt><dd><StatusBadge status={order.status} /></dd></div>
-        <div><dt>{t('cart.total')}</dt><dd>{money(order.total_amount)}</dd></div>
+        <div><dt>{t('cart.total')}</dt><dd>{money(order.total_amount, order.currency)}</dd></div>
       </dl>
       <Field label={t('order.invoiceLanguage')}>
         <select value={locale} onChange={(event) => setLocale(event.target.value)}>

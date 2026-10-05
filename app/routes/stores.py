@@ -1,20 +1,31 @@
+import os
+import hmac
+import uuid
 from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from starlette.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.business_types import get_business_type_label, normalize_business_type
 from app.core.csrf import require_csrf_header
 from app.db.database import get_db
-from app.db.models import Product, Store, StoreMembership, User
+from app.db.models import Order, Product, Store, StoreMembership, StorePaymentAccount, User
 from app.routes.auth import get_current_user, require_roles, store_owner_filter, store_owner_only_filter
 from app.services.cloudinary_service import delete_image, upload_image
 from app.services.image_validation import validate_image_content
 from app.services.audit_service import record_audit_log
+from app.services.payment_service import payment_provider_registry
+from app.security.payment_credentials import (
+    PaymentCredentialError,
+    decrypt_payment_credential,
+    encrypt_payment_credential,
+    fingerprint_payment_credential,
+)
 from app.security.policies import store_access
 
 
@@ -132,6 +143,9 @@ def create_store(
         "categories": store.categories or [],
         "primary_color": store.primary_color,
         "secondary_color": store.secondary_color,
+        "country_code": store.country_code,
+        "currency": store.currency,
+        "payment_provider": store.payment_provider,
     }
 
 
@@ -157,8 +171,11 @@ def get_my_stores(
             "categories": store.categories or [],
             "primary_color": store.primary_color,
             "secondary_color": store.secondary_color,
+            "country_code": store.country_code,
+            "currency": store.currency,
+            "payment_provider": store.payment_provider,
             "created_at": store.created_at,
-            **store_access(db, current_user, store.id),
+            **(store_access(db, current_user, store.id) or {}),
         }
         for store in stores
     ]
@@ -195,8 +212,11 @@ def get_store(
         "categories": store.categories or [],
         "primary_color": store.primary_color,
         "secondary_color": store.secondary_color,
+        "country_code": store.country_code,
+        "currency": store.currency,
+        "payment_provider": store.payment_provider,
         "created_at": store.created_at,
-        **store_access(db, current_user, store.id),
+        **(store_access(db, current_user, store.id) or {}),
     }
 
 
@@ -224,6 +244,233 @@ class StoreUpdateRequest(BaseModel):
         if value is None:
             return None
         return StoreCreateRequest.categories_must_have_unique_ids_and_names(value)
+
+
+class StorePaymentSettingsRequest(BaseModel):
+    country_code: str = Field(..., pattern=r"^[A-Za-z]{2}$")
+    currency: str = Field(..., pattern=r"^[A-Za-z]{3}$")
+    provider: Literal[
+        "disabled",
+        "zarinpal",
+        "stripe_connect",
+        "paypal_multiparty",
+        "adyen_platforms",
+        "mollie_connect",
+        "mock",
+    ]
+    external_account_id: str | None = Field(None, max_length=255)
+    credential_reference: str | None = Field(None, max_length=64, pattern=r"^[A-Z0-9_]+$")
+    merchant_id: str | None = None
+
+    @field_validator("country_code", "currency")
+    @classmethod
+    def uppercase_codes(cls, value: str) -> str:
+        return value.upper()
+
+    @field_validator("external_account_id")
+    @classmethod
+    def clean_account_reference(cls, value: str | None) -> str | None:
+        value = value.strip() if value else None
+        return value or None
+
+    @field_validator("credential_reference")
+    @classmethod
+    def clean_credential_reference(cls, value: str | None) -> str | None:
+        value = value.strip() if value else None
+        return value or None
+
+    @model_validator(mode="after")
+    def require_provider_account(self):
+        if self.provider != "zarinpal" and self.credential_reference:
+            raise ValueError("Credential references are only used for ZarinPal")
+        if self.provider == "zarinpal" and self.currency not in {"IRT", "IRR"}:
+            raise ValueError("ZarinPal supports only IRT and IRR Store currencies")
+        return self
+
+
+def _payment_settings_response(store: Store, account: StorePaymentAccount | None) -> dict:
+    provider = store.payment_provider
+    account_status = account.status if account is not None else "not_configured"
+    if provider == "zarinpal" and account is not None and not account.credential_fingerprint:
+        account_status = "pending"
+    return {
+        "store_id": store.id,
+        "country_code": store.country_code,
+        "currency": store.currency,
+        "provider": provider,
+        "status": account_status,
+        "adapter_available": payment_provider_registry.has_adapter(provider),
+        "account_configured": bool(account and (account.external_account_id or account.credential_reference or account.credential_ciphertext)),
+    }
+
+
+def _ensure_unique_zarinpal_credential(db: Session, store_id: int, merchant_id: str) -> None:
+    other_accounts = db.scalars(
+        select(StorePaymentAccount).where(
+            StorePaymentAccount.provider == "zarinpal",
+            StorePaymentAccount.store_id != store_id,
+        )
+    ).all()
+    for other_account in other_accounts:
+        try:
+            other_merchant_id = (
+                decrypt_payment_credential(other_account.credential_ciphertext)
+                if other_account.credential_ciphertext
+                else os.getenv(f"PAYMENT_SECRET_{other_account.credential_reference}", "")
+            )
+        except PaymentCredentialError as exc:
+            raise HTTPException(status_code=503, detail="An existing Store credential must be reconfigured") from exc
+        if other_merchant_id and hmac.compare_digest(merchant_id, other_merchant_id):
+            raise HTTPException(status_code=409, detail="This ZarinPal Merchant ID is already assigned to another Store")
+
+
+@router.get("/{store_id}/payment-settings")
+def get_store_payment_settings(
+    store_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    store = db.scalar(select(Store).where(Store.id == store_id, store_owner_only_filter(current_user)))
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+    account = db.scalar(
+        select(StorePaymentAccount).where(
+            StorePaymentAccount.store_id == store.id,
+            StorePaymentAccount.provider == store.payment_provider,
+        )
+    )
+    return _payment_settings_response(store, account)
+
+
+@router.put("/{store_id}/payment-settings")
+def update_store_payment_settings(
+    store_id: int,
+    data: StorePaymentSettingsRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    store = db.scalar(
+        select(Store)
+        .where(Store.id == store_id, store_owner_only_filter(current_user))
+        .with_for_update()
+    )
+    if store is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+    if data.provider == "mock" and os.getenv("APP_ENV", "development").strip().casefold() in {"production", "prod"}:
+        raise HTTPException(status_code=400, detail="Mock payments are disabled in production")
+    if store.currency != data.currency and db.query(Order.id).filter(Order.store_id == store.id).first():
+        raise HTTPException(status_code=409, detail="Store currency cannot change after an order exists")
+    if data.provider == "zarinpal" and not os.getenv("PAYMENT_CALLBACK_URL", "").strip():
+        raise HTTPException(status_code=503, detail="PAYMENT_CALLBACK_URL is required for ZarinPal")
+    account = None
+    if data.provider != "disabled":
+        account = db.scalar(
+            select(StorePaymentAccount)
+            .where(StorePaymentAccount.store_id == store.id, StorePaymentAccount.provider == data.provider)
+            .with_for_update()
+        )
+        credential_reference = data.credential_reference or (account.credential_reference if account else None)
+        external_account_id = data.external_account_id or (account.external_account_id if account else None)
+        credential_ciphertext = account.credential_ciphertext if account else None
+        credential_fingerprint = None
+        if data.provider == "zarinpal":
+            resolved_merchant_id = None
+            if data.merchant_id and data.credential_reference:
+                raise HTTPException(status_code=422, detail="Provide either a Merchant ID or a server credential reference")
+            if data.merchant_id:
+                merchant_id = data.merchant_id.strip()
+                try:
+                    if str(uuid.UUID(merchant_id)) != merchant_id.casefold():
+                        raise ValueError("invalid format")
+                except ValueError as exc:
+                    raise HTTPException(status_code=422, detail="Invalid ZarinPal Merchant ID format") from exc
+                try:
+                    credential_ciphertext = encrypt_payment_credential(merchant_id)
+                except PaymentCredentialError as exc:
+                    raise HTTPException(status_code=503, detail=str(exc)) from exc
+                credential_reference = None
+                resolved_merchant_id = merchant_id
+            elif data.credential_reference:
+                credential_reference = data.credential_reference
+                credential_ciphertext = None
+                resolved_merchant_id = os.getenv(f"PAYMENT_SECRET_{credential_reference}", "").strip()
+                if not resolved_merchant_id:
+                    raise HTTPException(status_code=503, detail="The referenced ZarinPal credential is not available")
+            elif not credential_ciphertext and not credential_reference:
+                raise HTTPException(status_code=422, detail="A ZarinPal Merchant ID is required")
+            elif credential_ciphertext:
+                try:
+                    resolved_merchant_id = decrypt_payment_credential(credential_ciphertext)
+                except PaymentCredentialError as exc:
+                    raise HTTPException(status_code=503, detail=str(exc)) from exc
+            elif credential_reference:
+                resolved_merchant_id = os.getenv(f"PAYMENT_SECRET_{credential_reference}", "").strip()
+                if not resolved_merchant_id:
+                    raise HTTPException(status_code=503, detail="The referenced ZarinPal credential is not available")
+            if resolved_merchant_id:
+                _ensure_unique_zarinpal_credential(db, store.id, resolved_merchant_id)
+                try:
+                    credential_fingerprint = fingerprint_payment_credential(resolved_merchant_id)
+                except PaymentCredentialError as exc:
+                    raise HTTPException(status_code=503, detail=str(exc)) from exc
+        elif not external_account_id:
+            raise HTTPException(status_code=422, detail="An external provider account ID is required")
+        adapter_available = payment_provider_registry.has_adapter(data.provider)
+        if account is None:
+            account = StorePaymentAccount(
+                store_id=store.id,
+                provider=data.provider,
+                external_account_id=external_account_id,
+                credential_reference=credential_reference,
+                credential_ciphertext=credential_ciphertext,
+                credential_fingerprint=credential_fingerprint,
+                status="active" if adapter_available else "pending",
+                country_code=data.country_code,
+                currency=data.currency,
+            )
+            db.add(account)
+        else:
+            account.external_account_id = external_account_id
+            account.credential_reference = credential_reference
+            account.credential_ciphertext = credential_ciphertext
+            account.credential_fingerprint = credential_fingerprint
+            account.status = "active" if adapter_available else "pending"
+            account.country_code = data.country_code
+            account.currency = data.currency
+
+    before_state = {
+        "country_code": store.country_code,
+        "currency": store.currency,
+        "payment_provider": store.payment_provider,
+    }
+    store.country_code = data.country_code
+    store.currency = data.currency
+    store.payment_provider = data.provider
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="This ZarinPal Merchant ID is already assigned to another Store") from exc
+    record_audit_log(
+        db,
+        actor=current_user,
+        action="store.payment_settings_changed",
+        resource_type="store",
+        resource_id=store.id,
+        store_id=store.id,
+        before_state=before_state,
+        after_state={
+            "country_code": store.country_code,
+            "currency": store.currency,
+            "payment_provider": store.payment_provider,
+            "account_status": account.status if account else "not_configured",
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    db.commit()
+    db.refresh(store)
+    return _payment_settings_response(store, account)
 
 
 @router.put("/{store_id}")

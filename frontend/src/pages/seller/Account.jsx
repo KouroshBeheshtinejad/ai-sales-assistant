@@ -4,6 +4,7 @@ import { api } from '../../lib/api'
 import { useCaptcha, useAsync, useSeo } from '../../lib/hooks'
 import { useI18n } from '../../lib/i18n'
 import { toLatinDigits } from '../../lib/util'
+import { useSeller } from './SellerContext'
 import { PageHead } from './SellerLayout'
 
 const emptyForm = {
@@ -124,6 +125,94 @@ function AccountForm({ profile, onSaved }) {
   )
 }
 
+function StorePaymentSettings() {
+  const { t, err } = useI18n()
+  const toast = useToast()
+  const { store } = useSeller()
+  const settings = useAsync(
+    () => store ? api.seller.paymentSettings(store.id) : Promise.resolve(null),
+    [store?.id],
+  )
+  const [form, setForm] = useState({ country_code: 'IR', currency: 'IRT', provider: 'disabled', external_account_id: '', merchant_id: '' })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!settings.data) return
+    setForm((current) => ({
+      ...current,
+      country_code: settings.data.country_code || 'IR',
+      currency: settings.data.currency || 'IRT',
+      provider: settings.data.provider || 'disabled',
+      external_account_id: '',
+      merchant_id: '',
+    }))
+  }, [settings.data])
+
+  const set = (name) => (event) => setForm((current) => ({ ...current, [name]: event.target.value }))
+  const submit = async (event) => {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      const payload = {
+        country_code: form.country_code.trim().toUpperCase(),
+        currency: form.currency.trim().toUpperCase(),
+        provider: form.provider,
+      }
+      if (form.provider === 'zarinpal' && form.merchant_id.trim()) payload.merchant_id = form.merchant_id.trim()
+      if (!['disabled', 'zarinpal'].includes(form.provider) && form.external_account_id.trim()) payload.external_account_id = form.external_account_id.trim()
+      await api.seller.updatePaymentSettings(store.id, payload)
+      toast(t('saved'))
+      setForm((current) => ({ ...current, external_account_id: '', merchant_id: '' }))
+      settings.reload()
+    } catch (cause) {
+      setError(err(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!store) return null
+
+  return (
+    <section className="card stack" aria-labelledby="store-payment-title">
+      <h2 id="store-payment-title" className="h3">{t('pay.settings')}</h2>
+      {settings.loading ? <Loading /> : settings.error ? <ErrorNote error={settings.error} onRetry={settings.reload} /> : (
+        <>
+          {error && <p className="notice notice-danger" role="alert">{error}</p>}
+          {settings.data?.status === 'active' && <p className="notice notice-ok" role="status">{t('pay.status.active')}</p>}
+          {settings.data?.status === 'pending' && <p className="notice" role="status">{settings.data.provider === 'zarinpal' && settings.data.account_configured ? t('pay.status.resave') : `${t('pay.status.pending')} · ${t('pay.adapterPending')}`}</p>}
+          {settings.data?.status === 'not_configured' && <p className="muted">{t('pay.status.disabled')}</p>}
+          <form className="stack" onSubmit={submit}>
+            <div className="form-grid">
+              <Field label={t('pay.country')}><input required minLength={2} maxLength={2} pattern="[A-Za-z]{2}" value={form.country_code} onChange={set('country_code')} dir="ltr" /></Field>
+              <Field label={t('pay.currency')}><input required minLength={3} maxLength={3} pattern="[A-Za-z]{3}" value={form.currency} onChange={set('currency')} dir="ltr" /></Field>
+            </div>
+            <Field label={t('pay.provider')}>
+              <select value={form.provider} onChange={set('provider')}>
+                {['disabled', 'zarinpal', 'stripe_connect', 'paypal_multiparty', 'adyen_platforms', 'mollie_connect', ...(import.meta.env.DEV ? ['mock'] : [])].map((provider) => (
+                  <option key={provider} value={provider}>{t(`pay.provider.${provider}`)}</option>
+                ))}
+              </select>
+            </Field>
+            {form.provider === 'zarinpal' ? (
+              <Field label={t('pay.credentialReference')} hint={t('pay.credentialHint')}>
+                <input type="password" maxLength={36} value={form.merchant_id} onChange={set('merchant_id')} dir="ltr" autoComplete="new-password" />
+              </Field>
+            ) : !['disabled', 'mock'].includes(form.provider) ? (
+              <Field label={t('pay.accountId')}>
+                <input maxLength={255} value={form.external_account_id} onChange={set('external_account_id')} dir="ltr" autoComplete="off" />
+              </Field>
+            ) : null}
+            <div className="row"><Button type="submit" variant="primary" busy={busy}>{t('pay.save')}</Button></div>
+          </form>
+        </>
+      )}
+    </section>
+  )
+}
+
 export default function Account() {
   const { t } = useI18n()
   const profile = useAsync(() => api.me(), [])
@@ -140,7 +229,10 @@ export default function Account() {
         )}
       />
       {profile.loading ? <Loading /> : profile.error ? <ErrorNote error={profile.error} onRetry={profile.reload} /> : (
-        <AccountForm profile={profile.data} onSaved={profile.reload} />
+        <div className="stack">
+          <AccountForm profile={profile.data} onSaved={profile.reload} />
+          <StorePaymentSettings />
+        </div>
       )}
     </>
   )

@@ -69,9 +69,9 @@ export default function OrderDetail() {
                 <table>
                   <thead><tr><th scope="col">{t('od.item')}</th><th scope="col">{t('od.unit')}</th><th scope="col">{t('od.qty')}</th><th scope="col">{t('od.line')}</th></tr></thead>
                   <tbody>
-                    {order.items.map((item) => <tr key={item.id}><td>{item.product_name}</td><td>{money(item.unit_price)}</td><td>{id(item.quantity)}</td><td>{money(item.line_total)}</td></tr>)}
+                    {order.items.map((item) => <tr key={item.id}><td>{item.product_name}</td><td>{money(item.unit_price, order.currency)}</td><td>{id(item.quantity)}</td><td>{money(item.line_total, order.currency)}</td></tr>)}
                   </tbody>
-                  <tfoot><tr><th scope="row" colSpan={3}>{t('cart.total')}</th><td><strong>{money(order.total_amount)}</strong></td></tr></tfoot>
+                  <tfoot><tr><th scope="row" colSpan={3}>{t('cart.total')}</th><td><strong>{money(order.total_amount, order.currency)}</strong></td></tr></tfoot>
                 </table>
               </div>
             </>

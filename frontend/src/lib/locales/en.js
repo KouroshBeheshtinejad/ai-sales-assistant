@@ -284,6 +284,26 @@ account.passwordMismatch = Passwords do not match.
 account.captchaHint = Solve the security code to save your changes.
 account.saved = Your account was updated.
 account.savedNeedsVerify = Your account was updated. Since you changed your email, please verify it again.
+pay.settings = Store payment settings
+pay.country = Store country code (ISO)
+pay.currency = Store currency (ISO 4217)
+pay.provider = Payment provider
+pay.provider.disabled = Disabled
+pay.provider.zarinpal = ZarinPal
+pay.provider.stripe_connect = Stripe Connect
+pay.provider.paypal_multiparty = PayPal Multiparty
+pay.provider.adyen_platforms = Adyen for Platforms
+pay.provider.mollie_connect = Mollie Connect
+pay.provider.mock = Mock (development only)
+pay.accountId = Store connected account ID
+pay.credentialReference = ZarinPal Merchant ID
+pay.credentialHint = Enter the 36-character Merchant ID. It is encrypted at rest and never shown again; the first payment performs the live gateway verification.
+pay.status.active = Merchant ID saved; live gateway verification happens during payment
+pay.status.pending = Provider connection is not active yet
+pay.status.resave = Save these settings again to activate the encrypted Store credential.
+pay.status.disabled = Payments are disabled
+pay.adapterPending = This provider adapter is not implemented or enabled in NAVA yet.
+pay.save = Save payment settings
 
 # ---- storefront
 shop.search = Search products…

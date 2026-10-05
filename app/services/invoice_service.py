@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import arabic_reshaper
 import jdatetime
 from babel.dates import format_datetime
-from babel.numbers import format_decimal
+from babel.numbers import format_currency, format_decimal
 from bidi.algorithm import get_display
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -116,7 +116,7 @@ def rtl(value) -> str:
         return text
 
 
-def money(value, locale="fa") -> str:
+def money(value, locale="fa", currency="IRT") -> str:
     """Formats an amount as plain (unshaped) text — callers route it through ``_p()``,
     which shapes it exactly once. Shaping this twice un-reverses the bidi reordering
     and renders as garbled/reversed Persian, so this must NOT call ``rtl()`` itself.
@@ -124,11 +124,18 @@ def money(value, locale="fa") -> str:
     try:
         amount = Decimal(value)
     except (InvalidOperation, TypeError):
-        return f"{value} {INVOICE_TEXT[locale]['currency']}"
+        return f"{value} {currency}"
     amount = amount.quantize(Decimal("1")) if amount == amount.to_integral_value() else amount.quantize(Decimal("0.01"))
-    if locale == "fa":
+    if currency == "IRT" and locale == "fa":
         return f"{amount:,} تومان"
-    return f"{format_decimal(amount, locale=LOCALE_TAGS[locale])} {INVOICE_TEXT[locale]['currency']}"
+    if currency == "IRT":
+        return f"{format_decimal(amount, locale=LOCALE_TAGS[locale])} {INVOICE_TEXT[locale]['currency']}"
+    if currency == "IRR" and locale == "fa":
+        return f"{amount:,} ریال"
+    try:
+        return format_currency(amount, currency, locale=LOCALE_TAGS[locale], currency_digits=False)
+    except Exception:
+        return f"{format_decimal(amount, locale=LOCALE_TAGS[locale])} {currency}"
 
 
 def _style(name, font=FONT_REGULAR, size=10, leading=None, align=TA_RIGHT, color=INK, **extra):
@@ -181,7 +188,7 @@ def _meta_row(pairs, width, locale="fa"):
     return table
 
 
-def _items_table(items, width, locale="fa", header_labels=None):
+def _items_table(items, width, locale="fa", header_labels=None, currency="IRT"):
     # Physical column order is left-to-right; the *last* column ends up on the right
     # edge of the page, which is where a right-to-left reader expects the row number.
     labels = INVOICE_TEXT[locale]
@@ -190,8 +197,8 @@ def _items_table(items, width, locale="fa", header_labels=None):
     rows = [header]
     for index, item in enumerate(items, start=1):
         values = [
-            _p(money(item.line_total, locale), "td", locale),
-            _p(money(item.unit_price, locale), "td", locale),
+            _p(money(item.line_total, locale, currency), "td", locale),
+            _p(money(item.unit_price, locale, currency), "td", locale),
             _p(item.quantity, "td", locale),
             _p(item.product_name, "td_name", locale),
             _p(index, "td", locale),
@@ -241,6 +248,7 @@ def invoice_fields(order, locale="fa", timezone_name="UTC") -> dict:
     locale = locale if locale in SUPPORTED_LOCALES else "fa"
     labels = INVOICE_TEXT[locale]
     subtotal = sum((Decimal(str(item.line_total)) for item in order.items), Decimal("0.00"))
+    currency = getattr(order, "currency", "IRT")
     payment_status = labels["paid"]
     customer_lines = [order.customer_name]
     if order.customer_email:
@@ -257,8 +265,9 @@ def invoice_fields(order, locale="fa", timezone_name="UTC") -> dict:
         "timezone": _effective_timezone(locale, timezone_name),
         "order_status": STATUS_LABELS[locale].get(order.status, order.status),
         "payment_status": payment_status,
-        "subtotal": money(subtotal, locale),
-        "total": money(order.total_amount, locale),
+        "currency": currency,
+        "subtotal": money(subtotal, locale, currency),
+        "total": money(order.total_amount, locale, currency),
         "store_name": order.store.name,
         "customer_lines": customer_lines,
         "items": order.items,
@@ -317,7 +326,7 @@ def render_invoice_pdf(order, locale="fa", timezone_name="UTC") -> bytes:
     story.append(Spacer(1, 6 * mm))
 
     story.append(_p(labels["items"], "section", locale))
-    story.append(_items_table(fields["items"], content_width, locale, fields["table_headers"]))
+    story.append(_items_table(fields["items"], content_width, locale, fields["table_headers"], fields["currency"]))
     story.append(Spacer(1, 6 * mm))
 
     totals = [

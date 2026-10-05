@@ -10,6 +10,8 @@
 
 برای دسترسی سراسری God، `GOD_USER_EMAIL` را در secret manager روی ایمیل حساب تأییدشده‌ی خودتان تنظیم کنید. این نقش در API قابل واگذاری نیست؛ God می‌تواند از `/api/admin/users` نقش `support` یا `seller` را مدیریت کند. نقش Support فقط فهرست سفارش‌های نهایی‌شده را می‌خواند. آدرس بازگشت درگاه را روی `/api/payments/callback` تنظیم کنید. ساعت فاکتور فارسی همیشه تهران و شمسی است؛ چهار زبان دیگر از timezone مرورگر خریدار استفاده می‌کنند.
 
+پرداخت بر اساس تنظیم هر Store انتخاب می‌شود. Merchant ID زرین‌پال از پنل Store دریافت و با `PAYMENT_CREDENTIAL_ENCRYPTION_KEY` در دیتابیس رمز می‌شود؛ این کلید را فقط در secret manager نگه دارید، بین replicaها یکسان تنظیم کنید و بدون برنامه مهاجرت تغییر ندهید. دستور ساخت کلید در `.env.example` است. `PAYMENT_CALLBACK_URL` باید عمومی و HTTPS باشد. Merchant ID از API به frontend برنمی‌گردد؛ referenceهای قدیمی `PAYMENT_SECRET_<REFERENCE>` فقط برای سازگاری پشتیبانی می‌شوند و نمی‌توانند بین Storeها مشترک باشند. ZarinPal create، inquiry و verify از credential snapshot همان Store/Payment استفاده می‌کنند. Inquiry فقط وضعیت را می‌خواند و `PAID` نیز برای نهایی‌شدن باید server-side verify شود؛ `unknown` pending می‌ماند. Reverse فقط برگشت کامل تا ۳۰ دقیقه را پشتیبانی می‌کند؛ partial/late refund انجام نمی‌شود. `PAYMENT_PROVIDER=mock` فقط برای توسعه است و adapterهای بین‌المللی فعال نیستند.
+
 برای ثبت کدهای تأیید email/SMS در log محیط deploy، `LOG_VERIFICATION_CODES=true` را تنظیم کنید. این گزینه به‌طور پیش‌فرض خاموش است؛ با روشن‌کردنش OTP فعال وارد log می‌شود، بنابراین دسترسی به logها را محدود کنید و retention کوتاه داشته باشید.
 
 اعلان سفارش از مرز `notification_service` عبور می‌کند. مقدار پیش‌فرض

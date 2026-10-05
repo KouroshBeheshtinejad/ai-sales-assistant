@@ -63,7 +63,7 @@ The critical design decision: **the language model never invents a price, a stoc
 | 🔒 **Security-first** | CSRF protection on cookie-authenticated routes, trusted-host enforcement, rate limiting on auth/chat/tracking, idempotent checkout, argon2 password hashing, verified accounts (email + optional SMS) |
 | 🧮 **Grounded retrieval** | Lexical search by default over each store's own products/FAQs/knowledge base; optional hybrid semantic search via `pgvector` and pluggable embedding providers |
 | 🧾 **Persian-correct PDF invoices** | Invoices embed the Vazirmatn font and run all Persian text through proper Arabic/Persian shaping + bidi reordering — no "black square" glyph fallbacks |
-| 💳 **Payments** | Pluggable payment provider abstraction (ZarinPal-shaped by default), with a sandbox mode for demos |
+| 💳 **Payments** | Optional server-verified ZarinPal integration; a development-only mock is available for demos |
 | 🗑️ **Privacy by default** | Scheduled purge script for old conversation messages, configurable retention window |
 | 🧩 **Provider-agnostic AI** | Chat and embedding providers are abstracted behind interfaces (`mock` / `openai`-compatible / `local`); the app starts and runs fully even with AI disabled |
 | ✅ **150+ automated tests** | Route tests, service-level tests, security hardening tests, and concurrency tests |
@@ -226,8 +226,10 @@ AI_RAG_ENABLED=true AI_RAG_EMBEDDING_PROVIDER=mock python -m app.services.semant
 
 | Variable | Purpose |
 |---|---|
-| `PAYMENT_PROVIDER` / `PAYMENT_MERCHANT_ID` / `PAYMENT_API_URL` | Payment gateway (ZarinPal-shaped by default); `disabled` runs a sandbox confirm-to-pay flow |
-| `PAYMENT_CALLBACK_URL` | Public backend URL for gateway returns, typically `https://your-domain/api/payments/callback` |
+| `PAYMENT_PROVIDER` | Legacy platform default only; new payments use the provider selected per Store. `disabled` is the default; `mock` is development-only. |
+| `PAYMENT_SECRET_<REFERENCE>` / `PAYMENT_API_URL` | Server-only provider secrets resolved by a Store credential reference, plus the ZarinPal API base URL. Do not commit these values. |
+| `PAYMENT_CALLBACK_URL` | Public backend URL for ZarinPal returns, typically `https://your-domain/api/payments/callback`; a Store's ZarinPal account must also have a matching secret reference. |
+| Marketplace settlement | NAVA selects a Store-specific adapter/account but does not split, escrow, or manually transfer proceeds. The selected provider must route and settle to the connected merchant. |
 | `SMTP_*` | Outgoing email (verification codes, password reset) |
 | `SMS_PROVIDER` / `SMS_WEBHOOK_URL` | Optional SMS verification channel |
 | `CLOUDINARY_*` | Product image hosting |

@@ -43,7 +43,7 @@ export default function ProductCard({ product, storeId, shop, onAsk }) {
         <h3><Link to={`/store/${storeId}/product/${product.id}`}>{product.name}</Link></h3>
         {product.description && <p className="clamp">{product.description}</p>}
         <div className="product-meta">
-          <strong className="price">{money(product.price)}</strong>
+          <strong className="price">{money(product.price, product.currency)}</strong>
           <StockBadge stock={product.stock} />
         </div>
         <div className="product-actions">

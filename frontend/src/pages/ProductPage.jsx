@@ -47,7 +47,7 @@ export default function ProductPage() {
         <ProductVisual product={product} className="product-hero" />
         <div className="stack">
           <h1>{product.name}</h1>
-          <p className="price price-lg">{money(product.price)}</p>
+          <p className="price price-lg">{money(product.price, product.currency)}</p>
           <StockBadge stock={product.stock} />
           {product.description && <p className="lead">{product.description}</p>}
 

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
+import { Swatch } from '../components/ui'
 import StoreHome from './StoreHome'
 
 const shop = {
@@ -67,5 +68,19 @@ describe('public store category tabs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'shop.scrollLeft' }))
     expect(tabs.scrollBy).toHaveBeenCalledWith({ left: -180, behavior: 'smooth' })
     expect(screen.getByRole('button', { name: 'shop.scrollRight' })).toBeTruthy()
+  })
+
+  it('keeps the fallback avatar letter centered in its placeholder box', () => {
+    render(<Swatch seed="Cafe Nima" label="Cafe Nima" />)
+
+    const swatch = document.querySelector('.swatch')
+    const letter = screen.getByText('C')
+
+    expect(swatch.style.display).toBe('grid')
+    expect(swatch.style.placeItems).toBe('center')
+    expect(letter.style.display).toBe('grid')
+    expect(letter.style.placeItems).toBe('center')
+    expect(letter.style.width).toBe('100%')
+    expect(letter.style.height).toBe('100%')
   })
 })

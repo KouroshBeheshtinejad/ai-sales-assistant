@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import secrets
 
+from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from dataclasses import dataclass
 
@@ -97,11 +98,13 @@ def validate_production_configuration() -> None:
     payment_provider = os.getenv("PAYMENT_PROVIDER", "disabled").strip().casefold()
     if payment_provider not in {"disabled", "zarinpal"}:
         raise RuntimeError("Unsupported PAYMENT_PROVIDER")
-    if payment_provider == "zarinpal" and not all(
-        os.getenv(name, "").strip()
-        for name in ("PAYMENT_MERCHANT_ID", "PAYMENT_CALLBACK_URL")
-    ):
-        raise RuntimeError("PAYMENT_MERCHANT_ID and PAYMENT_CALLBACK_URL are required")
+    encryption_key = os.getenv("PAYMENT_CREDENTIAL_ENCRYPTION_KEY", "").strip()
+    if not encryption_key:
+        raise RuntimeError("PAYMENT_CREDENTIAL_ENCRYPTION_KEY is required in production")
+    try:
+        Fernet(encryption_key.encode("ascii"))
+    except (ValueError, UnicodeEncodeError) as exc:
+        raise RuntimeError("PAYMENT_CREDENTIAL_ENCRYPTION_KEY is invalid") from exc
     email_provider = os.getenv("EMAIL_PROVIDER", "disabled").strip().casefold()
     if email_provider not in {"disabled", "smtp"}:
         raise RuntimeError("Unsupported EMAIL_PROVIDER")

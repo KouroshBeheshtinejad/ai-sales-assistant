@@ -98,6 +98,8 @@ def public_store_catalog(store_id: int, db: Session = Depends(get_db)):
         "store": {
             "id": store.id,
             "name": store.name,
+            "country_code": store.country_code,
+            "currency": store.currency,
             "description": store.description,
             "logo_url": store.logo_url,
             "business_type": store.business_type,
@@ -112,6 +114,7 @@ def public_store_catalog(store_id: int, db: Session = Depends(get_db)):
                 "description": product.description,
                 "image_url": product.image_url,
                 "price": str(product.price),
+                "currency": store.currency,
                 "stock": product.stock - product.reserved_stock,
                 "size": product.size,
                 "color": product.color,

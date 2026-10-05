@@ -283,6 +283,26 @@ account.passwordMismatch = رمز عبور و تکرار آن یکسان نیس�
 account.captchaHint = برای ذخیره تغییرات، کد امنیتی را وارد کنید.
 account.saved = اطلاعات حساب شما به‌روزرسانی شد.
 account.savedNeedsVerify = اطلاعات حساب شما به‌روزرسانی شد. چون ایمیل خود را تغییر دادید، لطفاً دوباره آن را تأیید کنید.
+pay.settings = تنظیمات پرداخت فروشگاه
+pay.country = کد کشور فروشگاه (ISO)
+pay.currency = ارز فروشگاه (ISO 4217)
+pay.provider = درگاه پرداخت
+pay.provider.disabled = غیرفعال
+pay.provider.zarinpal = زرین‌پال
+pay.provider.stripe_connect = Stripe Connect
+pay.provider.paypal_multiparty = PayPal Multiparty
+pay.provider.adyen_platforms = Adyen for Platforms
+pay.provider.mollie_connect = Mollie Connect
+pay.provider.mock = آزمایشی (فقط توسعه)
+pay.accountId = شناسه حساب متصل فروشگاه
+pay.credentialReference = شناسه پذیرنده زرین‌پال (Merchant ID)
+pay.credentialHint = شناسه ۳۶ کاراکتری را وارد کنید. مقدار در دیتابیس رمزگذاری می‌شود و دوباره نمایش داده نمی‌شود؛ بررسی زنده درگاه هنگام اولین پرداخت انجام می‌شود.
+pay.status.active = شناسه ذخیره شد؛ بررسی زنده درگاه هنگام پرداخت انجام می‌شود
+pay.status.pending = اتصال Provider هنوز فعال نیست
+pay.status.resave = برای فعال‌سازی امن حساب ذخیره‌شده، تنظیمات پرداخت را دوباره ذخیره کنید.
+pay.status.disabled = پرداخت غیرفعال است
+pay.adapterPending = Adapter این Provider هنوز در NAVA پیاده‌سازی/فعال نشده است.
+pay.save = ذخیره تنظیمات پرداخت
 
 # ---- storefront
 shop.search = جست‌وجوی محصولات…

@@ -2,6 +2,8 @@ services:
   app:
     build: .
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       APP_ENV: ${APP_ENV:-development}
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
@@ -18,7 +20,6 @@ services:
       DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-30}
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-disabled}
-      PAYMENT_MERCHANT_ID: ${PAYMENT_MERCHANT_ID:-}
       PAYMENT_CALLBACK_URL: ${PAYMENT_CALLBACK_URL:-}
       PAYMENT_API_URL: ${PAYMENT_API_URL:-https://payment.zarinpal.com/pg/v4/payment}
       OTP_PROVIDER: ${OTP_PROVIDER:-disabled}

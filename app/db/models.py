@@ -78,6 +78,7 @@ class EmbeddingVector(TypeDecorator):
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("national_id", name="uq_users_national_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
@@ -86,7 +87,7 @@ class User(Base):
     first_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), unique=True, index=True, nullable=True)
-    national_id: Mapped[str | None] = mapped_column(String(10), unique=True, index=True, nullable=True)
+    national_id: Mapped[str | None] = mapped_column(String(10), index=True, nullable=True)
     business_address: Mapped[str | None] = mapped_column(Text, nullable=True)
     business_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255))
@@ -129,6 +130,9 @@ class Store(Base):
     categories: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     primary_color: Mapped[str] = mapped_column(String(7), nullable=False, default="#0d8a85", server_default="#0d8a85")
     secondary_color: Mapped[str] = mapped_column(String(7), nullable=False, default="#f2f7f6", server_default="#f2f7f6")
+    country_code: Mapped[str] = mapped_column(String(2), nullable=False, default="IR", server_default="IR")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="IRT", server_default="IRT")
+    payment_provider: Mapped[str] = mapped_column(String(30), nullable=False, default="disabled", server_default="disabled")
 
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
@@ -168,10 +172,40 @@ class Store(Base):
         back_populates="store",
     )
 
+    payment_accounts: Mapped[list["StorePaymentAccount"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan",
+    )
+
     conversations: Mapped[list["Conversation"]] = relationship(
         back_populates="store",
         cascade="all, delete-orphan",
     )
+
+
+class StorePaymentAccount(Base):
+    __tablename__ = "store_payment_accounts"
+    __table_args__ = (
+        UniqueConstraint("store_id", "provider", name="uq_store_payment_account_provider"),
+        Index("uq_store_payment_account_credential_fingerprint", "credential_fingerprint", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    external_account_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    credential_reference: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    credential_ciphertext: Mapped[str | None] = mapped_column(Text, nullable=True)
+    credential_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending")
+    country_code: Mapped[str] = mapped_column(String(2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    capabilities: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    provider_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    store: Mapped["Store"] = relationship(back_populates="payment_accounts")
 
 
 class StoreMembership(Base):
@@ -224,7 +258,6 @@ class FAQ(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     store_id: Mapped[int] = mapped_column(
         ForeignKey("stores.id", ondelete="CASCADE"),
-        index=True,
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -363,7 +396,7 @@ class SemanticDocument(Base):
         EmbeddingVector(DEFAULT_EMBEDDING_DIMENSION),
         nullable=False,
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -623,18 +656,19 @@ class Order(Base):
             "(user_id IS NOT NULL) OR (guest_token IS NOT NULL)",
             name="ck_orders_identity",
         ),
+        UniqueConstraint("tracking_number", name="uq_orders_tracking_number"),
+        UniqueConstraint("invoice_number", name="uq_orders_invoice_number"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
     tracking_number: Mapped[str] = mapped_column(
         String(10),
-        unique=True,
         index=True,
         nullable=True,
     )
     invoice_number: Mapped[str] = mapped_column(
-        String(40), unique=True, index=True, nullable=True,
+        String(40), index=True, nullable=True,
     )
 
     user_id: Mapped[int | None] = mapped_column(
@@ -687,6 +721,7 @@ class Order(Base):
         Numeric(12, 2),
         nullable=False,
     )
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="IRT", server_default="IRT")
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -790,10 +825,11 @@ class VerificationCode(Base):
 
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
+    __table_args__ = (UniqueConstraint("token_hash", name="password_reset_tokens_token_hash_key"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    token_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
@@ -805,9 +841,10 @@ class CaptchaChallenge(Base):
     """A short-lived, single-use human-verification challenge."""
 
     __tablename__ = "captcha_challenges"
+    __table_args__ = (UniqueConstraint("token", name="captcha_challenges_token_key"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    token: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     code_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -829,7 +866,10 @@ class Payment(Base):
         index=True,
     )
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    provider_account_id: Mapped[int | None] = mapped_column(ForeignKey("store_payment_accounts.id", ondelete="RESTRICT"), nullable=True, index=True)
+    provider_context: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default="{}")
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="IRT", server_default="IRT")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", index=True)
     authority: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     transaction_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
@@ -839,3 +879,29 @@ class Payment(Base):
     paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     order: Mapped["Order"] = relationship(back_populates="payments")
+    provider_account: Mapped["StorePaymentAccount | None"] = relationship()
+    transactions: Mapped[list["PaymentTransaction"]] = relationship(
+        back_populates="payment",
+        cascade="all, delete-orphan",
+    )
+
+
+class PaymentTransaction(Base):
+    __tablename__ = "payment_transactions"
+    __table_args__ = (
+        UniqueConstraint("payment_id", "idempotency_key", name="uq_payment_transaction_idempotency"),
+        Index("ix_payment_transactions_payment_status", "payment_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id", ondelete="CASCADE"), nullable=False, index=True)
+    transaction_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending")
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    provider_reference: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    transaction_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+
+    payment: Mapped["Payment"] = relationship(back_populates="transactions")

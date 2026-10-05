@@ -81,14 +81,18 @@ def test_production_configuration_rejects_incomplete_real_providers(monkeypatch)
     monkeypatch.setenv("APP_ALLOWED_HOSTS", "example.com")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
     monkeypatch.setenv("PAYMENT_PROVIDER", "zarinpal")
+    monkeypatch.setenv("PAYMENT_CREDENTIAL_ENCRYPTION_KEY", "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
     monkeypatch.setenv("EMAIL_PROVIDER", "smtp")
     monkeypatch.setenv("OTP_PROVIDER", "email")
     monkeypatch.setenv("CLOUDINARY_CLOUD_NAME", "cloud")
     monkeypatch.setenv("CLOUDINARY_API_KEY", "key")
     monkeypatch.setenv("CLOUDINARY_API_SECRET", "secret")
+    monkeypatch.setenv("SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("SMTP_USERNAME", "user")
+    monkeypatch.setenv("SMTP_PASSWORD", "password")
+    monkeypatch.setenv("SMTP_FROM", "noreply@example.com")
 
-    with pytest.raises(RuntimeError, match="PAYMENT_MERCHANT_ID"):
-        config.validate_production_configuration()
+    config.validate_production_configuration()
 
 
 def test_cookie_policy_requires_secure_cookies_in_production(monkeypatch):

@@ -82,6 +82,8 @@ def public_showcase(
                 "description": _shorten(store.description),
                 "logo_url": store.logo_url,
                 "business_type": store.business_type,
+                "country_code": store.country_code,
+                "currency": store.currency,
                 "product_count": product_count,
             }
             for store, product_count in store_rows
@@ -93,6 +95,7 @@ def public_showcase(
                 "description": _shorten(product.description),
                 "image_url": product.image_url,
                 "price": str(product.price),
+                "currency": store.currency,
                 "stock": product.stock - product.reserved_stock,
                 "store_id": store.id,
                 "store_name": store.name,
