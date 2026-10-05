@@ -27,7 +27,7 @@ def upgrade() -> None:
         sa.Column("background_color", sa.String(length=7), nullable=False, server_default="#f2f7f6"),
         sa.Column("item_limit", sa.Integer(), nullable=False, server_default="12"),
         sa.Column("position", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.PrimaryKeyConstraint("id"),
