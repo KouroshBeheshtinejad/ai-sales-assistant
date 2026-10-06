@@ -7,7 +7,7 @@ storefront are exposed (see ``/public/stores/{id}/catalog``).
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
-from sqlalchemy import func
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -106,6 +106,98 @@ def public_showcase(
     }
     # A random sample must not be cached by browsers or proxies.
     return JSONResponse(payload, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/public/search")
+def public_search(
+    q: str = Query(..., min_length=1, max_length=100),
+    limit: int = Query(4, ge=1, le=8),
+    db: Session = Depends(get_db),
+):
+    query = q.strip()
+    if not query:
+        return JSONResponse({"query": query, "stores": [], "products": []}, headers={"Cache-Control": "no-store"})
+
+    escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    exact = escaped
+    prefix = f"{escaped}%"
+    contains = f"%{escaped}%"
+    like = {"escape": "\\"}
+    store_counts = (
+        db.query(Product.store_id.label("store_id"), func.count(Product.id).label("product_count"))
+        .filter(*_sellable())
+        .group_by(Product.store_id)
+        .subquery()
+    )
+    store_match = or_(Store.name.ilike(contains, **like), Store.description.ilike(contains, **like))
+    store_rank = case(
+        (Store.name.ilike(exact, **like), 0),
+        (Store.name.ilike(prefix, **like), 1),
+        else_=2,
+    )
+    store_rows = (
+        db.query(Store, store_counts.c.product_count)
+        .join(store_counts, store_counts.c.store_id == Store.id)
+        .filter(store_match)
+        .order_by(store_rank, Store.name, Store.id)
+        .limit(limit)
+        .all()
+    )
+
+    product_match = or_(
+        Product.name.ilike(contains, **like),
+        Product.description.ilike(contains, **like),
+        Store.name.ilike(contains, **like),
+    )
+    product_rank = case(
+        (Product.name.ilike(exact, **like), 0),
+        (Product.name.ilike(prefix, **like), 1),
+        (Product.name.ilike(contains, **like), 2),
+        (Store.name.ilike(exact, **like), 3),
+        (Store.name.ilike(prefix, **like), 4),
+        else_=5,
+    )
+    product_rows = (
+        db.query(Product, Store)
+        .join(Store, Store.id == Product.store_id)
+        .filter(*_sellable(), product_match)
+        .order_by(product_rank, Product.name, Product.id)
+        .limit(limit)
+        .all()
+    )
+
+    return JSONResponse(
+        {
+            "query": query,
+            "stores": [
+                {
+                    "id": store.id,
+                    "name": store.name,
+                    "description": _shorten(store.description),
+                    "logo_url": store.logo_url,
+                    "business_type": store.business_type,
+                    "currency": store.currency,
+                    "product_count": product_count,
+                }
+                for store, product_count in store_rows
+            ],
+            "products": [
+                {
+                    "id": product.id,
+                    "name": product.name,
+                    "description": _shorten(product.description),
+                    "image_url": product.image_url,
+                    "price": str(product.price),
+                    "currency": store.currency,
+                    "stock": product.stock - product.reserved_stock,
+                    "store_id": store.id,
+                    "store_name": store.name,
+                }
+                for product, store in product_rows
+            ],
+        },
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/public/stores")

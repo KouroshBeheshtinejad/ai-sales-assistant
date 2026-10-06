@@ -2,18 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useBusinessTypes, useHomeSections } from '../lib/hooks'
 import { useI18n } from '../lib/i18n'
-import { readableColor } from '../lib/storeTheme'
+import { safeCards, safeEdge, safeIcon, safePattern, sectionStyle } from '../lib/sectionLook'
 import { cx } from '../lib/util'
 import { ProductVisual, StockBadge } from './ProductCard'
 import { Icon, Swatch } from './ui'
 
-export function sectionStyle(color) {
-  const safe = /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#f2f7f6'
-  return { '--sec-bg': safe, '--sec-ink': readableColor(safe) }
-}
+export { sectionStyle }
 
 export function sectionTitle(section, locale) {
   return section.titles?.[locale] || section.title
+}
+
+export function sectionSubtitle(section, locale) {
+  return section.subtitles?.[locale] || section.subtitle || ''
 }
 
 export function Rail({ label, children, count }) {
@@ -97,16 +98,50 @@ function RailProduct({ product }) {
   )
 }
 
+const EDGE_PATHS = {
+  wave: 'M0 0H1200V24C1100 8 1000 8 900 24S700 40 600 24S400 8 300 24S100 40 0 24Z',
+  curve: 'M0 0H1200V40Q600 -8 0 40Z',
+}
+
+function Edge({ shape, position }) {
+  if (shape === 'straight') return null
+  return (
+    <svg className={`hs-edge hs-edge-${position}`} viewBox="0 0 1200 48" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <path d={EDGE_PATHS[shape]} fill="currentColor" />
+    </svg>
+  )
+}
+
 export function HomeSection({ section, types = [] }) {
-  const { locale } = useI18n()
+  const { t, locale } = useI18n()
   const title = sectionTitle(section, locale)
+  const subtitle = sectionSubtitle(section, locale)
   const items = section.items || []
   const titleId = `home-sec-${section.id}`
   if (!items.length) return null
+  const edge = safeEdge(section.edge)
+  const icon = safeIcon(section.icon)
+  const slugs = (section.business_types || []).slice(0, 12)
+  const showAll = section.show_all_link !== false && slugs.length > 0
   return (
-    <section className="home-sec" style={sectionStyle(section.background_color)} aria-labelledby={titleId}>
+    <section
+      className={cx('home-sec', `hs-pattern-${safePattern(section.pattern)}`, `hs-cards-${safeCards(section.card_style)}`, edge !== 'straight' && 'has-edge')}
+      style={sectionStyle(section.background_color, section.background_color_2)}
+      aria-labelledby={titleId}
+    >
+      <Edge shape={edge} position="top" />
+      <Edge shape={edge} position="bottom" />
       <div className="wrap">
-        <h2 id={titleId}>{title}</h2>
+        <header className="hs-head">
+          <div className="hs-titles">
+            {icon && <span className="hs-icon" aria-hidden="true">{icon}</span>}
+            <div>
+              <h2 id={titleId}>{title}</h2>
+              {subtitle && <p className="hs-sub">{subtitle}</p>}
+            </div>
+          </div>
+          {showAll && <Link className="hs-all" to={`/stores?business_type=${slugs.map(encodeURIComponent).join(',')}`}>{t('homeSec.viewAll')}<Icon name="arrow" size={16} className="flip-rtl" /></Link>}
+        </header>
         <Rail label={title} count={items.length}>
           {section.kind === 'products'
             ? items.map((product) => <RailProduct key={product.id} product={product} />)

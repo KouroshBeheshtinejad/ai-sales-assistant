@@ -30,4 +30,16 @@ describe('versioned API client', () => {
       expect.objectContaining({ method: 'GET' }),
     )
   })
+
+  it('encodes global search terms and requests separately grouped results', async () => {
+    const response = { ok: true, json: async () => ({ stores: [], products: [] }) }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response)
+
+    await api.search('red shoes & bags', 5)
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/public/search?q=red+shoes+%26+bags&limit=5',
+      expect.objectContaining({ method: 'GET' }),
+    )
+  })
 })

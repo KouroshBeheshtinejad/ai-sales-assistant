@@ -95,6 +95,61 @@ def test_showcase_is_empty_without_data():
     assert body == {"stats": {"stores": 0, "products": 0}, "stores": [], "products": []}
 
 
+def test_public_search_groups_ranked_stores_and_sellable_products():
+    with TestingSessionLocal() as db:
+        _seed(db)
+        owner = db.query(models.User).filter_by(email="owner@example.com").one()
+        prefix_store = models.Store(name="Visible Market", owner_id=owner.id)
+        contains_store = models.Store(name="A Market", description="visible goods", owner_id=owner.id)
+        db.add_all([prefix_store, contains_store])
+        db.flush()
+        db.add_all(
+            [
+                models.Product(name="Visible mug", price=12, stock=3, store_id=prefix_store.id),
+                models.Product(name="Visible sold out", price=10, stock=0, store_id=prefix_store.id),
+                models.Product(name="Visible inactive", price=10, stock=3, is_active=False, store_id=prefix_store.id),
+                models.Product(name="Cup", description="visible pattern", price=8, stock=2, store_id=contains_store.id),
+            ]
+        )
+        db.commit()
+
+    response = _client().get("/api/public/search?q=visible")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    body = response.json()
+    assert body["query"] == "visible"
+    assert [store["name"] for store in body["stores"]] == ["Visible Market", "A Market"]
+    assert [product["name"] for product in body["products"]] == ["Visible", "Visible mug", "Cup"]
+    assert all(product["stock"] > 0 for product in body["products"])
+
+
+def test_public_search_escapes_like_wildcards_and_bounds_results():
+    with TestingSessionLocal() as db:
+        owner = models.User(email="search@example.com", password_hash=hash_password("Secret123!"), is_verified=True)
+        db.add(owner)
+        db.flush()
+        exact = models.Store(name="100% Market", owner_id=owner.id)
+        unrelated = models.Store(name="1000 Market", owner_id=owner.id)
+        db.add_all([exact, unrelated])
+        db.flush()
+        db.add_all(
+            [
+                models.Product(name="100% Item", price=1, stock=2, store_id=exact.id),
+                models.Product(name="1000 Item", price=1, stock=2, store_id=unrelated.id),
+            ]
+        )
+        db.commit()
+
+    client = _client()
+    response = client.get("/api/public/search?q=100%25&limit=1")
+
+    assert response.status_code == 200
+    assert [store["name"] for store in response.json()["stores"]] == ["100% Market"]
+    assert [product["name"] for product in response.json()["products"]] == ["100% Item"]
+    assert client.get("/api/public/search?q=market&limit=9").status_code == 422
+
+
 def test_public_store_directory_filters_by_business_type_and_sellable_stock():
     with TestingSessionLocal() as db:
         busy_id = _seed(db)

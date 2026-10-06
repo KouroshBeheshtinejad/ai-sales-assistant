@@ -1,19 +1,35 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Async, Empty, Field, Swatch } from '../components/ui'
 import { api } from '../lib/api'
 import { useAsync, useBusinessTypes, useSeo } from '../lib/hooks'
+import { BUSINESS_GROUPS } from '../lib/businessGroups'
 import { useI18n } from '../lib/i18n'
+
+const MAX_TYPES = 12
+
+// One request per business type; a single type behaves exactly as before.
+async function loadStores(slugs) {
+  if (!slugs.length) return { stores: [], total: 0 }
+  if (slugs.length === 1) return api.storesByBusinessType(slugs[0])
+  const settled = await Promise.allSettled(slugs.map((slug) => api.storesByBusinessType(slug)))
+  const ok = settled.filter((item) => item.status === 'fulfilled').map((item) => item.value)
+  if (!ok.length) throw settled[0].reason
+  const stores = ok.flatMap((item) => item.stores)
+  return { stores, total: stores.length }
+}
 
 export default function StoreDirectory() {
   const [params] = useSearchParams()
   const businessType = params.get('business_type') || ''
+  const slugs = useMemo(() => [...new Set(businessType.split(',').map((slug) => slug.trim()).filter(Boolean))].slice(0, MAX_TYPES), [businessType])
+  const groupId = BUSINESS_GROUPS.some((group) => group.id === params.get('group')) ? params.get('group') : ''
   const [search, setSearch] = useState('')
   const { t, bizLabel, num } = useI18n()
   const types = useBusinessTypes()
-  const type = types.find((item) => item.slug === businessType)
-  const stores = useAsync(() => businessType ? api.storesByBusinessType(businessType) : Promise.resolve({ stores: [], total: 0 }), [businessType])
-  const title = type ? bizLabel(type.slug, type.label) : t('landing.browseBusinesses')
+  const type = slugs.length === 1 ? types.find((item) => item.slug === slugs[0]) : null
+  const stores = useAsync(() => loadStores(slugs), [slugs.join(',')])
+  const title = type ? bizLabel(type.slug, type.label) : (slugs.length > 1 && groupId ? t(`bizGroup.${groupId}`) : t('landing.browseBusinesses'))
   useSeo({ title: `${title} | NAVA` })
 
   return (

@@ -58,6 +58,7 @@ export const api = {
   catalog: (storeId) => request(`/public/stores/${storeId}/catalog`),
   // Random live stores and products for the landing page.
   showcase: (stores = 6, products = 8) => request(`/public/showcase?stores=${stores}&products=${products}`),
+  search: (query, limit = 4) => request(`/public/search?${new URLSearchParams({ q: query, limit: String(limit) })}`),
   homeSections: () => request('/public/home-sections'),
   storesByBusinessType: (businessType, limit = 100) => request(`/public/stores?business_type=${encodeURIComponent(businessType)}&limit=${limit}`),
   chat: (storeId, question, guest) =>
@@ -124,6 +125,7 @@ export const api = {
       remove: (id) => seller(`/admin/home-sections/${id}`, { method: 'DELETE' }),
       reorder: (ids) => seller('/admin/home-sections/order', { method: 'PUT', body: { ids } }),
       preview: (id) => seller(`/admin/home-sections/${id}/preview`),
+      candidates: (kind, types, q = '') => seller(`/admin/home-sections/candidates?${new URLSearchParams({ kind, business_types: types.join(','), q })}`),
     },
   },
 

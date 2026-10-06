@@ -233,6 +233,9 @@ class HomeSection(Base):
     __table_args__ = (
         CheckConstraint("kind IN ('stores', 'products')", name="ck_home_sections_kind"),
         CheckConstraint("item_limit >= 1 AND item_limit <= 24", name="ck_home_sections_item_limit"),
+        CheckConstraint("pattern IN ('none', 'dots', 'grid', 'diagonal', 'waves', 'zellij')", name="ck_home_sections_pattern"),
+        CheckConstraint("edge IN ('straight', 'wave', 'curve')", name="ck_home_sections_edge"),
+        CheckConstraint("card_style IN ('solid', 'glass')", name="ck_home_sections_card_style"),
         Index("ix_home_sections_active_position", "is_active", "position"),
     )
 
@@ -242,6 +245,16 @@ class HomeSection(Base):
     kind: Mapped[str] = mapped_column(String(20), nullable=False, default="stores", server_default="stores")
     business_types: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     background_color: Mapped[str] = mapped_column(String(7), nullable=False, default="#f2f7f6", server_default="#f2f7f6")
+    background_color_2: Mapped[str] = mapped_column(String(7), nullable=False, default="", server_default="")
+    pattern: Mapped[str] = mapped_column(String(12), nullable=False, default="none", server_default="none")
+    edge: Mapped[str] = mapped_column(String(12), nullable=False, default="straight", server_default="straight")
+    card_style: Mapped[str] = mapped_column(String(12), nullable=False, default="solid", server_default="solid")
+    icon: Mapped[str] = mapped_column(String(8), nullable=False, default="", server_default="")
+    subtitle: Mapped[str] = mapped_column(String(160), nullable=False, default="", server_default="")
+    subtitles: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default="{}")
+    show_all_link: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=true())
+    pinned_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    fill_random: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=true())
     item_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=12, server_default="12")
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=true())

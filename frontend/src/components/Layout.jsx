@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
 import { cx } from '../lib/util'
 import { Button, Icon } from './ui'
+import HeaderSearch from './HeaderSearch'
 
 export const DEMO_STORE_ID = import.meta.env.VITE_DEMO_STORE_ID || '1'
 
@@ -94,6 +95,7 @@ export function SiteHeader() {
     <header className="topbar">
       <div className="wrap topbar-in">
         <Brand />
+        <HeaderSearch />
         <nav id="site-nav" className={cx('sitenav', open && 'is-open')} aria-label={t('nav.main')}>
           <ul className="sitenav-links">
             {SECTION_LINKS.map(([label, to]) => <li key={label}><Link to={to} onClick={close}>{t(label)}</Link></li>)}

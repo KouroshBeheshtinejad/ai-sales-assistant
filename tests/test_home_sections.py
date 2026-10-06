@@ -252,3 +252,70 @@ def test_preview_works_for_inactive_sections():
     assert client.get("/api/public/home-sections").json()["sections"] == []
     preview = client.get(f"/api/admin/home-sections/{section['id']}/preview", headers=GOD).json()
     assert preview["is_active"] is False and len(preview["items"]) == 2
+
+
+def test_section_decoration_and_pinned_items_are_validated_and_publicly_rendered():
+    client = _client()
+    with TestingSessionLocal() as db:
+        pinned_id = db.scalar(select(models.Product.id).where(models.Product.name == "Latte 0"))
+
+    section = _create(
+        client,
+        kind="products",
+        business_types=["cafe", "restaurant"],
+        subtitle="  Fresh   picks ",
+        subtitles={"en": "  Just   in "},
+        background_color_2="#FFB199",
+        pattern="zellij",
+        edge="wave",
+        card_style="glass",
+        icon="🔥",
+        show_all_link=False,
+        pinned_ids=[pinned_id, pinned_id],
+        fill_random=False,
+        item_limit=12,
+    )
+
+    assert section["pinned_ids"] == [pinned_id]
+    assert section["pinned_items"] == [
+        {"id": pinned_id, "name": "Latte 0", "business_type": "cafe", "store_name": "Cafe", "visible": True}
+    ]
+    assert section["subtitle"] == "Fresh picks"
+    assert section["subtitles"] == {"en": "Just in"}
+    assert section["background_color_2"] == "#ffb199"
+
+    public = client.get("/api/public/home-sections").json()["sections"][0]
+    assert public["items"][0]["id"] == pinned_id
+    assert public["pattern"] == "zellij" and public["edge"] == "wave"
+    assert public["card_style"] == "glass" and public["show_all_link"] is False
+    assert "pinned_ids" not in public and "fill_random" not in public
+    assert client.post(
+        "/api/admin/home-sections",
+        headers=GOD,
+        json=_payload(pattern="unknown"),
+    ).status_code == 422
+    assert client.post(
+        "/api/admin/home-sections",
+        headers=GOD,
+        json=_payload(kind="stores", business_types=["restaurant"], pinned_ids=[pinned_id]),
+    ).status_code == 422
+
+
+def test_pin_candidates_are_god_only_and_type_changes_prune_pins():
+    client = _client()
+    with TestingSessionLocal() as db:
+        pinned_id = db.scalar(select(models.Store.id).where(models.Store.name == "Cafe"))
+
+    candidate_url = "/api/admin/home-sections/candidates?kind=stores&business_types=cafe&q=Caf"
+    assert client.get(candidate_url, headers=OWNER).status_code == 403
+    assert client.get(candidate_url).status_code == 401
+    candidates = client.get(candidate_url, headers=GOD).json()["items"]
+    assert [item["id"] for item in candidates] == [pinned_id]
+
+    section = _create(client, business_types=["cafe"], pinned_ids=[pinned_id], fill_random=False)
+    updated = client.patch(
+        f"/api/admin/home-sections/{section['id']}",
+        headers=GOD,
+        json={"business_types": ["restaurant"]},
+    ).json()
+    assert updated["pinned_ids"] == []
