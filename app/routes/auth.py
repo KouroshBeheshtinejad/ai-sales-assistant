@@ -382,7 +382,7 @@ def request_password_reset(data: PasswordResetRequest, request: Request, db: Ses
             expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=15),
         ))
         db.commit()
-        if os.getenv("EMAIL_PROVIDER", "disabled").casefold() == "smtp":
+        if os.getenv("EMAIL_PROVIDER", "disabled").casefold() in {"smtp", "emailbump"}:
             public_url = os.getenv("APP_PUBLIC_URL", "http://localhost:8000").rstrip("/")
             get_email_provider().send(
                 email=user.email,
