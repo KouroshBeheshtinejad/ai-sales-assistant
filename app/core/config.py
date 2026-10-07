@@ -106,20 +106,30 @@ def validate_production_configuration() -> None:
     except (ValueError, UnicodeEncodeError) as exc:
         raise RuntimeError("PAYMENT_CREDENTIAL_ENCRYPTION_KEY is invalid") from exc
     email_provider = os.getenv("EMAIL_PROVIDER", "disabled").strip().casefold()
-    if email_provider not in {"disabled", "smtp"}:
+    if email_provider not in {"disabled", "smtp", "emailbump"}:
         raise RuntimeError("Unsupported EMAIL_PROVIDER")
+
     if email_provider == "smtp" and not all(
         os.getenv(name, "").strip()
         for name in ("SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM")
-    ):
+):
         raise RuntimeError("SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM are required")
-    otp_provider = os.getenv("OTP_PROVIDER", "disabled").strip().casefold()
-    if otp_provider not in {"disabled", "email", "sms"}:
-        raise RuntimeError("Unsupported OTP_PROVIDER")
-    if otp_provider == "email" and email_provider != "smtp":
-        raise RuntimeError("OTP_PROVIDER=email requires EMAIL_PROVIDER=smtp")
-    if otp_provider == "sms" and not os.getenv("SMS_WEBHOOK_URL", "").strip():
-        raise RuntimeError("OTP_PROVIDER=sms requires SMS_WEBHOOK_URL")
+
+    if email_provider == "emailbump" and not all(
+        os.getenv(name, "").strip()
+        for name in ("EMAILBUMP_API_KEY", "EMAILBUMP_FROM")
+):
+        raise RuntimeError("EMAILBUMP_API_KEY and EMAILBUMP_FROM are required")
+
+otp_provider = os.getenv("OTP_PROVIDER", "disabled").strip().casefold()
+if otp_provider not in {"disabled", "email", "sms"}:
+    raise RuntimeError("Unsupported OTP_PROVIDER")
+
+if otp_provider == "email" and email_provider not in {"smtp", "emailbump"}:
+    raise RuntimeError("OTP_PROVIDER=email requires EMAIL_PROVIDER=smtp or emailbump")
+
+if otp_provider == "sms" and not os.getenv("SMS_WEBHOOK_URL", "").strip():
+    raise RuntimeError("OTP_PROVIDER=sms requires SMS_WEBHOOK_URL")
     chat_provider = os.getenv("AI_CHAT_PROVIDER", "disabled").strip().casefold()
     keyless = {"", "disabled", "off", "none", "offline", "mock", "ollama", "lmstudio", "custom", "openai_compatible"}
     hosted = {"openai", "openrouter", "groq", "together", "deepseek", "gemini", "mistral", "anthropic"}
