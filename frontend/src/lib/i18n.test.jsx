@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { detectLocale, getBrowserTimezone, I18nProvider, useI18n } from './i18n'
+import { detectLocale, getBrowserTimezone, I18nProvider, LOCALES, MESSAGES, useI18n } from './i18n'
 
 afterEach(() => {
   cleanup()
@@ -67,5 +67,75 @@ describe('automatic visitor language selection', () => {
     }
     render(<I18nProvider><Probe /></I18nProvider>)
     expect(screen.getByText('نقش انتخاب‌شده با نقش ثبت‌شده برای این حساب مطابقت ندارد.')).toBeTruthy()
+  })
+})
+
+describe('store metadata translations', () => {
+  const keys = [
+    's.contactPhone',
+    's.storeAddress',
+    's.locationName',
+    's.locationUrl',
+    's.storeHours',
+    's.latitude',
+    's.longitude',
+  ]
+  const englishLabels = [
+    'Contact phone',
+    'Store address',
+    'Location name',
+    'Map link',
+    'Opening hours',
+    'Latitude',
+    'Longitude',
+  ]
+  const sharedInternationalTerms = new Set(['s.latitude', 's.longitude'])
+
+  it.each(LOCALES.filter(({ code }) => code !== 'en'))('%s uses localized store metadata labels', ({ code }) => {
+    localStorage.setItem('nava_locale', code)
+    function Probe() {
+      const { t } = useI18n()
+      return <ul>{keys.map((key) => <li key={key}>{t(key)}</li>)}</ul>
+    }
+
+    render(<I18nProvider><Probe /></I18nProvider>)
+    const labels = screen.getAllByRole('listitem').map((item) => item.textContent)
+    expect(labels).toHaveLength(keys.length)
+    labels.forEach((label, index) => {
+      expect(label).not.toBe(keys[index])
+      if (!sharedInternationalTerms.has(keys[index])) expect(label).not.toBe(englishLabels[index])
+    })
+  })
+})
+
+describe('locale catalog completeness', () => {
+  const referenceKeys = Object.keys(MESSAGES.en).sort()
+
+  it.each(LOCALES)('%s includes every message and interpolation from English', ({ code }) => {
+    const messages = MESSAGES[code]
+    expect(Object.keys(messages).sort()).toEqual(referenceKeys)
+
+    for (const key of referenceKeys) {
+      const expected = [...MESSAGES.en[key].matchAll(/\{[^}]+\}/g)].map((match) => match[0]).sort()
+      const actual = [...messages[key].matchAll(/\{[^}]+\}/g)].map((match) => match[0]).sort()
+      expect(actual, `${code}:${key}`).toEqual(expected)
+      if (MESSAGES.en[key].trim()) expect(messages[key].trim(), `${code}:${key}`).not.toBe('')
+      expect(messages[key], `${code}:${key}`).not.toMatch(/ZXQK|XQZK|PHZX|NAVAPARAM/)
+    }
+  })
+
+  it('keeps reviewed translations for ambiguous store and payment copy', () => {
+    expect(MESSAGES.ar['err.network']).toBe('خطأ في الشبكة. تحقق من اتصالك وحاول مرة أخرى.')
+    expect(MESSAGES.ar['shop.storeInfo']).toBe('معلومات المتجر')
+    expect(MESSAGES.pt['shop.storeInfo']).toBe('Informações da loja')
+    expect(MESSAGES.ar['pay.credentialHint']).toContain('يُشفّر أثناء التخزين')
+    expect(MESSAGES.hi['pay.credentialHint']).toContain('संग्रहीत रहते समय एन्क्रिप्ट')
+  })
+
+  it.each(LOCALES)('%s does not advertise the retired five-language limit', ({ code }) => {
+    const legacyClaim = /\bfive languages?\b|\bcinco idiomas\b|\bfünf sprachen\b|\bcinq langues\b|پنج زبان/i
+    for (const key of ['landing.lead', 'landing.b3', 'landing.f7.t']) {
+      expect(MESSAGES[code][key], `${code}:${key}`).not.toMatch(legacyClaim)
+    }
   })
 })

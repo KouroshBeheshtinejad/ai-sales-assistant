@@ -62,6 +62,13 @@ function StoreForm({ store, onSaved, onCancel }) {
     categories: store?.categories || [],
     primary_color: store?.primary_color || '#0d8a85',
     secondary_color: store?.secondary_color || '#f2f7f6',
+    contact_phone: store?.contact_phone || '',
+    address: store?.address || '',
+    location_name: store?.location_name || '',
+    latitude: store?.latitude ?? '',
+    longitude: store?.longitude ?? '',
+    location_url: store?.location_url || '',
+    store_hours: store?.store_hours || '',
     logo: null,
   })
   const [busy, setBusy] = useState(false)
@@ -73,6 +80,12 @@ function StoreForm({ store, onSaved, onCancel }) {
     setBusy(true)
     setError('')
     try {
+      const latitude = form.latitude === '' ? null : Number(form.latitude)
+      const longitude = form.longitude === '' ? null : Number(form.longitude)
+      if ((form.latitude !== '' && Number.isNaN(latitude)) || (form.longitude !== '' && Number.isNaN(longitude))) {
+        setError('Latitude and longitude must be valid numbers.')
+        return
+      }
       const payload = {
         name: form.name.trim(),
         description: form.description.trim() || null,
@@ -80,6 +93,13 @@ function StoreForm({ store, onSaved, onCancel }) {
         categories: form.categories.map((category) => ({ ...category, name: category.name.trim() })),
         primary_color: form.primary_color,
         secondary_color: form.secondary_color,
+        contact_phone: form.contact_phone.trim() || null,
+        address: form.address.trim() || null,
+        location_name: form.location_name.trim() || null,
+        latitude,
+        longitude,
+        location_url: form.location_url.trim() || null,
+        store_hours: form.store_hours.trim() || null,
       }
       const saved = store ? await api.seller.updateStore(store.id, payload) : await api.seller.createStore(payload)
       if (form.logo) await api.seller.uploadStoreLogo(saved.store_id, form.logo)
@@ -96,6 +116,19 @@ function StoreForm({ store, onSaved, onCancel }) {
       <Field label={t('s.storeName')}><input required maxLength={255} value={form.name} onChange={set('name')} data-autofocus /></Field>
       <BusinessTypePicker types={types} value={form.business_type} onChange={(business_type) => setForm((current) => ({ ...current, business_type }))} label={t('s.businessType')} />
       <Field label={t('s.storeDesc')}><textarea rows={3} maxLength={10000} value={form.description} onChange={set('description')} /></Field>
+      <div className="form-grid">
+        <Field label={t('s.contactPhone')}><input type="tel" inputMode="tel" dir="ltr" value={form.contact_phone} onChange={set('contact_phone')} /></Field>
+        <Field label={t('s.storeHours')}><input value={form.store_hours} onChange={set('store_hours')} /></Field>
+      </div>
+      <Field label={t('s.storeAddress')} className="full"><textarea rows={3} value={form.address} onChange={set('address')} /></Field>
+      <div className="form-grid">
+        <Field label={t('s.locationName')}><input value={form.location_name} onChange={set('location_name')} /></Field>
+        <Field label={t('s.locationUrl')}><input type="url" dir="ltr" value={form.location_url} onChange={set('location_url')} /></Field>
+      </div>
+      <div className="form-grid">
+        <Field label={t('s.latitude')}><input type="number" step="0.000001" value={form.latitude} onChange={set('latitude')} /></Field>
+        <Field label={t('s.longitude')}><input type="number" step="0.000001" value={form.longitude} onChange={set('longitude')} /></Field>
+      </div>
       <Field label={t('s.logo')}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => setForm({ ...form, logo: e.target.files?.[0] || null })} /></Field>
       <fieldset className="store-category-editor">
         <legend>{t('s.categoryTabs')}</legend>

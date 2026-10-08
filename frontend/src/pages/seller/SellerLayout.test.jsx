@@ -1,9 +1,9 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import SellerLayout from './SellerLayout'
 
-const mocks = vi.hoisted(() => ({ user: null, store: null, signOut: vi.fn() }))
+const mocks = vi.hoisted(() => ({ user: null, store: null, signOut: vi.fn(), reloadStores: vi.fn(), supportSummary: { data: { attention_count: 0 } } }))
 
 vi.mock('../../components/Layout', () => ({
   Brand: () => <span>NAVA</span>,
@@ -11,7 +11,7 @@ vi.mock('../../components/Layout', () => ({
   SkipLink: () => null,
 }))
 vi.mock('../../components/ui', () => ({
-  Button: ({ children }) => <button type="button">{children}</button>,
+  Button: ({ children, ...props }) => <button type="button" {...props}>{children}</button>,
   Empty: ({ title }) => <p>{title}</p>,
   ErrorNote: () => null,
   Field: ({ children }) => <div>{children}</div>,
@@ -22,14 +22,18 @@ vi.mock('../../components/ui', () => ({
 vi.mock('../../lib/auth', () => ({ useAuth: () => ({ user: mocks.user, signOut: mocks.signOut }) }))
 vi.mock('../../lib/i18n', () => ({ useI18n: () => ({ t: (key) => key }) }))
 vi.mock('../../lib/api', () => ({ api: { support: { summary: () => Promise.resolve({ attention_count: 0 }) } } }))
-vi.mock('../../lib/hooks', () => ({ useAsync: () => ({ data: { attention_count: 0 } }) }))
+vi.mock('../../lib/hooks', () => ({ useAsync: () => ({ data: { attention_count: 0 }, reload: vi.fn() }) }))
 vi.mock('./SellerContext', () => ({
   SellerProvider: ({ children }) => children,
-  useSeller: () => ({ stores: mocks.store ? [mocks.store] : [], store: mocks.store, select: vi.fn(), loading: false, error: null, reloadStores: vi.fn() }),
+  useSeller: () => ({ stores: mocks.store ? [mocks.store] : [], store: mocks.store, select: vi.fn(), loading: false, error: null, reloadStores: mocks.reloadStores }),
 }))
 
 describe('role-aware seller navigation', () => {
-  afterEach(() => cleanup())
+  afterEach(() => {
+    cleanup()
+    mocks.signOut.mockClear()
+    mocks.reloadStores.mockClear()
+  })
 
   it('shows store and customer tabs together for an approved customer member', () => {
     mocks.user = { role: 'customer' }
@@ -48,5 +52,15 @@ describe('role-aware seller navigation', () => {
 
     expect(screen.queryByText('dash.team')).toBeNull()
     expect(screen.queryByText('s.products')).toBeNull()
+  })
+
+  it('refreshes the dashboard without forcing a full browser reload', async () => {
+    mocks.user = { id: 7, role: 'store_owner' }
+    mocks.store = { id: 3, name: 'Store', permissions: ['store.read'] }
+    render(<MemoryRouter><SellerLayout /></MemoryRouter>)
+
+    fireEvent.click(screen.getByText('s.refresh'))
+
+    expect(mocks.reloadStores).toHaveBeenCalled()
   })
 })

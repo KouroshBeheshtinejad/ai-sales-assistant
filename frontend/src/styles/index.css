@@ -168,7 +168,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .topnav a:not(.btn) { color: var(--ink); text-decoration: none; font-weight: 500; }
 .topnav a:not(.btn):hover { color: var(--teal-ink); text-decoration: underline; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.25rem; color: var(--ink); text-decoration: none; }
-
+.user-badge { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(14, 116, 144, .05); color: var(--ink); text-decoration: none; }
+.user-badge-avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--teal), var(--lapis)); color: #fff; font-size: .72rem; font-weight: 800; }
+.user-badge-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; font-weight: 700; }
 
 /* Landing */
 .demo-chat { display: grid; gap: 12px; padding: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); border-inline-start: 6px solid var(--saffron); }

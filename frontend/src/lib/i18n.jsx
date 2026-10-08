@@ -37,7 +37,7 @@ export const LOCALES = [
 export const DEFAULT_LOCALE = 'fa'
 const STORAGE_KEY = 'nava_locale'
 const EXPLICIT_STORAGE_KEY = 'nava_locale_explicit'
-const MESSAGES = { fa, en, es, de, fr, ru, ar, zh, pt, ko, ja, nl, tr, hi }
+export const MESSAGES = { fa, en, es, de, fr, ru, ar, zh, pt, ko, ja, nl, tr, hi }
 const byCode = (code) => LOCALES.find((item) => item.code === code)
 
 export function detectLocale({ explicit, stored, languages = [] } = {}) {

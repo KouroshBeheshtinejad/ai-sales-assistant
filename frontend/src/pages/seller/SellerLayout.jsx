@@ -128,7 +128,6 @@ function Shell() {
   const refreshDashboard = async () => {
     await reloadStores()
     if (user?.id) await supportSummary.reload()
-    window.location.reload()
   }
 
   useEffect(() => {

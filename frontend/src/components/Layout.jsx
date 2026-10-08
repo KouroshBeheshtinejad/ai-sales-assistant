@@ -124,9 +124,26 @@ const SECTION_LINKS = [
   ['nav.faq', { pathname: '/about', hash: '#faq' }],
 ]
 
+function UserBadge({ user }) {
+  const name = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.email || 'Account'
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'A'
+
+  return (
+    <Link to="/seller" className="user-badge" title={user?.email || name}>
+      <span className="user-badge-avatar">{initials}</span>
+      <span className="user-badge-name">{name}</span>
+    </Link>
+  )
+}
+
 function AccountLinks({ onNavigate }) {
   const { t } = useI18n()
-  const { isAuthed } = useAuth()
+  const { isAuthed, user } = useAuth()
   return isAuthed ? (
     <Link className="btn btn-primary btn-sm" to="/seller" onClick={onNavigate}>{t('nav.panel')}</Link>
   ) : (
@@ -140,6 +157,7 @@ function AccountLinks({ onNavigate }) {
 export function SiteHeader() {
   const { t } = useI18n()
   const { pathname, hash } = useLocation()
+  const { user, isAuthed } = useAuth()
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
 
@@ -165,6 +183,7 @@ export function SiteHeader() {
           <div className="sitenav-actions"><AccountLinks onNavigate={close} /></div>
         </nav>
         <div className="topbar-end">
+          {isAuthed && user && <UserBadge user={user} />}
           <LocaleToggle />
           <div className="topbar-actions"><AccountLinks /></div>
           <button type="button" className="menu-btn" aria-expanded={open} aria-controls="site-nav" aria-label={open ? t('nav.closeMenu') : t('nav.openMenu')} onClick={() => setOpen(!open)}>

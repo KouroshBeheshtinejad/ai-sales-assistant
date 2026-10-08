@@ -1,9 +1,11 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { SiteFooter, SiteHeader } from './Layout'
 
-vi.mock('../lib/auth', () => ({ useAuth: () => ({ isAuthed: false }) }))
+const authState = vi.hoisted(() => ({ isAuthed: false, user: null }))
+
+vi.mock('../lib/auth', () => ({ useAuth: () => ({ isAuthed: authState.isAuthed, user: authState.user }) }))
 vi.mock('../lib/i18n', () => ({
   useI18n: () => ({
     t: (key) => key,
@@ -14,11 +16,11 @@ vi.mock('../lib/i18n', () => ({
   }),
 }))
 vi.mock('./ui', () => ({
-  Button: ({ children }) => <button>{children}</button>,
+  Button: ({ children, ...props }) => <button {...props}>{children}</button>,
   Icon: () => <span aria-hidden="true" />,
 }))
 
-afterEach(() => cleanup())
+afterEach(() => { cleanup(); authState.isAuthed = false; authState.user = null })
 
 describe('site navigation', () => {
   it('keeps features and how-it-works links in the footer, not the header', () => {
@@ -30,5 +32,14 @@ describe('site navigation', () => {
     expect(within(header).queryByText('nav.how')).toBeNull()
     expect(within(footer).getByText('nav.features')).toBeTruthy()
     expect(within(footer).getByText('nav.how')).toBeTruthy()
+  })
+
+  it('shows the signed-in user name in the public header', () => {
+    authState.isAuthed = true
+    authState.user = { first_name: 'Sara', last_name: 'Nava', email: 'sara@example.com' }
+
+    render(<MemoryRouter><SiteHeader /></MemoryRouter>)
+
+    expect(screen.getByText('Sara Nava')).toBeTruthy()
   })
 })
