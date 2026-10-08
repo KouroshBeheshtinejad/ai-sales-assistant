@@ -412,21 +412,24 @@ td.actions { display: flex; gap: 8px; align-items: center; justify-content: flex
 .topbar-in { gap: 12px; }
 .sitenav { display: flex; align-items: center; justify-content: center; flex: 1 1 auto; min-width: 0; }
 .sitenav-links { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 2px; }
-.sitenav-links a { display: block; padding: 8px 12px; border-radius: var(--r-s); color: var(--ink); font-weight: 500; text-decoration: none; white-space: nowrap; }
+.sitenav-links a { display: block; padding: 8px 10px; border-radius: var(--r-s); color: var(--ink); font-weight: 500; text-decoration: none; white-space: nowrap; }
 .sitenav-links a:hover { background: var(--teal-soft); color: var(--teal-ink); }
 .sitenav-actions { display: none; }
 .topbar-end { display: flex; align-items: center; gap: 10px; flex: none; }
 .topbar-actions { display: flex; align-items: center; gap: 6px; }
 .menu-btn { display: none; width: 44px; height: 44px; place-items: center; border: 1px solid var(--line-strong); border-radius: var(--r-s); background: var(--surface); color: var(--ink); padding: 0; }
 .menu-btn:hover { background: var(--teal-soft); }
-.global-search { position: relative; z-index: 31; flex: 0 1 300px; min-width: 190px; }
-.global-search-form { position: relative; display: flex; align-items: center; min-width: 0; }
-.global-search-form input { min-width: 0; min-height: 44px; padding-inline: 42px; border-color: var(--line-strong); border-radius: var(--r-s); background: var(--surface); }
-.global-search-form input:focus, .global-search-form.is-open input { border-color: var(--teal); box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 16%, transparent); }
-.global-search-icon { position: absolute; inset-inline-start: 13px; z-index: 1; color: var(--muted); pointer-events: none; }
-.global-search-clear { position: absolute; inset-inline-end: 6px; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: var(--r-s); background: transparent; color: var(--muted); }
-.global-search-clear:hover { background: var(--teal-soft); color: var(--ink); }
-.global-search-panel { position: absolute; inset-inline-start: 0; top: calc(100% + 8px); width: min(560px, calc(100vw - 24px)); max-height: min(72vh, 560px); overflow-y: auto; overscroll-behavior: contain; padding: 8px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--surface); color: var(--ink); box-shadow: 0 18px 44px rgba(15, 37, 48, .2); animation: pop .14s ease-out; }
+.global-search { position: relative; z-index: 31; flex: 0 1 300px; min-width: 220px; }
+.global-search-form { position: relative; display: flex; align-items: center; min-width: 0; min-height: 50px; padding: 4px; border: 1px solid var(--line-strong); border-inline-start: 3px solid var(--saffron); border-radius: var(--r-s); background: var(--surface); box-shadow: 0 3px 10px rgba(15, 37, 48, .07); transition: border-color .16s, box-shadow .16s; }
+.global-search-form input { min-width: 0; min-height: 40px; padding-inline: 48px 40px; border: 0; border-radius: 6px; background: transparent; font-size: .92rem; transition: background .16s; }
+.global-search-form input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.global-search-form:focus-within, .global-search-form.is-open { border-color: var(--teal); box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 14%, transparent), 0 8px 20px rgba(15, 37, 48, .11); }
+.global-search-form:focus-within input, .global-search-form.is-open input { background: var(--surface); box-shadow: none; }
+.global-search-icon { position: absolute; inset-inline-start: 8px; z-index: 1; display: grid; place-items: center; width: 34px; height: 34px; padding: 9px; border-radius: 6px; background: var(--teal-ink); color: #fff; pointer-events: none; transition: background .16s, color .16s; }
+.global-search-form:focus-within .global-search-icon, .global-search-form.is-open .global-search-icon { background: var(--saffron); color: var(--ink); }
+.global-search-clear { position: absolute; inset-inline-end: 5px; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); }
+.global-search-clear:hover { background: var(--saffron-soft); color: var(--ink); }
+.global-search-panel { position: absolute; inset-inline-start: 0; top: calc(100% + 10px); width: min(560px, calc(100vw - 24px)); max-height: min(72vh, 560px); overflow-y: auto; overscroll-behavior: contain; padding: 10px; border: 1px solid var(--line-strong); border-radius: var(--r-s); background: var(--surface); color: var(--ink); box-shadow: 0 20px 48px rgba(15, 37, 48, .18); animation: pop .16s ease-out; }
 .global-search-group + .global-search-group { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .global-search-group h2 { display: flex; align-items: center; gap: 8px; padding: 5px 8px 7px; color: var(--teal-ink); font-size: .9rem; }
 .global-search-group h2 span { display: grid; place-items: center; min-width: 22px; height: 22px; margin-inline-start: auto; padding-inline: 5px; border-radius: 99px; background: var(--teal-soft); color: var(--teal-ink); font-size: .75rem; }
@@ -650,10 +653,8 @@ img.store-mark { display: block; object-fit: cover; }
   .split-feature { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .store-crumb { display: none; }
 }
-/* Header: the full desktop nav needs ~1200px (brand + 6 links + language + 2 buttons).
-   Between 961px and 1200px (tablets in landscape, small laptops, phones in "desktop site"
-   mode) it overlapped itself, so the same collapsed menu used at <=960px applies there too. */
-@media (min-width: 961px) and (max-width: 1200px) {
+/* Keep the full header on one line only when its contents have enough room. */
+@media (min-width: 961px) and (max-width: 1400px) {
   .topbar .topbar-actions { display: none; }
   .topbar .menu-btn { display: inline-grid; }
   .topbar .sitenav { position: absolute; inset-inline: 0; top: 100%; display: none; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 14px; max-height: calc(100vh - 64px); max-height: calc(100dvh - 64px); overflow-y: auto; padding: 8px 16px 20px; border-bottom: 1px solid var(--line); background: var(--paper); box-shadow: 0 16px 28px rgba(15, 37, 48, .1); }
@@ -662,6 +663,9 @@ img.store-mark { display: block; object-fit: cover; }
   .topbar .sitenav-links a { padding: 14px 8px; border-bottom: 1px solid var(--line); border-radius: 0; font-size: 1.05rem; }
   .topbar .sitenav-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
   .topbar .sitenav-actions .btn { min-height: 46px; }
+}
+@media (min-width: 1401px) {
+  .topbar .wrap { width: min(1440px, 100% - 48px); }
 }
 @media (max-width: 1000px) {
   .hero { padding-block: 40px 24px; }
@@ -926,6 +930,15 @@ a, button { -webkit-tap-highlight-color: transparent; }
   .biz-pop { position: fixed; inset: auto 0 0 0; z-index: 100; width: auto; max-height: 78vh; max-height: 78dvh; overflow-y: auto; overscroll-behavior: contain; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); border-width: 1px 0 0; border-radius: var(--r-m) var(--r-m) 0 0; transform: none; translate: none; animation: biz-sheet-in .22s ease-out; }
   .biz-pop::before { display: none; }
   .biz-pop-close { display: grid; }
+}
+
+@media (min-width: 1001px) {
+  .biz-tile { min-height: 116px; gap: 5px; padding: 10px 8px; }
+  .biz-mark { width: 48px; height: 48px; }
+  .biz-name { font-size: .88rem; }
+  .biz-count { font-size: .76rem; }
+  .type-chips { gap: 8px; }
+  .type-chips li { padding: 4px 12px; font-size: .92rem; }
 }
 
 /* Admin controls for looks, pins and the true preview. */

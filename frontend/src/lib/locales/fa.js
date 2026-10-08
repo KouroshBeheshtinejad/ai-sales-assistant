@@ -75,6 +75,19 @@ nav.openMenu = باز کردن منو
 nav.closeMenu = بستن منو
 nav.home = صفحه اصلی ناوا
 
+# ---- global search
+search.label = جست‌وجوی فروشگاه و محصول
+search.placeholder = جست‌وجوی فروشگاه یا محصول...
+search.clear = پاک کردن جست‌وجو
+search.results = نتایج جست‌وجو
+search.loading = در حال جست‌وجو...
+search.error = جست‌وجو موقتاً در دسترس نیست.
+search.empty = فروشگاه یا محصولی پیدا نشد.
+search.stores = فروشگاه‌ها
+search.products = محصولات
+search.storeMeta = {n} محصول
+search.productMeta = در {store}
+
 # ---- landing: hero
 landing.browseBusinesses = انتخاب بر اساس نوع کسب‌وکار
 landing.browseBusinessesLead = فروشگاه‌های ناوا را بر اساس کالا یا خدمتی که می‌خواهید ببینید.

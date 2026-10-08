@@ -75,6 +75,19 @@ nav.openMenu = Abrir menú
 nav.closeMenu = Cerrar menú
 nav.home = Inicio de NAVA
 
+# ---- global search
+search.label = Buscar tiendas y productos
+search.placeholder = Buscar tiendas o productos...
+search.clear = Borrar búsqueda
+search.results = Resultados de búsqueda
+search.loading = Buscando...
+search.error = La búsqueda no está disponible temporalmente.
+search.empty = No se encontraron tiendas ni productos.
+search.stores = Tiendas
+search.products = Productos
+search.storeMeta = {n} productos
+search.productMeta = En {store}
+
 # ---- landing: hero
 landing.browseBusinesses = Explorar por actividad
 landing.browseBusinessesLead = Descubre tiendas de NAVA según los productos o servicios que buscas.
