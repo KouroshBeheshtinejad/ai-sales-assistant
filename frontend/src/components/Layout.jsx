@@ -1,4 +1,4 @@
-import { Component, useEffect, useState } from 'react'
+import { Component, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
@@ -27,14 +27,74 @@ export function Brand({ to = '/' }) {
 // friendly, and the platform picker opens on touch devices.
 export function LocaleToggle({ className }) {
   const { locale, setLocale, locales, t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef(null)
+  const current = locales.find((item) => item.code === locale) || locales[0]
+  const visible = locales.filter((item) => {
+    if (!query.trim()) return true
+    const value = `${item.name} ${item.short} ${item.code}`.toLowerCase()
+    return value.includes(query.trim().toLowerCase())
+  })
+
+  useEffect(() => {
+    if (!open) return undefined
+    const closeOnClick = (event) => {
+      if (!ref.current?.contains(event.target)) setOpen(false)
+    }
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnClick)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [open])
+
   return (
-    <label className={cx('lang', className)}>
-      <Icon name="globe" size={18} />
-      <select value={locale} onChange={(event) => setLocale(event.target.value)} aria-label={t('nav.langName')}>
-        {locales.map((item) => <option key={item.code} value={item.code} lang={item.code}>{item.name}</option>)}
-      </select>
-      <Icon name="chevron" size={14} className="lang-caret" />
-    </label>
+    <div ref={ref} className={cx('lang', 'lang-toggle', className, open && 'is-open')}>
+      <button type="button" className="lang-button" aria-label={t('nav.langName')} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((value) => !value)}>
+        <Icon name="globe" size={18} />
+        <span className="lang-current" lang={current.code}>{current.short}</span>
+        <span className="lang-name">{current.name}</span>
+        <Icon name="chevron" size={14} className="lang-caret" />
+      </button>
+      {open && (
+        <div className="locale-menu" role="listbox" aria-label={t('nav.langName')}>
+          <div className="locale-search">
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('nav.langName')}
+              aria-label={t('nav.langName')}
+            />
+          </div>
+          <div className="locale-list">
+            {visible.length ? visible.map((item) => (
+              <button
+                key={item.code}
+                type="button"
+                className={cx('locale-option', item.code === locale && 'is-selected')}
+                role="option"
+                aria-selected={item.code === locale}
+                lang={item.code}
+                dir={item.dir}
+                onClick={() => { setLocale(item.code); setOpen(false); setQuery('') }}
+              >
+                <span className="locale-main">
+                  <span className="locale-code">{item.short}</span>
+                  <span className="locale-label">{item.name}</span>
+                </span>
+                <span className="locale-dir">{item.dir === 'rtl' ? 'RTL' : 'LTR'}</span>
+              </button>
+            )) : <span className="locale-empty">{t('search.empty')}</span>}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -134,6 +134,13 @@ class Store(Base):
     country_code: Mapped[str] = mapped_column(String(2), nullable=False, default="IR", server_default="IR")
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="IRT", server_default="IRT")
     payment_provider: Mapped[str] = mapped_column(String(30), nullable=False, default="disabled", server_default="disabled")
+    contact_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    location_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
+    location_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    store_hours: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
@@ -160,6 +167,11 @@ class Store(Base):
     )
 
     knowledge_entries: Mapped[list["KnowledgeBaseEntry"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan",
+    )
+
+    reviews: Mapped[list["StoreReview"]] = relationship(
         back_populates="store",
         cascade="all, delete-orphan",
     )
@@ -872,6 +884,35 @@ class PasswordResetToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
     user: Mapped["User"] = relationship()
+
+
+class StoreReview(Base):
+    __tablename__ = "store_reviews"
+    __table_args__ = (
+        UniqueConstraint("user_id", "store_id", name="uq_store_review_user_store"),
+        UniqueConstraint("user_id", "product_id", name="uq_store_product_review_user_product"),
+        Index("ix_store_reviews_store_created", "store_id", "created_at"),
+        Index("ix_store_reviews_product_created", "product_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    store_id: Mapped[int | None] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), nullable=True, index=True)
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=True, index=True)
+    order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("store_reviews.id", ondelete="CASCADE"), nullable=True, index=True)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    comment: Mapped[str] = mapped_column(Text, nullable=False)
+    is_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+
+    user: Mapped["User | None"] = relationship()
+    store: Mapped["Store | None"] = relationship(back_populates="reviews")
+    product: Mapped["Product | None"] = relationship()
+    order: Mapped["Order | None"] = relationship()
+    parent: Mapped["StoreReview | None"] = relationship("StoreReview", remote_side="StoreReview.id", back_populates="replies")
+    replies: Mapped[list["StoreReview"]] = relationship("StoreReview", back_populates="parent", cascade="all, delete-orphan")
 
 
 class CaptchaChallenge(Base):

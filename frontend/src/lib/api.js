@@ -56,6 +56,8 @@ export const api = {
   // Public
   businessTypes: () => request('/business-types'),
   catalog: (storeId) => request(`/public/stores/${storeId}/catalog`),
+  storeReviews: (storeId) => request(`/public/stores/${storeId}/reviews`),
+  submitReview: (storeId, payload) => request(`/public/stores/${storeId}/reviews`, { method: 'POST', auth: true, body: payload }),
   // Random live stores and products for the landing page.
   showcase: (stores = 6, products = 8) => request(`/public/showcase?stores=${stores}&products=${products}`),
   search: (query, limit = 4) => request(`/public/search?${new URLSearchParams({ q: query, limit: String(limit) })}`),

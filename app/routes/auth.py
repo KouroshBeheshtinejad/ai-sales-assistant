@@ -384,10 +384,20 @@ def request_password_reset(data: PasswordResetRequest, request: Request, db: Ses
         db.commit()
         if os.getenv("EMAIL_PROVIDER", "disabled").casefold() in {"smtp", "emailbump"}:
             public_url = os.getenv("APP_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+            reset_url = f"{public_url}/reset-password?token={raw_token}"
+            html_message = (
+                "<div style='font-family:Arial,sans-serif;line-height:1.6;color:#111827'>"
+                "<p style='margin:0 0 12px'>سلام،</p>"
+                "<p style='margin:0 0 16px'>برای تنظیم مجدد رمز عبور خود روی دکمه زیر کلیک کنید.</p>"
+                f"<p style='margin:0 0 16px'><a href='{reset_url}' style='display:inline-block;padding:12px 18px;background:#0f766e;color:#ffffff;text-decoration:none;border-radius:8px'>بازنشانی رمز عبور</a></p>"
+                f"<p style='margin:0;color:#475569'>یا این لینک را در مرورگر خود باز کنید: <br><span dir='ltr'>{reset_url}</span></p>"
+                "</div>"
+            )
             get_email_provider().send(
                 email=user.email,
-                subject="NAVA password reset",
-                message=f"Reset your password at {public_url}/reset-password?token={raw_token}",
+                subject="NAVA | بازنشانی رمز عبور",
+                message=f"برای بازنشانی رمز عبور خود به این لینک مراجعه کنید: {reset_url}",
+                html_message=html_message,
             )
     return {"message": "If the account exists, reset instructions will be sent."}
 

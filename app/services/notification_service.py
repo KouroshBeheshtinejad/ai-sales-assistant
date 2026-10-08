@@ -6,6 +6,7 @@ No order transaction depends on notification delivery succeeding.
 from __future__ import annotations
 
 import json
+import html
 import logging
 import os
 import smtplib
@@ -23,7 +24,7 @@ class SMSProvider(Protocol):
 
 
 class EmailProvider(Protocol):
-    def send(self, *, email: str, subject: str, message: str) -> None: ...
+    def send(self, *, email: str, subject: str, message: str, html_message: str | None = None) -> None: ...
 
 
 class DisabledSMSProvider:
@@ -32,17 +33,19 @@ class DisabledSMSProvider:
 
 
 class DisabledEmailProvider:
-    def send(self, *, email: str, subject: str, message: str) -> None:
+    def send(self, *, email: str, subject: str, message: str, html_message: str | None = None) -> None:
         logger.info("Email provider disabled; notification skipped")
 
 
 class SMTPEmailProvider:
-    def send(self, *, email: str, subject: str, message: str) -> None:
+    def send(self, *, email: str, subject: str, message: str, html_message: str | None = None) -> None:
         mail = EmailMessage()
         mail["From"] = os.environ["SMTP_FROM"]
         mail["To"] = email
         mail["Subject"] = subject
         mail.set_content(message)
+        if html_message:
+            mail.add_alternative(html_message, subtype="html")
 
         host = os.environ["SMTP_HOST"]
         port = int(os.getenv("SMTP_PORT", "587"))
@@ -59,7 +62,7 @@ class SMTPEmailProvider:
 class EmailBumpEmailProvider:
     API_URL = "https://emailbump.com/api/v1/emails"
 
-    def send(self, *, email: str, subject: str, message: str) -> None:
+    def send(self, *, email: str, subject: str, message: str, html_message: str | None = None) -> None:
         api_key = os.environ["EMAILBUMP_API_KEY"]
         sender = os.environ["EMAILBUMP_FROM"]
 
@@ -68,7 +71,7 @@ class EmailBumpEmailProvider:
                 "from": sender,
                 "to": email,
                 "subject": subject,
-                "html": f"<p>{message}</p>",
+                "html": html_message or f"<p>{html.escape(message).replace(chr(10), '<br>')}</p>",
                 "text": message,
             }
         ).encode("utf-8")

@@ -1,9 +1,18 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import de from './locales/de'
+import ar from './locales/ar'
 import en from './locales/en'
 import es from './locales/es'
 import fa from './locales/fa'
 import fr from './locales/fr'
+import hi from './locales/hi'
+import ja from './locales/ja'
+import ko from './locales/ko'
+import nl from './locales/nl'
+import pt from './locales/pt'
+import ru from './locales/ru'
+import tr from './locales/tr'
+import zh from './locales/zh'
 import { LISTS } from './locales/lists'
 import { safeStorage, toLatinDigits } from './util'
 
@@ -14,12 +23,21 @@ export const LOCALES = [
   { code: 'es', name: 'Español', short: 'ES', dir: 'ltr', tag: 'es-ES', unit: 'tomanes' },
   { code: 'de', name: 'Deutsch', short: 'DE', dir: 'ltr', tag: 'de-DE', unit: 'Toman' },
   { code: 'fr', name: 'Français', short: 'FR', dir: 'ltr', tag: 'fr-FR', unit: 'tomans' },
+  { code: 'ru', name: 'Русский', short: 'RU', dir: 'ltr', tag: 'ru-RU', unit: 'томанов' },
+  { code: 'ar', name: 'العربية', short: 'AR', dir: 'rtl', tag: 'ar-SA', unit: 'تومان' },
+  { code: 'zh', name: '中文', short: 'ZH', dir: 'ltr', tag: 'zh-CN', unit: '托曼' },
+  { code: 'pt', name: 'Português', short: 'PT', dir: 'ltr', tag: 'pt-BR', unit: 'tomanes' },
+  { code: 'ko', name: '한국어', short: 'KO', dir: 'ltr', tag: 'ko-KR', unit: '토만' },
+  { code: 'ja', name: '日本語', short: 'JP', dir: 'ltr', tag: 'ja-JP', unit: 'トマン' },
+  { code: 'nl', name: 'Nederlands', short: 'NL', dir: 'ltr', tag: 'nl-NL', unit: 'toman' },
+  { code: 'tr', name: 'Türkçe', short: 'TR', dir: 'ltr', tag: 'tr-TR', unit: 'toman' },
+  { code: 'hi', name: 'हिन्दी', short: 'HI', dir: 'ltr', tag: 'hi-IN', unit: 'टोमन' },
 ]
 
 export const DEFAULT_LOCALE = 'fa'
 const STORAGE_KEY = 'nava_locale'
 const EXPLICIT_STORAGE_KEY = 'nava_locale_explicit'
-const MESSAGES = { fa, en, es, de, fr }
+const MESSAGES = { fa, en, es, de, fr, ru, ar, zh, pt, ko, ja, nl, tr, hi }
 const byCode = (code) => LOCALES.find((item) => item.code === code)
 
 export function detectLocale({ explicit, stored, languages = [] } = {}) {

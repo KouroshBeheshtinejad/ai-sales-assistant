@@ -91,7 +91,7 @@ function TabBar({ nav, attentionCount }) {
 // Compact top bar shown only on mobile: brand, the active store's name, and a "more"
 // button that opens everything the desktop sidebar keeps visible (store switcher,
 // view-store link, language, sign out) in an accessible modal sheet.
-function MobileTopBar({ stores, store, select, signOut, showAccount }) {
+function MobileTopBar({ stores, store, select, signOut, showAccount, refreshDashboard }) {
   const { t } = useI18n()
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
@@ -107,6 +107,7 @@ function MobileTopBar({ stores, store, select, signOut, showAccount }) {
         <Modal title={t('nav.menu')} onClose={() => setOpen(false)}>
           <div className="stack seller-sheet">
             <StoreSwitcher stores={stores} store={store} select={select} />
+            <Button size="sm" variant="ghost" onClick={() => { setOpen(false); refreshDashboard() }}><Icon name="refresh" size={18} />{t('s.refresh')}</Button>
             <AccountActions store={store} signOut={signOut} onNavigate={() => setOpen(false)} showAccount={showAccount} />
           </div>
         </Modal>
@@ -123,6 +124,12 @@ function Shell() {
   const [showBackToTop, setShowBackToTop] = useState(false)
   const nav = navigationFor(user, store)
   const showAccount = user?.role !== 'customer'
+
+  const refreshDashboard = async () => {
+    await reloadStores()
+    if (user?.id) await supportSummary.reload()
+    window.location.reload()
+  }
 
   useEffect(() => {
     const updateVisibility = () => setShowBackToTop(window.scrollY > 240)
@@ -144,11 +151,12 @@ function Shell() {
             ))}
           </nav>
           <div className="seller-foot">
+            <Button size="sm" variant="ghost" onClick={refreshDashboard} aria-label={t('s.refresh')}><Icon name="refresh" size={18} />{t('s.refresh')}</Button>
             <AccountActions store={store} signOut={signOut} showAccount={showAccount} />
           </div>
         </aside>
 
-        <MobileTopBar stores={stores} store={store} select={select} signOut={signOut} showAccount={showAccount} />
+        <MobileTopBar stores={stores} store={store} select={select} signOut={signOut} showAccount={showAccount} refreshDashboard={refreshDashboard} />
 
         <main id="main" className="seller-main">
           {loading ? <Loading /> : error ? <ErrorNote error={error} onRetry={reloadStores} /> : <Outlet />}

@@ -32,6 +32,25 @@ def _hash_code(user_id: int, channel: str, code: str) -> str:
     return hmac.new(SECRET_KEY.encode(), payload, hashlib.sha256).hexdigest()
 
 
+def _verification_email_body(code: str) -> tuple[str, str]:
+    plain_text = (
+        "سلام،\n"
+        f"کد تایید شما در NAVA: {code}\n"
+        f"این کد به مدت {OTP_EXPIRY_MINUTES} دقیقه معتبر است.\n"
+        "اگر این درخواست را شما انجام ندادید، این پیام را نادیده بگیرید."
+    )
+    html_message = (
+        "<div style='font-family:Arial,sans-serif;line-height:1.6;color:#111827'>"
+        "<p style='margin:0 0 12px'>سلام،</p>"
+        "<p style='margin:0 0 12px'>کد تایید شما در <strong>NAVA</strong>:</p>"
+        f"<p style='margin:0 0 12px;font-size:28px;font-weight:700;letter-spacing:4px;color:#0f766e'>{code}</p>"
+        f"<p style='margin:0'>این کد به مدت {OTP_EXPIRY_MINUTES} دقیقه معتبر است.</p>"
+        "<p style='margin:16px 0 0;color:#475569'>اگر این درخواست را شما انجام ندادید، این پیام را نادیده بگیرید.</p>"
+        "</div>"
+    )
+    return plain_text, html_message
+
+
 def issue_code(db: Session, user: User, channel: str) -> str:
     target = user.email if channel == "email" else user.phone
     if not target:
@@ -62,15 +81,17 @@ def issue_code(db: Session, user: User, channel: str) -> str:
         )
     provider = os.getenv("OTP_PROVIDER", "disabled").casefold()
     if provider == "email":
+        message, html_message = _verification_email_body(code)
         get_email_provider().send(
             email=user.email,
-            subject="NAVA verification code",
-            message=f"Your NAVA verification code is {code}.",
+            subject="NAVA | کد تایید",
+            message=message,
+            html_message=html_message,
         )
     elif provider == "sms" and user.phone:
         get_sms_provider().send(
             phone=user.phone,
-            message=f"NAVA verification code: {code}",
+            message=f"NAVA | کد تایید شما: {code} ({OTP_EXPIRY_MINUTES} دقیقه)",
         )
     return code
 
