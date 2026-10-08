@@ -2,14 +2,16 @@
 
 # 🛍️ NAVA — AI Sales Assistant for Online Stores
 
-**A conversational-commerce platform where an AI assistant answers from your own catalog, fills the cart, takes the order, and hands you a paid, invoiced, trackable sale — in five languages, around the clock.**
+**A conversational-commerce platform where an AI assistant answers from your own catalog, fills the cart, takes the order, and hands you a paid, invoiced, trackable sale — with 14 selectable UI locales, around the clock.**
 
 [![Backend](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Frontend](https://img.shields.io/badge/frontend-React%2018-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![Database](https://img.shields.io/badge/database-PostgreSQL%20%2B%20pgvector-4169E1?logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
 [![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-See%20LICENSE-lightgrey)](#-license)
-[![Tests](https://img.shields.io/badge/tests-150%2B%20passing-brightgreen)](#-testing)
+[![Tests](https://img.shields.io/badge/tests-pytest-brightgreen)](#-testing)
+
+**Proprietary software. Copyright (c) Kourosh Beheshtinejad. All rights reserved. See [LICENSE](LICENSE).**
 
 [Features](#-features) · [Architecture](#-architecture) · [Quick start](#-quick-start) · [Configuration](#-configuration) · [API reference](#-api-reference) · [Testing](#-testing) · [Deployment](#-deployment)
 
@@ -39,7 +41,7 @@ The critical design decision: **the language model never invents a price, a stoc
 - 👤 **Guest checkout** — no account required, secured by a private session token
 - 📦 Track any order with its 10-digit tracking number
 - 🧾 Download a PDF invoice for any order
-- 🌍 Full UI in **Persian, English, Spanish, German, and French** — with right-to-left layout where needed
+- 🌍 **14 selectable UI locales** with right-to-left layout for Persian and Arabic; translation coverage varies and missing messages fall back to English
 
 </td>
 <td width="50%" valign="top">
@@ -66,7 +68,7 @@ The critical design decision: **the language model never invents a price, a stoc
 | 💳 **Payments** | Optional server-verified ZarinPal integration; a development-only mock is available for demos |
 | 🗑️ **Privacy by default** | Scheduled purge script for old conversation messages, configurable retention window |
 | 🧩 **Provider-agnostic AI** | Chat and embedding providers are abstracted behind interfaces (`mock` / `openai`-compatible / `local`); the app starts and runs fully even with AI disabled |
-| ✅ **150+ automated tests** | Route tests, service-level tests, security hardening tests, and concurrency tests |
+| ✅ **Automated test suite** | Route tests, service-level tests, security hardening tests, and concurrency tests |
 
 ---
 
@@ -76,7 +78,7 @@ The critical design decision: **the language model never invents a price, a stoc
 ┌───────────────────────┐      HTTPS       ┌───────────────────────────────────┐
 │     React 18 SPA       │ ───────────────▶ │             FastAPI                │
 │  (Vite build, RTL/LTR,  │                  │                                     │
-│     5 languages)        │ ◀─────────────── │  routes/  → auth, stores, products, │
+│   14 locale choices)   │ ◀─────────────── │  routes/  → auth, stores, products, │
 └───────────────────────┘   JSON over /api  │  cart, orders, chat, dashboard,     │
                                              │  faqs, knowledge base, payments,    │
         Same-origin,                        │  seller orders, business types      │
@@ -118,7 +120,7 @@ frontend/src/
 ├── pages/                    # route-level views, incl. seller/ dashboard
 ├── components/               # shared UI (layout, cart drawer, chat dock, …)
 ├── lib/                      # api client, auth, i18n engine, hooks
-│   └── locales/              # fa / en / es / de / fr message catalogs
+│   └── locales/              # 14 selectable locale catalogs
 └── styles/                   # design-token based CSS
 
 alembic/versions/             # one migration per schema change
@@ -303,7 +305,7 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full checklist and [docs/BA
 
 ## 🌍 Internationalization
 
-The interface ships in **five languages** — فارسی (default), English, Español, Deutsch, Français — with automatic `dir="rtl"`/`dir="ltr"` switching, localized number/date/currency formatting, and translated business-type/product-attribute labels. Message catalogs live in `frontend/src/lib/locales/`; add a language by dropping in a new catalog file and registering it in `lib/i18n.jsx`.
+The language selector offers **14 locales**: Persian, English, Spanish, German, French, Russian, Arabic, Chinese, Portuguese, Korean, Japanese, Dutch, Turkish, and Hindi. Persian and Arabic use right-to-left direction; the others use left-to-right. Translation coverage differs between catalogs, and missing messages fall back to English. Locale metadata and catalogs live in `frontend/src/lib/i18n.jsx` and `frontend/src/lib/locales/`.
 
 ---
 
@@ -316,12 +318,18 @@ The interface ships in **five languages** — فارسی (default), English, Esp
 | [docs/BACKUP.md](docs/BACKUP.md) | PostgreSQL backup/restore procedure |
 | [docs/DEMO.md](docs/DEMO.md) | Reproducible sales/demo walkthrough |
 | [docs/SALES.md](docs/SALES.md) | Buyer-facing positioning notes |
+| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party assets and dependency license handling |
+| [SECURITY.md](SECURITY.md) | Private vulnerability reporting |
+| [docs/COMMERCIAL_TRANSFER.md](docs/COMMERCIAL_TRANSFER.md) | Sale, assignment, and secure project handover checklist |
+| [docs/GITHUB_PROTECTION.md](docs/GITHUB_PROTECTION.md) | Repository access and branch protection checklist |
 
 ---
 
 ## 🤝 Contributing
 
-Issues and pull requests are welcome. Before opening a PR:
+This is proprietary software. Do not submit code, assets, or documentation unless you have first agreed in writing with the copyright holder on contribution and intellectual-property terms. A pull request or public discussion alone does not transfer copyright or grant permission to use this project. Do not submit material copied from third parties unless its license and required notices have been reviewed.
+
+For authorized contributors, run these checks before submitting:
 
 ```bash
 pytest -q
@@ -331,7 +339,11 @@ cd frontend && npm test && npm run build
 
 ## 📄 License
 
-No license file is currently included in this repository — add a `LICENSE` file appropriate to your intended use before distributing or open-sourcing the project. The bundled Vazirmatn font (`app/assets/fonts/`) is licensed separately under the [SIL Open Font License 1.1](app/assets/fonts/LICENSE.txt), which permits redistribution.
+NAVA's original code, documentation, branding, and project-created assets are proprietary and **all rights are reserved** by Kourosh Beheshtinejad, subject to proof of chain of title and any written agreements. No permission to use, copy, modify, distribute, host, sublicense, or commercialize those materials is granted by this repository. See the root [LICENSE](LICENSE) for the notice and limitations.
+
+Third-party dependencies and assets are not relicensed by NAVA's proprietary terms. They remain governed by their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), the dependency manifests/lockfiles, and the bundled [Vazirmatn OFL 1.1 license](app/assets/fonts/LICENSE.txt). The custom proprietary notice may not be automatically recognized by GitHub's license detector; the root `LICENSE` file is authoritative. Public repository visibility exposes source code and is not a technical copy-prevention measure. Keep the repository private if source access must be restricted, and configure GitHub protections as described in [docs/GITHUB_PROTECTION.md](docs/GITHUB_PROTECTION.md).
+
+This notice is not a substitute for legal advice or a signed agreement. A sale or transfer of the project requires a separately executed written agreement describing exactly which copyrights, trademarks, domains, data, accounts, and third-party rights are included.
 
 ---
 

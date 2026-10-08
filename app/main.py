@@ -48,6 +48,10 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="AI Sales Assistant",
     version="0.1.0",
+    license_info={
+        "name": "Proprietary - All rights reserved",
+        "url": "https://github.com/KouroshBeheshtinejad/ai-sales-assistant/blob/main/LICENSE",
+    },
     lifespan=lifespan,
 )
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts())

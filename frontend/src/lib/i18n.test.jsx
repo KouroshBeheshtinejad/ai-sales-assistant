@@ -26,8 +26,9 @@ describe('automatic visitor language selection', () => {
     expect(detectLocale({ languages: [browserLanguage] })).toBe(expected)
   })
 
-  it('falls back to English for unsupported browser languages', () => {
-    expect(detectLocale({ languages: ['ja-JP'] })).toBe('en')
+  it('matches newly supported Japanese and falls back for unsupported languages', () => {
+    expect(detectLocale({ languages: ['ja-JP'] })).toBe('ja')
+    expect(detectLocale({ languages: ['xx-ZZ'] })).toBe('en')
     expect(detectLocale({ languages: [] })).toBe('en')
   })
 

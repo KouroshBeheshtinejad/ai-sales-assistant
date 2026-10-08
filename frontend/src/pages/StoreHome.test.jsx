@@ -21,6 +21,7 @@ const shop = {
 
 vi.mock('../components/ProductCard', () => ({ default: ({ product }) => <article>{product.name}</article> }))
 vi.mock('../lib/hooks', () => ({ useBusinessTypes: () => [] }))
+vi.mock('../lib/auth', () => ({ useAuth: () => ({ isAuthed: false }) }))
 vi.mock('../lib/i18n', () => ({
   useI18n: () => ({
     t: (key, params) => key === 'shop.count' ? `${params.n} products` : key,

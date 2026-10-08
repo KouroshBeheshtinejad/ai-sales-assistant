@@ -346,6 +346,7 @@ def test_zarinpal_payment_uses_snapshotted_store_credential_and_finalizes_once(p
     monkeypatch.setenv("PAYMENT_PROVIDER", "zarinpal")
     monkeypatch.setenv("PAYMENT_CALLBACK_URL", "https://nava.example/api/payments/callback")
     monkeypatch.setenv("PAYMENT_CREDENTIAL_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setattr("app.services.payment_service.notify_payment_success", lambda *_args: None)
     merchant_id = "11111111-1111-4111-8111-111111111111"
     order = create_order(client, context)
     settings = client.put(

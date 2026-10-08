@@ -6,6 +6,8 @@ __pycache__/
 
 # Testing / coverage
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 .coverage.*
 htmlcov/
@@ -45,6 +47,7 @@ node_modules/
 *.sqlite3
 *.dump
 *.bak
+uploads/
 
 # Project-specific database dump
 ai_sales_before_faq_kb.dump
