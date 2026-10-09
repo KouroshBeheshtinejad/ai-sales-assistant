@@ -124,13 +124,13 @@ def test_form_csrf_rejects_missing_token_and_accepts_matching_token(client):
 
     missing = client.post(
         "/auth/register-form",
-        data={"email": "csrf@example.com", "password": "StrongPass123!"},
+        data={"email": "csrf@gmail.com", "password": "StrongPass123!"},
         follow_redirects=False,
     )
     valid = client.post(
         "/auth/register-form",
         data={
-            "email": "csrf@example.com",
+            "email": "csrf@gmail.com",
             "password": "StrongPass123!",
             "csrf_token": csrf_token,
         },
@@ -142,13 +142,28 @@ def test_form_csrf_rejects_missing_token_and_accepts_matching_token(client):
     assert valid.headers["location"] == "/auth/login"
 
 
+def test_register_form_rejects_non_gmail_addresses(client):
+    page = client.get("/auth/register")
+    csrf_token = client.cookies.get(CSRF_COOKIE_NAME)
+
+    response = client.post(
+        "/auth/register-form",
+        data={"email": "person@example.com", "password": "StrongPass123!", "csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+
+    assert page.status_code == 200
+    assert response.status_code == 422
+    assert "@gmail.com" in response.text
+
+
 def test_cookie_authenticated_store_form_requires_csrf_token(client):
     client.get("/auth/register")
     csrf_token = client.cookies.get(CSRF_COOKIE_NAME)
     client.post(
         "/auth/register-form",
         data={
-            "email": "store-form@example.com",
+            "email": "store-form@gmail.com",
             "password": "StrongPass123!",
             "csrf_token": csrf_token,
         },
@@ -180,7 +195,7 @@ def test_logout_requires_csrf_token(client):
     client.post(
         "/auth/register-form",
         data={
-            "email": "logout@example.com",
+            "email": "logout@gmail.com",
             "password": "StrongPass123!",
             "csrf_token": csrf_token,
         },
@@ -269,7 +284,7 @@ def test_api_registration_requires_verification_before_login(client):
     reg_token, reg_code = _solved_captcha(client)
     registered = client.post(
         "/auth/register",
-        json={"email": "verify@example.com", "password": "StrongPass123!", "phone": "09120000000", "captcha_token": reg_token, "captcha_answer": reg_code},
+        json={"email": "verify@gmail.com", "password": "StrongPass123!", "phone": "+989120000000", "captcha_token": reg_token, "captcha_answer": reg_code},
     )
     assert registered.status_code == 200
     assert registered.json()["verification_required"] is True
@@ -277,13 +292,13 @@ def test_api_registration_requires_verification_before_login(client):
     blocked_token, blocked_code = _solved_captcha(client)
     blocked = client.post(
         "/auth/login",
-        json={"email": "verify@example.com", "password": "StrongPass123!", "captcha_token": blocked_token, "captcha_answer": blocked_code},
+        json={"email": "verify@gmail.com", "password": "StrongPass123!", "captcha_token": blocked_token, "captcha_answer": blocked_code},
     )
     assert blocked.status_code == 403
 
     db = next(override_get_db())
     try:
-        user = db.query(User).filter(User.email == "verify@example.com").one()
+        user = db.query(User).filter(User.email == "verify@gmail.com").one()
         email_code = issue_code(db, user, "email")
         phone_code = issue_code(db, user, "phone")
     finally:
@@ -291,13 +306,13 @@ def test_api_registration_requires_verification_before_login(client):
 
     verified = client.post(
         "/auth/verify",
-        json={"email": "verify@example.com", "email_code": email_code, "phone_code": phone_code},
+        json={"email": "verify@gmail.com", "email_code": email_code, "phone_code": phone_code},
     )
     assert verified.status_code == 200
     login_token, login_code = _solved_captcha(client)
     assert client.post(
         "/auth/login",
-        json={"email": "verify@example.com", "password": "StrongPass123!", "captcha_token": login_token, "captcha_answer": login_code},
+        json={"email": "verify@gmail.com", "password": "StrongPass123!", "captcha_token": login_token, "captcha_answer": login_code},
     ).status_code == 200
 
 

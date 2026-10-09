@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import CountryPhoneInput from '../components/CountryPhoneInput'
 import { Button, CaptchaField, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useCaptcha, useSeo } from '../lib/hooks'
 import { useI18n } from '../lib/i18n'
+import { normalizePhoneNumber } from '../lib/phoneNumbers'
 import { safeNext, toLatinDigits } from '../lib/util'
 
 // Receives id / aria-* from <Field>, so they are forwarded to the real input.
@@ -48,7 +50,7 @@ export default function AuthPage({ initial }) {
   const [params] = useSearchParams()
   const [step, setStep] = useState(initial === 'register' ? 'register' : params.get('mode') || 'login')
   const [info, setInfo] = useState('')
-  const [account, setAccount] = useState({ email: params.get('email') || '', password: '', phone: '', firstName: '', lastName: '', channels: ['email'], role: 'customer', storeId: '' })
+  const [account, setAccount] = useState({ email: params.get('email') || '', password: '', phone: '', phoneCountry: 'IR', firstName: '', lastName: '', channels: ['email'], role: 'customer', storeId: '' })
   const next = safeNext(params.get('next'))
 
   useEffect(() => {
@@ -111,8 +113,9 @@ function LoginForm({ account, setAccount, info, go, finishLogin }) {
 function RegisterForm({ account, setAccount, go }) {
   const { t } = useI18n()
   const captcha = useCaptcha()
-  const { busy, error, submit } = useSubmit(async () => {
-    const phone = toLatinDigits(account.phone).trim()
+  const { busy, error, submit, setError } = useSubmit(async () => {
+    const phone = account.phone.trim() ? normalizePhoneNumber(account.phone, account.phoneCountry) : ''
+    if (phone === null) throw new Error(t('auth.phoneInvalid'))
     const res = await api.register({
       email: account.email.trim(),
       password: account.password,
@@ -128,6 +131,16 @@ function RegisterForm({ account, setAccount, go }) {
     go('verify')
   })
   const onSubmit = async (event) => {
+    if (!/^[^\s@]+@gmail\.com$/i.test(account.email.trim())) {
+      event.preventDefault()
+      setError(t('auth.gmailOnly'))
+      return
+    }
+    if (account.phone.trim() && !normalizePhoneNumber(account.phone, account.phoneCountry)) {
+      event.preventDefault()
+      setError(t('auth.phoneInvalid'))
+      return
+    }
     const failure = await submit(event)
     if (failure) captcha.refresh()
   }
@@ -146,7 +159,7 @@ function RegisterForm({ account, setAccount, go }) {
         </select>
       </Field>
       {account.role === 'store_admin' && <Field label={t('auth.storeId')}><input type="number" min="1" required value={account.storeId} onChange={(e) => setAccount({ ...account, storeId: e.target.value })} /></Field>}
-      <Field label={`${t('auth.phone')} (${t('optional')})`} hint={t('auth.phoneHint')}><input type="tel" inputMode="tel" minLength={5} maxLength={50} autoComplete="tel" dir="ltr" value={account.phone} onChange={(e) => setAccount({ ...account, phone: e.target.value })} /></Field>
+      <Field label={`${t('auth.phone')} (${t('optional')})`} hint={t('auth.phoneHint')}><CountryPhoneInput country={account.phoneCountry} onCountryChange={(e) => setAccount({ ...account, phoneCountry: e.target.value })} value={account.phone} onValueChange={(e) => setAccount({ ...account, phone: e.target.value })} /></Field>
       <Field label={t('auth.password')} hint={t('auth.passwordHint')}><PasswordInput autoComplete="new-password" value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })} /></Field>
       <CaptchaField captcha={captcha} label={t('captcha.label')} />
       <Button type="submit" variant="primary" busy={busy}>{t('auth.registerSubmit')}</Button>

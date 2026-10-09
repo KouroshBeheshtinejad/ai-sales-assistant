@@ -151,7 +151,7 @@ export default function Products() {
                 {products.map((p) => (
                   <tr key={p.id} className={p.is_active ? '' : 'dim'}>
                     <td>{p.name}</td>
-                    <td>{money(p.price)}</td>
+                    <td>{money(p.price, p.currency)}</td>
                     <td>
                       {p.stock === 0 ? <Badge tone="danger">{t('shop.outOfStock')}</Badge> : num(p.stock)}
                       {p.reserved_stock > 0 && <small>{t('p.reserved', { n: p.reserved_stock })}</small>}

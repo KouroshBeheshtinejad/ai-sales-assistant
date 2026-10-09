@@ -77,6 +77,7 @@ def _product_response(product: Product, message: str | None = None):
         "description": product.description,
         "image_url": product.image_url,
         "price": product.price,
+        "currency": product.store.currency,
         "stock": product.stock - product.reserved_stock,
         "reserved_stock": product.reserved_stock,
         "size": product.size,

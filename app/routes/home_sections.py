@@ -268,6 +268,7 @@ def _product_item(product: Product, store: Store) -> dict:
         "description": _shorten(product.description),
         "image_url": product.image_url,
         "price": str(product.price),
+        "currency": store.currency,
         "stock": product.stock - product.reserved_stock,
         "store_id": store.id,
         "store_name": store.name,

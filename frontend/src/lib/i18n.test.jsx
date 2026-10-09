@@ -68,6 +68,20 @@ describe('automatic visitor language selection', () => {
     render(<I18nProvider><Probe /></I18nProvider>)
     expect(screen.getByText('نقش انتخاب‌شده با نقش ثبت‌شده برای این حساب مطابقت ندارد.')).toBeTruthy()
   })
+
+  it('localizes Gmail and phone validation errors returned by the API', () => {
+    localStorage.setItem('nava_locale', 'fa')
+    function Probe() {
+      const { err } = useI18n()
+      return <ul>
+        <li>{err({ message: 'Email must be a valid Gmail address ending in @gmail.com', status: 422 })}</li>
+        <li>{err({ message: 'Phone must include a valid country calling code', status: 422 })}</li>
+      </ul>
+    }
+    render(<I18nProvider><Probe /></I18nProvider>)
+    expect(screen.getByText(MESSAGES.fa['auth.gmailOnly'])).toBeTruthy()
+    expect(screen.getByText(MESSAGES.fa['auth.phoneInvalid'])).toBeTruthy()
+  })
 })
 
 describe('store metadata translations', () => {

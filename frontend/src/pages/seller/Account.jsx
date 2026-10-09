@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Badge, Button, CaptchaField, ErrorNote, Field, Loading, useToast } from '../../components/ui'
 import { api } from '../../lib/api'
+import { currencyName, STORE_CURRENCIES } from '../../lib/currencies'
 import { useCaptcha, useAsync, useSeo } from '../../lib/hooks'
 import { useI18n } from '../../lib/i18n'
+import { normalizePhoneNumber, splitPhoneNumber } from '../../lib/phoneNumbers'
 import { toLatinDigits } from '../../lib/util'
+import CountryPhoneInput from '../../components/CountryPhoneInput'
 import { useSeller } from './SellerContext'
 import { PageHead } from './SellerLayout'
 
@@ -14,14 +17,18 @@ const emptyForm = {
 }
 
 function fromProfile(profile) {
+  const phone = splitPhoneNumber(profile.phone)
+  const businessPhone = splitPhoneNumber(profile.business_phone)
   return {
     firstName: profile.first_name || '',
     lastName: profile.last_name || '',
     email: profile.email || '',
-    phone: profile.phone || '',
+    phone: phone.nationalNumber,
+    phoneCountry: phone.country,
     nationalId: profile.national_id || '',
     businessAddress: profile.business_address || '',
-    businessPhone: profile.business_phone || '',
+    businessPhone: businessPhone.nationalNumber,
+    businessPhoneCountry: businessPhone.country,
     password: '',
     confirmPassword: '',
   }
@@ -42,16 +49,18 @@ function AccountForm({ profile, onSaved }) {
   const submit = async (event) => {
     event.preventDefault()
     const nationalId = toLatinDigits(form.nationalId).trim()
-    const phone = toLatinDigits(form.phone).trim()
-    const businessPhone = toLatinDigits(form.businessPhone).trim()
+    const phone = normalizePhoneNumber(form.phone, form.phoneCountry)
+    const businessPhone = normalizePhoneNumber(form.businessPhone, form.businessPhoneCountry)
 
     const next = {}
     if (!form.firstName.trim()) next.firstName = t('form.required')
     if (!form.lastName.trim()) next.lastName = t('form.required')
-    if (!phone) next.phone = t('form.required')
+    if (!form.phone.trim()) next.phone = t('form.required')
+    else if (!phone) next.phone = t('auth.phoneInvalid')
     if (!/^\d{10}$/.test(nationalId)) next.nationalId = t('account.nationalIdInvalid')
     if (!form.businessAddress.trim()) next.businessAddress = t('form.required')
-    if (!businessPhone) next.businessPhone = t('form.required')
+    if (!form.businessPhone.trim()) next.businessPhone = t('form.required')
+    else if (!businessPhone) next.businessPhone = t('auth.phoneInvalid')
     if ((form.password || form.confirmPassword) && form.password !== form.confirmPassword) next.confirmPassword = t('account.passwordMismatch')
     if ((form.password || form.confirmPassword) && form.password && form.password.length < 8) next.password = t('auth.passwordHint')
     setErrors(next)
@@ -95,7 +104,7 @@ function AccountForm({ profile, onSaved }) {
       </div>
       <div className="form-grid">
         <Field label={t('auth.email')}><input type="email" required autoComplete="email" dir="ltr" value={form.email} onChange={set('email')} /></Field>
-        <Field label={t('auth.phone')} error={errors.phone}><input type="tel" inputMode="tel" required dir="ltr" autoComplete="tel" value={form.phone} onChange={set('phone')} /></Field>
+        <Field label={t('auth.phone')} error={errors.phone}><CountryPhoneInput required value={form.phone} country={form.phoneCountry} onCountryChange={(e) => setForm({ ...form, phoneCountry: e.target.value })} onValueChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
       </div>
       <Field label={t('account.nationalId')} hint={t('account.nationalIdHint')} error={errors.nationalId}>
         <input inputMode="numeric" required dir="ltr" maxLength={10} value={form.nationalId} onChange={set('nationalId')} />
@@ -106,7 +115,7 @@ function AccountForm({ profile, onSaved }) {
         <textarea rows={3} required value={form.businessAddress} onChange={set('businessAddress')} />
       </Field>
       <Field label={t('account.businessPhone')} error={errors.businessPhone}>
-        <input type="tel" inputMode="tel" required dir="ltr" value={form.businessPhone} onChange={set('businessPhone')} />
+        <CountryPhoneInput required value={form.businessPhone} country={form.businessPhoneCountry} onCountryChange={(e) => setForm({ ...form, businessPhoneCountry: e.target.value })} onValueChange={(e) => setForm({ ...form, businessPhone: e.target.value })} />
       </Field>
 
       <h2 className="h3">{t('account.security')}</h2>
@@ -126,7 +135,7 @@ function AccountForm({ profile, onSaved }) {
 }
 
 function StorePaymentSettings() {
-  const { t, err } = useI18n()
+  const { t, err, locale } = useI18n()
   const toast = useToast()
   const { store } = useSeller()
   const settings = useAsync(
@@ -187,10 +196,17 @@ function StorePaymentSettings() {
           <form className="stack" onSubmit={submit}>
             <div className="form-grid">
               <Field label={t('pay.country')}><input required minLength={2} maxLength={2} pattern="[A-Za-z]{2}" value={form.country_code} onChange={set('country_code')} dir="ltr" /></Field>
-              <Field label={t('pay.currency')}><input required minLength={3} maxLength={3} pattern="[A-Za-z]{3}" value={form.currency} onChange={set('currency')} dir="ltr" /></Field>
+              <Field label={t('pay.currency')}><select required value={form.currency} onChange={set('currency')} dir="ltr">
+                {!STORE_CURRENCIES.includes(form.currency) && <option value={form.currency}>{form.currency}</option>}
+                {STORE_CURRENCIES.map((code) => <option key={code} value={code} disabled={form.provider === 'zarinpal' && !['IRT', 'IRR'].includes(code)}>{code} · {currencyName(code, locale)}</option>)}
+              </select></Field>
             </div>
             <Field label={t('pay.provider')}>
-              <select value={form.provider} onChange={set('provider')}>
+              <select value={form.provider} onChange={(event) => setForm((current) => ({
+                ...current,
+                provider: event.target.value,
+                currency: event.target.value === 'zarinpal' && !['IRT', 'IRR'].includes(current.currency) ? 'IRT' : current.currency,
+              }))}>
                 {['disabled', 'zarinpal', 'stripe_connect', 'paypal_multiparty', 'adyen_platforms', 'mollie_connect', ...(import.meta.env.DEV ? ['mock'] : [])].map((provider) => (
                   <option key={provider} value={provider}>{t(`pay.provider.${provider}`)}</option>
                 ))}

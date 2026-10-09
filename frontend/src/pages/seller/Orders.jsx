@@ -50,7 +50,7 @@ export default function Orders() {
                       <tr key={o.id}>
                         <td><Link to={`/seller/order/${o.id}`}>{id(o.id)}</Link></td>
                         <td>{o.customer_name}<small dir="ltr">{o.customer_phone}</small></td>
-                        <td>{money(o.total_amount)}</td>
+                        <td>{money(o.total_amount, o.currency)}</td>
                         <td><StatusBadge status={o.status} /></td>
                         <td>{date(parseDate(o.created_at))}</td>
                       </tr>

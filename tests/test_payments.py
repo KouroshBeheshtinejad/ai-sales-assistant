@@ -658,6 +658,28 @@ def test_store_payment_settings_are_conditional_and_never_return_account_ids(pay
     assert initial.status_code == 200
     assert initial.json()["provider"] == "disabled"
 
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        db.get(Store, context["store_id"]).currency = "BHD"
+        db.commit()
+    finally:
+        db.close()
+
+    keep_legacy_currency = client.put(
+        f"/stores/{context['store_id']}/payment-settings",
+        headers=headers,
+        json={"country_code": "BH", "currency": "BHD", "provider": "disabled"},
+    )
+    assert keep_legacy_currency.status_code == 200
+
+    unsupported_currency = client.put(
+        f"/stores/{context['store_id']}/payment-settings",
+        headers=headers,
+        json={"country_code": "US", "currency": "XYZ", "provider": "disabled"},
+    )
+    assert unsupported_currency.status_code == 422
+    assert "Unsupported Store currency" in str(unsupported_currency.json()["detail"])
+
     zarinpal = client.put(
         f"/stores/{context['store_id']}/payment-settings",
         headers=headers,
@@ -713,6 +735,10 @@ def test_store_payment_settings_are_conditional_and_never_return_account_ids(pay
         assert db.query(StorePaymentAccount).filter_by(store_id=store.id, provider="zarinpal").one().credential_reference == "ZARINPAL_STORE_ONE"
     finally:
         db.close()
+
+    catalog = client.get(f"/public/stores/{context['store_id']}/catalog").json()
+    assert catalog["store"]["currency"] == "USD"
+    assert catalog["products"][0]["currency"] == "USD"
 
 
 def test_legacy_zarinpal_account_requires_settings_resave_for_fingerprint(payment_context, monkeypatch):

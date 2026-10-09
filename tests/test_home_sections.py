@@ -211,12 +211,17 @@ def test_public_store_section_only_lists_live_stores_of_the_chosen_types():
 
 def test_public_product_section_hides_unsellable_products_and_caps_one_big_store():
     client = _client()
+    with TestingSessionLocal() as db:
+        cafe = db.scalar(select(models.Store).where(models.Store.name == "Cafe"))
+        cafe.currency = "USD"
+        db.commit()
     _create(client, kind="products", business_types=["cafe", "restaurant"], item_limit=24)
     (section,) = client.get("/api/public/home-sections").json()["sections"]
     names = [item["name"] for item in section["items"]]
     assert "Sold out soup" not in names and "Sneaker" not in names
     assert len(names) == len(set(names)) == 7
     assert section["items"][0]["store_name"] in {"Cafe", "Diner"}
+    assert all(item["currency"] == ("USD" if item["store_name"] == "Cafe" else "IRT") for item in section["items"])
 
     _create(client, title="Small", kind="products", business_types=["cafe", "restaurant"], item_limit=4)
     small = client.get("/api/public/home-sections").json()["sections"][1]
@@ -243,7 +248,7 @@ def test_public_endpoint_needs_no_login_and_exposes_no_private_fields():
     _create(client, kind="products", business_types=["cafe"])
     body = client.get("/api/public/home-sections").json()
     item = body["sections"][0]["items"][0]
-    assert set(item) == {"id", "name", "description", "image_url", "price", "stock", "store_id", "store_name", "business_type"}
+    assert set(item) == {"id", "name", "description", "image_url", "price", "currency", "stock", "store_id", "store_name", "business_type"}
 
 
 def test_preview_works_for_inactive_sections():

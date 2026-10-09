@@ -713,7 +713,7 @@ def _clean(value: object) -> str:
     return " ".join(str(value or "").replace("|", "/").split())
 
 
-def format_product_line(product: Product) -> str:
+def format_product_line(product: Product, currency: str = "IRT") -> str:
     attributes = product.attributes if isinstance(product.attributes, dict) else {}
     attr_text = ", ".join(
         f"{_clean(k)}: {_clean(v)}" for k, v in attributes.items() if v not in (None, "", False)
@@ -722,6 +722,7 @@ def format_product_line(product: Product) -> str:
         f"id={product.id}",
         _clean(product.name),
         f"price={product.price}",
+        f"currency={_clean(currency)}",
         f"stock={product.stock - product.reserved_stock}",
     ]
     if product.size:
@@ -759,7 +760,7 @@ def format_context(context: RetrievedContext, max_chars: int = 6000) -> str:
             content = " … ".join(match.passages) if match.passages else record.content
             blocks.append(f"SOURCE: KNOWLEDGE_BASE\nTitle: {record.title}\nContent: {content}")
         else:
-            blocks.append(f"SOURCE: PRODUCT\n{format_product_line(record)}")
+            blocks.append(f"SOURCE: PRODUCT\n{format_product_line(record, context.store.currency)}")
 
     text = "\n\n".join(sections)
     for position, block in enumerate(blocks):

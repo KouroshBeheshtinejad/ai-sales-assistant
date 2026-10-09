@@ -60,7 +60,6 @@ export function Rail({ label, children, count }) {
   const startDrag = (event) => {
     if ((event.pointerType && event.pointerType !== 'mouse') || event.button !== 0) return
     drag.current = { pointerId: event.pointerId, startX: event.clientX, startScrollLeft: track.current.scrollLeft, moved: false }
-    track.current.setPointerCapture?.(event.pointerId)
   }
 
   const moveDrag = (event) => {
@@ -70,6 +69,7 @@ export function Rail({ label, children, count }) {
     if (!active.moved && Math.abs(delta) > 4) {
       active.moved = true
       setDragging(true)
+      track.current.setPointerCapture?.(event.pointerId)
     }
     if (active.moved) {
       track.current.scrollLeft = active.startScrollLeft - delta * (meta.dir === 'rtl' ? -1 : 1)
@@ -129,7 +129,7 @@ function RailProduct({ product }) {
         <h3><Link className="cover-link" to={`/store/${product.store_id}/product/${product.id}`}>{product.name}</Link></h3>
         <p className="muted">{t('landing.by', { store: product.store_name })}</p>
         <div className="product-meta">
-          <strong className="price">{money(product.price)}</strong>
+          <strong className="price">{money(product.price, product.currency)}</strong>
           <StockBadge stock={product.stock} />
         </div>
       </div>

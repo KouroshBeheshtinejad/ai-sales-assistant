@@ -123,7 +123,7 @@ class TestRegisterAndLoginRequireCaptcha:
     def test_register_fails_without_solving_captcha(self, client):
         token, _code = _solved_captcha(client)
         response = client.post("/api/auth/register", json={
-            "email": "new@example.com",
+            "email": "new@gmail.com",
             "password": "Secret123!",
             "captcha_token": token,
             "captcha_answer": "wrong",
@@ -134,7 +134,7 @@ class TestRegisterAndLoginRequireCaptcha:
     def test_register_succeeds_with_correct_captcha(self, client):
         token, code = _solved_captcha(client)
         response = client.post("/api/auth/register", json={
-            "email": "new@example.com",
+            "email": "new@gmail.com",
             "password": "Secret123!",
             "captcha_token": token,
             "captcha_answer": code,
@@ -143,10 +143,33 @@ class TestRegisterAndLoginRequireCaptcha:
         assert response.json()["role"] == "customer"
         assert response.json()["approval_status"] == "active"
 
+    def test_register_rejects_non_gmail_addresses(self, client):
+        token, code = _solved_captcha(client)
+        response = client.post("/api/auth/register", json={
+            "email": "new@example.com",
+            "password": "Secret123!",
+            "captcha_token": token,
+            "captcha_answer": code,
+        })
+        assert response.status_code == 422
+        assert "@gmail.com" in str(response.json()["detail"])
+
+    def test_register_requires_international_phone_format(self, client):
+        token, code = _solved_captcha(client)
+        response = client.post("/api/auth/register", json={
+            "email": "phone-test@gmail.com",
+            "password": "Secret123!",
+            "phone": "09120000000",
+            "captcha_token": token,
+            "captcha_answer": code,
+        })
+        assert response.status_code == 422
+        assert "country calling code" in str(response.json()["detail"])
+
     def test_privileged_role_registration_waits_for_approval(self, client):
         token, code = _solved_captcha(client)
         response = client.post("/api/auth/register", json={
-            "email": "owner-request@example.com",
+            "email": "owner-request@gmail.com",
             "password": "Secret123!",
             "role": "store_owner",
             "captcha_token": token,
@@ -165,7 +188,7 @@ class TestRegisterAndLoginRequireCaptcha:
         db.commit()
         token, code = _solved_captcha(client)
         response = client.post("/api/auth/register", json={
-            "email": "tenant-admin@example.com",
+            "email": "tenant-admin@gmail.com",
             "password": "Secret123!",
             "role": "store_admin",
             "store_id": store.id,
@@ -173,7 +196,7 @@ class TestRegisterAndLoginRequireCaptcha:
             "captcha_answer": code,
         })
         assert response.status_code == 200
-        admin = db.query(User).filter_by(email="tenant-admin@example.com").one()
+        admin = db.query(User).filter_by(email="tenant-admin@gmail.com").one()
         membership = db.query(StoreMembership).filter_by(user_id=admin.id, store_id=store.id).one()
         assert admin.approval_status == "pending"
         assert membership.status == "pending"
@@ -264,8 +287,8 @@ class TestProfileCompletion:
         token, code = _solved_captcha(client)
         payload = {
             "first_name": "سارا", "last_name": "محمدی", "email": user.email,
-            "phone": "09120000000", "national_id": "12345",  # too short
-            "business_address": "تهران", "business_phone": "02100000000",
+            "phone": "+989120000000", "national_id": "12345",  # too short
+            "business_address": "تهران", "business_phone": "+982100000000",
             "captcha_token": token, "captcha_answer": code,
         }
         response = client.patch("/api/auth/me", json=payload, headers=headers)
@@ -277,8 +300,8 @@ class TestProfileCompletion:
         token, code = _solved_captcha(client)
         payload = {
             "first_name": "سارا", "last_name": "محمدی", "email": user.email,
-            "phone": "09120000000", "national_id": "1234567890",
-            "business_address": "تهران، خیابان ولیعصر", "business_phone": "02100000000",
+            "phone": "+989120000000", "national_id": "1234567890",
+            "business_address": "تهران، خیابان ولیعصر", "business_phone": "+982100000000",
             "captcha_token": token, "captcha_answer": code,
         }
         response = client.patch("/api/auth/me", json=payload, headers=headers)
@@ -290,6 +313,19 @@ class TestProfileCompletion:
         assert me["national_id"] == "1234567890"
         assert me["business_address"] == "تهران، خیابان ولیعصر"
 
+    def test_update_me_rejects_a_phone_without_country_calling_code(self, client):
+        db = _db(client)
+        headers, user = self._headers(db)
+        token, code = _solved_captcha(client)
+        response = client.patch("/api/auth/me", headers=headers, json={
+            "first_name": "سارا", "last_name": "محمدی", "email": user.email,
+            "phone": "09120000000", "national_id": "1234567890",
+            "business_address": "تهران", "business_phone": "+982100000000",
+            "captcha_token": token, "captcha_answer": code,
+        })
+        assert response.status_code == 422
+        assert "country calling code" in str(response.json()["detail"])
+
     def test_update_me_rejects_a_national_id_already_used_by_someone_else(self, client):
         db = _db(client)
         _register_user(db, email="first@example.com", national_id="1111111111")
@@ -297,8 +333,8 @@ class TestProfileCompletion:
         token, code = _solved_captcha(client)
         payload = {
             "first_name": "A", "last_name": "B", "email": user.email,
-            "phone": "09120000000", "national_id": "1111111111",
-            "business_address": "x", "business_phone": "02100000000",
+            "phone": "+989120000000", "national_id": "1111111111",
+            "business_address": "x", "business_phone": "+982100000000",
             "captcha_token": token, "captcha_answer": code,
         }
         response = client.patch("/api/auth/me", json=payload, headers=headers)
@@ -311,8 +347,8 @@ class TestProfileCompletion:
         token, code = _solved_captcha(client)
         payload = {
             "first_name": "A", "last_name": "B", "email": user.email,
-            "phone": "09120000000", "national_id": "1234567890",
-            "business_address": "x", "business_phone": "02100000000",
+            "phone": "+989120000000", "national_id": "1234567890",
+            "business_address": "x", "business_phone": "+982100000000",
             "captcha_token": token, "captcha_answer": code,
         }
         first = client.patch("/api/auth/me", json=payload, headers=headers)
@@ -327,8 +363,8 @@ class TestProfileCompletion:
         token, code = _solved_captcha(client)
         payload = {
             "first_name": "A", "last_name": "B", "email": "changed@example.com",
-            "phone": "09120000000", "national_id": "1234567890",
-            "business_address": "x", "business_phone": "02100000000",
+            "phone": "+989120000000", "national_id": "1234567890",
+            "business_address": "x", "business_phone": "+982100000000",
             "captcha_token": token, "captcha_answer": code,
         }
         response = client.patch("/api/auth/me", json=payload, headers=headers)
@@ -345,8 +381,8 @@ class TestProfileCompletion:
         token, code = _solved_captcha(client)
         payload = {
             "first_name": "A", "last_name": "B", "email": user.email,
-            "phone": "09120000000", "national_id": "1234567890",
-            "business_address": "x", "business_phone": "02100000000",
+            "phone": "+989120000000", "national_id": "1234567890",
+            "business_address": "x", "business_phone": "+982100000000",
             "password": "NewSecret123!", "confirm_password": "NewSecret123!",
             "captcha_token": token, "captcha_answer": code,
         }
@@ -369,8 +405,8 @@ class TestProfileCompletion:
         token, code = _solved_captcha(client)
         payload = {
             "first_name": "A", "last_name": "B", "email": user.email,
-            "phone": "09120000000", "national_id": "1234567890",
-            "business_address": "x", "business_phone": "02100000000",
+            "phone": "+989120000000", "national_id": "1234567890",
+            "business_address": "x", "business_phone": "+982100000000",
             "password": "NewSecret123!", "confirm_password": "Different123!",
             "captcha_token": token, "captcha_answer": code,
         }

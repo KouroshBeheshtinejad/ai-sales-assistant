@@ -108,6 +108,8 @@ const SERVER_MESSAGES = [
   [/invalid or expired captcha/i, 'err.m.captcha'],
   [/phone already registered/i, 'err.m.phoneTaken'],
   [/national id already registered/i, 'err.m.nationalIdTaken'],
+  [/email must be a valid gmail address/i, 'auth.gmailOnly'],
+  [/phone must include a valid country calling code/i, 'auth.phoneInvalid'],
 ]
 
 function createTranslator(code) {

@@ -157,6 +157,17 @@ def test_offline_assistant_answers_from_real_data(db, store):
     assert "Burger" in cheapest and "150,000" in cheapest
 
 
+def test_offline_assistant_formats_prices_in_the_store_currency(db, store):
+    store.currency = "USD"
+    db.commit()
+
+    context = retrieve_store_context(db, store.id, "How much is the Burger?")
+    assert "currency=USD" in format_context(context)
+    answer = ask(db, store, "How much is the Burger?")
+    assert "$150,000.00" in answer
+    assert "Toman" not in answer
+
+
 def test_offline_assistant_is_honest_about_stock_and_variants(db, store):
     assert "ناموجود" in ask(db, store, "هدفون بی‌سیم دارید؟")
     wrong_color = ask(db, store, "کتونی مشکی رنگ قرمز دارید؟")

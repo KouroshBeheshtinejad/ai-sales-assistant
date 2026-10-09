@@ -137,9 +137,9 @@ export function CustomerDashboard() {
               <span><strong>{t('od.title', { id: id(order.id) })}</strong><span className="muted"> · {date(new Date(order.created_at))}</span></span>
               {order.tracking_number && <Link to={`/track?number=${order.tracking_number}`}>{t('order.tracking')}: {id(order.tracking_number)}</Link>}
               {order.invoice_number && <small className="muted">{t('od.invoice')}: {order.invoice_number}</small>}
-              <details><summary>{t('dash.orderDetails')}</summary><ul className="plain-list">{order.items.map((item) => <li key={item.id}><span>{item.product_name} × {id(item.quantity)}</span><strong>{money(item.line_total)}</strong></li>)}</ul></details>
+              <details><summary>{t('dash.orderDetails')}</summary><ul className="plain-list">{order.items.map((item) => <li key={item.id}><span>{item.product_name} × {id(item.quantity)}</span><strong>{money(item.line_total, order.currency)}</strong></li>)}</ul></details>
             </div>
-            <span className="stack"><StatusBadge status={order.status} /><strong>{money(order.total_amount)}</strong>{order.invoice_number && <Button size="sm" busy={invoiceBusy === String(order.id)} onClick={() => downloadInvoice(order)}>{t('dash.downloadInvoice')}</Button>}</span>
+            <span className="stack"><StatusBadge status={order.status} /><strong>{money(order.total_amount, order.currency)}</strong>{order.invoice_number && <Button size="sm" busy={invoiceBusy === String(order.id)} onClick={() => downloadInvoice(order)}>{t('dash.downloadInvoice')}</Button>}</span>
           </li>)}</ul>
         </section>
       ) : <Empty title={t('dash.empty')} />}</Async> : (
@@ -158,9 +158,9 @@ export function CustomerDashboard() {
               <div><dt>{t('track.placedAt')}</dt><dd>{date(new Date(trackedOrder.created_at))}</dd></div>
               <div><dt>{t('track.updatedAt')}</dt><dd>{date(new Date(trackedOrder.updated_at))}</dd></div>
               <div><dt>{t('od.invoice')}</dt><dd>{trackedOrder.invoice_number || t('dash.invoicePending')}</dd></div>
-              <div><dt>{t('cart.total')}</dt><dd>{money(trackedOrder.total_amount)}</dd></div>
+              <div><dt>{t('cart.total')}</dt><dd>{money(trackedOrder.total_amount, trackedOrder.currency)}</dd></div>
             </dl>
-            <ul className="plain-list">{trackedOrder.items.map((item, index) => <li key={`${item.product_name}-${index}`}><span>{item.product_name} × {id(item.quantity)}<small>{money(item.unit_price)}</small></span><strong>{money(item.line_total)}</strong></li>)}</ul>
+            <ul className="plain-list">{trackedOrder.items.map((item, index) => <li key={`${item.product_name}-${index}`}><span>{item.product_name} × {id(item.quantity)}<small>{money(item.unit_price, trackedOrder.currency)}</small></span><strong>{money(item.line_total, trackedOrder.currency)}</strong></li>)}</ul>
             {trackedOrder.invoice_number && <Button variant="primary" busy={invoiceBusy === String(trackedOrder.id)} onClick={() => downloadInvoice(trackedOrder, true)}><Icon name="doc" size={16} />{t('dash.downloadInvoice')}</Button>}
           </section>}
         </section>
@@ -353,7 +353,7 @@ export function SupportDashboard() {
           {selected && <SupportChatPanel
             conversation={selected}
             title={selected.store?.name || selected.customer?.name || t('dash.supportTicket', { id: selected.id })}
-            subtitle={`${t('dash.supportTicket', { id: selected.id })} · ${t(`dash.supportStatus.${selected.status}`)}${selected.order ? ` · ${t('od.title', { id: selected.order.id })} · ${t(`status.${selected.order.status}`)} · ${money(selected.order.total_amount)}` : ''}`}
+            subtitle={`${t('dash.supportTicket', { id: selected.id })} · ${t(`dash.supportStatus.${selected.status}`)}${selected.order ? ` · ${t('od.title', { id: selected.order.id })} · ${t(`status.${selected.order.status}`)} · ${money(selected.order.total_amount, selected.order.currency)}` : ''}`}
             disabled={['resolved', 'closed'].includes(selected.status) || (selected.assigned_to && selected.assigned_to !== user?.id && user?.role !== 'god')}
             busy={busy}
             onReply={(content) => act(() => api.support.agentReply(selected.id, content))}
@@ -447,8 +447,8 @@ export function GodDashboard() {
             <Link className="btn btn-sm" to="/seller" onClick={() => select(store.id)}>{t('dash.manage')}</Link>
           </span>
         </li>)}</ul></section>
-        <section className="card stack"><h2 className="h3">{t('dash.products')}</h2><ul className="plain-list">{products.map((product) => <li key={product.id}><span>{product.name}<br /><span className="muted">{t('s.activeStore')}: {id(product.store_id)}</span></span><span className="row">{money(product.price)}<Link className="btn btn-sm" to="/seller/products" onClick={() => select(product.store_id)}>{t('dash.manage')}</Link></span></li>)}</ul></section>
-        <section className="card stack"><h2 className="h3">{t('dash.orders')}</h2><ul className="plain-list">{orders.slice(0, 20).map((order) => <li key={order.id}><span>{order.customer_name}<br /><span dir="ltr">{order.tracking_number}</span></span><span className="row"><StatusBadge status={order.status} /> {money(order.total_amount)}<Link className="btn btn-sm" to={`/seller/order/${order.id}`}>{t('dash.manage')}</Link></span></li>)}</ul></section>
+        <section className="card stack"><h2 className="h3">{t('dash.products')}</h2><ul className="plain-list">{products.map((product) => <li key={product.id}><span>{product.name}<br /><span className="muted">{t('s.activeStore')}: {id(product.store_id)}</span></span><span className="row">{money(product.price, product.currency)}<Link className="btn btn-sm" to="/seller/products" onClick={() => select(product.store_id)}>{t('dash.manage')}</Link></span></li>)}</ul></section>
+        <section className="card stack"><h2 className="h3">{t('dash.orders')}</h2><ul className="plain-list">{orders.slice(0, 20).map((order) => <li key={order.id}><span>{order.customer_name}<br /><span dir="ltr">{order.tracking_number}</span></span><span className="row"><StatusBadge status={order.status} /> {money(order.total_amount, order.currency)}<Link className="btn btn-sm" to={`/seller/order/${order.id}`}>{t('dash.manage')}</Link></span></li>)}</ul></section>
         <section className="card stack"><h2 className="h3">{t('dash.auditLogs')}</h2>
           {auditLogs.length === 0 ? <p className="muted">{t('dash.empty')}</p> : <ul className="plain-list">{auditLogs.slice(0, 10).map((event) => <li key={event.id}>
             <span><strong>{event.action}</strong><br /><span className="muted">{event.resource_type} · {event.resource_id || '—'}</span></span>

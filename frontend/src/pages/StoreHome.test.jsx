@@ -31,8 +31,8 @@ vi.mock('../lib/i18n', () => ({
   }),
 }))
 
-function StoreContext() {
-  return <Outlet context={{ shop, ask: vi.fn() }} />
+function StoreContext({ value = shop }) {
+  return <Outlet context={{ shop: value, ask: vi.fn() }} />
 }
 
 afterEach(() => { cleanup(); authState.isAuthed = false })
@@ -60,6 +60,58 @@ describe('public store category tabs', () => {
     fireEvent.click(within(tabs).getByRole('button', { name: 'Coffee' }))
     expect(screen.getByText('Espresso')).toBeTruthy()
     expect(screen.queryByText('Croissant')).toBeNull()
+  })
+
+  it('filters by a price range and sorts the matching products', () => {
+    const pricedShop = {
+      ...shop,
+      catalog: {
+        ...shop.catalog,
+        products: [
+          { id: 1, name: 'Budget', price: '10', stock: 2, category_ids: [] },
+          { id: 2, name: 'Midrange', price: '25', stock: 2, category_ids: [] },
+          { id: 3, name: 'Premium', price: '50', stock: 2, category_ids: [] },
+        ],
+      },
+    }
+
+    render(<MemoryRouter initialEntries={['/store']}><Routes>
+      <Route element={<StoreContext value={pricedShop} />}><Route path="/store" element={<StoreHome />} /></Route>
+    </Routes></MemoryRouter>)
+
+    fireEvent.change(screen.getByLabelText('shop.priceMin'), { target: { value: '20' } })
+    fireEvent.change(screen.getByLabelText('shop.priceMax'), { target: { value: '60' } })
+    expect(screen.queryByText('Budget')).toBeNull()
+    expect(screen.getByText('Midrange')).toBeTruthy()
+    expect(screen.getByText('Premium')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('shop.sortPrice'), { target: { value: 'descending' } })
+    expect(screen.getAllByRole('article').map((item) => item.textContent)).toEqual(['Premium', 'Midrange'])
+  })
+
+  it('offers the remaining products after the first twelve', () => {
+    const expandedCatalog = {
+      ...shop,
+      catalog: {
+        ...shop.catalog,
+        products: [...shop.catalog.products, ...Array.from({ length: 11 }, (_, index) => ({
+          id: index + 3,
+          name: `Product ${index + 3}`,
+          stock: 2,
+          category_ids: [],
+        }))],
+      },
+    }
+
+    render(<MemoryRouter initialEntries={['/store']}><Routes>
+      <Route element={<StoreContext value={expandedCatalog} />}><Route path="/store" element={<StoreHome />} /></Route>
+    </Routes></MemoryRouter>)
+
+    expect(screen.getByText('Product 12')).toBeTruthy()
+    expect(screen.queryByText('Product 13')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'shop.viewAllProducts' }))
+    expect(screen.getByText('Product 13')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'shop.viewAllProducts' })).toBeNull()
   })
 
   it('shows left and right controls when the category list overflows', () => {

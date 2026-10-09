@@ -2,6 +2,7 @@ import jwt
 import hashlib
 import hmac
 import os
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Literal, cast
@@ -10,7 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from email_validator import EmailNotValidError, validate_email
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -46,6 +48,14 @@ _DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing-only")
 
 def _normalized_email(email: str) -> str:
     return email.strip().casefold()
+
+
+def _is_gmail_address(email: str) -> bool:
+    try:
+        normalized = validate_email(email, check_deliverability=False).normalized
+    except EmailNotValidError:
+        return False
+    return normalized.rsplit("@", 1)[-1].casefold() == "gmail.com"
 
 
 def _sync_god_role(user: User) -> None:
@@ -98,6 +108,20 @@ class RegisterRequest(BaseModel):
     role: Literal["customer", "store_owner", "store_admin", "support"] = "customer"
     store_id: int | None = Field(None, gt=0)
 
+    @field_validator("email")
+    @classmethod
+    def gmail_only(cls, value: str) -> str:
+        if not _is_gmail_address(value):
+            raise ValueError("Email must be a valid Gmail address ending in @gmail.com")
+        return value
+
+    @field_validator("phone")
+    @classmethod
+    def phone_must_be_in_e164_format(cls, value: str | None) -> str | None:
+        if value is not None and not re.fullmatch(r"\+[1-9]\d{7,14}", value):
+            raise ValueError("Phone must include a valid country calling code")
+        return value
+
     @model_validator(mode="after")
     def passwords_match(self):
         if self.confirm_password is not None and self.password != self.confirm_password:
@@ -138,6 +162,13 @@ class ProfileUpdateRequest(BaseModel):
     confirm_password: str | None = Field(None, min_length=8)
     captcha_token: str = Field(..., min_length=1)
     captcha_answer: str = Field(..., min_length=1, max_length=16)
+
+    @field_validator("phone", "business_phone")
+    @classmethod
+    def phone_must_include_country_calling_code(cls, value: str) -> str:
+        if not re.fullmatch(r"\+[1-9]\d{7,14}", value):
+            raise ValueError("Phone must include a valid country calling code")
+        return value
 
     @model_validator(mode="after")
     def passwords_match(self):
@@ -232,6 +263,8 @@ def register_form(
 ):
     enforce_auth_rate_limit(request, "register-form")
     email = _normalized_email(email)
+    if not _is_gmail_address(email):
+        return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": "Enter a valid Gmail address ending in @gmail.com."}, status_code=422)
     if len(password) < 8:
         return templates.TemplateResponse(request=request, name="auth_register.html", context={"error": "Password must be at least 8 characters."}, status_code=422)
     if db.query(User).filter(User.email == email).first():

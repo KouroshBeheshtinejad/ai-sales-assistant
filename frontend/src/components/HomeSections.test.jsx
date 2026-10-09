@@ -81,4 +81,16 @@ describe('home section rendering', () => {
 
     expect(track.scrollLeft).toBe(80)
   })
+
+  it('does not capture a pointer until the user actually drags', () => {
+    const { container } = view(section())
+    const track = container.querySelector('.hs-track')
+    track.setPointerCapture = vi.fn()
+    const pointerDown = new Event('pointerdown', { bubbles: true })
+    Object.defineProperties(pointerDown, { pointerId: { value: 1 }, pointerType: { value: 'mouse' }, button: { value: 0 }, clientX: { value: 200 } })
+
+    fireEvent(track, pointerDown)
+
+    expect(track.setPointerCapture).not.toHaveBeenCalled()
+  })
 })

@@ -260,7 +260,7 @@ export default function Overview() {
           const low = products.filter((p) => p.is_active && p.stock <= 3).sort((a, b) => a.stock - b.stock)
           const stats = [
             [t('ov.orders'), num(orders.length)],
-            [t('ov.value'), money(value)],
+            [t('ov.value'), money(value, store.currency)],
             [t('ov.products'), num(products.filter((p) => p.is_active).length)],
             [t('ov.conversations'), num(conversations.length)],
           ]
@@ -277,7 +277,7 @@ export default function Overview() {
                     <>
                       <h3 className="h4">{t('ov.pendingOrders')}</h3>
                       <ul className="plain-list">
-                        {pending.slice(0, 5).map((o) => <li key={o.id}><Link to={`/seller/order/${o.id}`}>{t('od.title', { id: id(o.id) })} · {o.customer_name}</Link><span>{money(o.total_amount)}</span></li>)}
+                        {pending.slice(0, 5).map((o) => <li key={o.id}><Link to={`/seller/order/${o.id}`}>{t('od.title', { id: id(o.id) })} · {o.customer_name}</Link><span>{money(o.total_amount, o.currency)}</span></li>)}
                       </ul>
                     </>
                   )}

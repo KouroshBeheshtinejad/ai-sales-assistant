@@ -17,6 +17,8 @@ import zlib
 from dataclasses import dataclass, field
 from typing import Sequence
 
+from babel.numbers import format_currency
+
 from app.services.sales_intent import (
     SalesIntent,
     detect_intent,
@@ -45,6 +47,7 @@ class PromptProduct:
     name: str
     description: str = ""
     price: str = "0"
+    currency: str = "IRT"
     stock: int = 0
     id: int | None = None
     size: str = ""
@@ -96,7 +99,7 @@ def _parse_product_line(line: str) -> PromptProduct | None:
         name = ""
         for piece in pieces:
             key, sep, value = piece.partition("=")
-            if sep and key in {"id", "price", "stock", "size", "color", "attributes", "description"}:
+            if sep and key in {"id", "price", "currency", "stock", "size", "color", "attributes", "description"}:
                 fields[key] = value
             elif not name:
                 name = piece
@@ -109,6 +112,7 @@ def _parse_product_line(line: str) -> PromptProduct | None:
             name=name,
             description="" if description == "No description" else description,
             price=fields.get("price", "0"),
+            currency=fields.get("currency", "IRT"),
             stock=stock,
             id=int(fields["id"]) if fields.get("id", "").isdigit() else None,
             size=fields.get("size", ""),
@@ -347,8 +351,15 @@ def _pick(variants: Sequence[str], seed: str) -> str:
     return variants[zlib.crc32(seed.encode("utf-8")) % len(variants)]
 
 
-def _money(value: str | float, lang: str) -> str:
-    return f"{format_price(value)}{_TEXT[lang]['currency']}"
+def _money(value: str | float, lang: str, currency: str = "IRT") -> str:
+    code = (currency or "IRT").upper()
+    if code == "IRT":
+        return f"{format_price(value)}{_TEXT[lang]['currency']}"
+    try:
+        locale = "fa_IR" if lang == "fa" else "en_US"
+        return format_currency(value, code, locale=locale)
+    except (TypeError, ValueError):
+        return f"{format_price(value)} {code}"
 
 
 def _stock_text(stock: int, lang: str) -> str:
@@ -471,15 +482,15 @@ def _budget_phrase(budget: tuple[int | None, int | None], lang: str) -> str:
 def _product_line(product: PromptProduct, lang: str) -> str:
     t = _TEXT[lang]
     if product.stock <= 0:
-        return t["list_item_oos"].format(name=product.name, price=_money(product.price, lang))
+        return t["list_item_oos"].format(name=product.name, price=_money(product.price, lang, product.currency))
     return t["list_item"].format(
-        name=product.name, price=_money(product.price, lang), stock=_stock_text(product.stock, lang)
+        name=product.name, price=_money(product.price, lang, product.currency), stock=_stock_text(product.stock, lang)
     )
 
 
 def _answer_single_product(question: str, product: PromptProduct, intent: SalesIntent, lang: str, seed: str) -> str:
     t = _TEXT[lang]
-    price = _money(product.price, lang)
+    price = _money(product.price, lang, product.currency)
     if product.stock <= 0:
         base = t["out_of_stock"].format(name=product.name)
         check = _attribute_check(question, product, lang)
@@ -538,7 +549,7 @@ def _answer_compare(products: list[PromptProduct], lang: str) -> str:
         lines.append(
             t["compare_item"].format(
                 name=product.name,
-                price=_money(product.price, lang),
+                price=_money(product.price, lang, product.currency),
                 stock=_stock_text(max(product.stock, 0), lang),
                 extra=extra,
             )
@@ -547,7 +558,7 @@ def _answer_compare(products: list[PromptProduct], lang: str) -> str:
         ordered = sorted(products[:4], key=lambda p: float(p.price))
         if len(ordered) >= 2 and float(ordered[0].price) != float(ordered[-1].price):
             diff = float(ordered[-1].price) - float(ordered[0].price)
-            lines.append(t["compare_cheaper"].format(name=ordered[0].name, diff=_money(diff, lang)))
+            lines.append(t["compare_cheaper"].format(name=ordered[0].name, diff=_money(diff, lang, ordered[0].currency)))
     except ValueError:
         pass
     return "\n".join(lines)
@@ -562,7 +573,7 @@ def _answer_listing(products: list[PromptProduct], intent: SalesIntent, question
         key = {"cheapest": "cheapest", "priciest": "priciest", "newest": "newest"}.get(kind)
         if key:
             text = t[key].format(
-                name=first.name, price=_money(first.price, lang), stock=_stock_text(max(first.stock, 0), lang)
+                name=first.name, price=_money(first.price, lang, first.currency), stock=_stock_text(max(first.stock, 0), lang)
             )
             rest = products[1:3]
             if rest:
@@ -593,13 +604,13 @@ def _answer_recommendation(question: str, products: list[PromptProduct], lang: s
         t["recommend"].format(
             name=best.name,
             reason=reason,
-            price=_money(best.price, lang),
+            price=_money(best.price, lang, best.currency),
             stock=_stock_text(max(best.stock, 0), lang),
         )
     ]
     alternative = next((p for p in ranked[1:] if p.stock > 0), None)
     if alternative:
-        lines.append(t["recommend_alt"].format(name=alternative.name, price=_money(alternative.price, lang)))
+        lines.append(t["recommend_alt"].format(name=alternative.name, price=_money(alternative.price, lang, alternative.currency)))
     lines.append(t["next_cart"])
     if budget != (None, None):
         lines.insert(0, t["budget_head"].format(range=_budget_phrase(budget, lang)))
@@ -726,7 +737,7 @@ def compose_tool_answer(messages: Sequence[dict], question: str = "") -> str:
                 line = f"• {name} × {item.get('quantity')}"
                 lines.append(line)
             if result.get("total"):
-                lines.append(t["cart_total"].format(total=_money(result["total"], lang)))
+                lines.append(t["cart_total"].format(total=_money(result["total"], lang, result.get("currency", "IRT"))))
         elif isinstance(result, dict) and result.get("state") == "awaiting_customer":
             lines.append(t["checkout_next"])
         else:

@@ -102,6 +102,8 @@ function CategoryTabs({ categories, categoryId, onSelect, label }) {
   )
 }
 
+const INITIAL_PRODUCT_LIMIT = 12
+
 export default function StoreHome() {
   const { shop, ask } = useOutletContext()
   const { t, bizLabel } = useI18n()
@@ -110,6 +112,10 @@ export default function StoreHome() {
   const [query, setQuery] = useState('')
   const [inStockOnly, setInStockOnly] = useState(false)
   const [categoryId, setCategoryId] = useState('')
+  const [minimumPrice, setMinimumPrice] = useState('')
+  const [maximumPrice, setMaximumPrice] = useState('')
+  const [priceSort, setPriceSort] = useState('')
+  const [showAllProducts, setShowAllProducts] = useState(false)
   const [reviews, setReviews] = useState({ reviews: [], average_rating: 0, reviews_count: 0, store_name: '' })
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
@@ -122,8 +128,21 @@ export default function StoreHome() {
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    return products.filter((p) => (!inStockOnly || p.stock > 0) && (!categoryId || (p.category_ids || []).includes(categoryId)) && (!needle || `${p.name} ${p.description || ''}`.toLowerCase().includes(needle)))
-  }, [products, query, inStockOnly, categoryId])
+    const min = minimumPrice !== '' && Number.isFinite(Number(minimumPrice)) ? Number(minimumPrice) : null
+    const max = maximumPrice !== '' && Number.isFinite(Number(maximumPrice)) ? Number(maximumPrice) : null
+    const filtered = products.filter((product) => {
+      const price = Number(product.price)
+      return (!inStockOnly || product.stock > 0)
+        && (!categoryId || (product.category_ids || []).includes(categoryId))
+        && (!needle || `${product.name} ${product.description || ''}`.toLowerCase().includes(needle))
+        && (min === null || (Number.isFinite(price) && price >= min))
+        && (max === null || (Number.isFinite(price) && price <= max))
+    })
+    if (priceSort === 'ascending') filtered.sort((a, b) => Number(a.price) - Number(b.price))
+    if (priceSort === 'descending') filtered.sort((a, b) => Number(b.price) - Number(a.price))
+    return filtered
+  }, [products, query, inStockOnly, categoryId, minimumPrice, maximumPrice, priceSort])
+  const displayedProducts = showAllProducts ? visible : visible.slice(0, INITIAL_PRODUCT_LIMIT)
 
   const typeLabel = bizLabel(store.business_type, types.find((x) => x.slug === store.business_type)?.label)
 
@@ -185,20 +204,34 @@ export default function StoreHome() {
       </section>
 
       <section className="store-details-link">
-        <Link className="btn btn-secondary" to={`/store/${store.id}/information`}>{t('shop.storeDetailsLink')}</Link>
+        <Link className="btn btn-primary store-details-button" to={`/store/${store.id}/information`}><Icon name="store" size={18} />{t('shop.storeDetailsLink')}</Link>
       </section>
 
-      <div className="toolbar">
-        <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('shop.search')} aria-label={t('shop.search')} />
-        <Check label={t('shop.inStockOnly')} checked={inStockOnly} onChange={(e) => setInStockOnly(e.target.checked)} />
+      <div className="toolbar store-catalog-toolbar">
+        <div className="store-catalog-filters">
+          <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setShowAllProducts(false) }} placeholder={t('shop.search')} aria-label={t('shop.search')} />
+          <label className="store-price-filter"><span>{t('shop.priceMin')}</span><input type="number" min="0" step="any" inputMode="decimal" value={minimumPrice} onChange={(e) => { setMinimumPrice(e.target.value); setShowAllProducts(false) }} /></label>
+          <label className="store-price-filter"><span>{t('shop.priceMax')}</span><input type="number" min="0" step="any" inputMode="decimal" value={maximumPrice} onChange={(e) => { setMaximumPrice(e.target.value); setShowAllProducts(false) }} /></label>
+          <label className="store-price-filter"><span>{t('shop.sortPrice')}</span><select value={priceSort} onChange={(e) => { setPriceSort(e.target.value); setShowAllProducts(false) }}>
+            <option value="">{t('shop.sortPrice')}</option>
+            <option value="ascending">{t('shop.priceLowToHigh')}</option>
+            <option value="descending">{t('shop.priceHighToLow')}</option>
+          </select></label>
+          <Check label={t('shop.inStockOnly')} checked={inStockOnly} onChange={(e) => { setInStockOnly(e.target.checked); setShowAllProducts(false) }} />
+        </div>
         <span className="muted" aria-live="polite">{t('shop.count', { n: visible.length })}</span>
       </div>
 
-      {!!store.categories?.length && <CategoryTabs categories={store.categories} categoryId={categoryId} onSelect={setCategoryId} label={t('shop.categories')} />}
+      {!!store.categories?.length && <CategoryTabs categories={store.categories} categoryId={categoryId} onSelect={(value) => { setCategoryId(value); setShowAllProducts(false) }} label={t('shop.categories')} />}
 
       {visible.length ? (
         <div className="product-grid">
-          {visible.map((product) => <ProductCard key={product.id} product={product} storeId={store.id} shop={shop} onAsk={ask} />)}
+          {displayedProducts.map((product) => <ProductCard key={product.id} product={product} storeId={store.id} shop={shop} onAsk={ask} />)}
+          {!showAllProducts && visible.length > INITIAL_PRODUCT_LIMIT && (
+            <button type="button" className="store-products-view-all btn btn-secondary" onClick={() => setShowAllProducts(true)}>
+              {t('shop.viewAllProducts')}<Icon name="arrow" size={16} className="flip-rtl" />
+            </button>
+          )}
         </div>
       ) : (
         <Empty title={t('shop.empty')} />

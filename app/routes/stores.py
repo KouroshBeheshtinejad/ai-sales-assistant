@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.business_types import get_business_type_label, normalize_business_type
+from app.core.currencies import SUPPORTED_STORE_CURRENCIES
 from app.core.csrf import require_csrf_header
 from app.db.database import get_db
 from app.db.models import Order, Product, Store, StoreMembership, StorePaymentAccount, User
@@ -409,6 +410,8 @@ def update_store_payment_settings(
     )
     if store is None:
         raise HTTPException(status_code=404, detail="Store not found")
+    if data.currency not in SUPPORTED_STORE_CURRENCIES and data.currency != store.currency:
+        raise HTTPException(status_code=422, detail="Unsupported Store currency")
     if data.provider == "mock" and os.getenv("APP_ENV", "development").strip().casefold() in {"production", "prod"}:
         raise HTTPException(status_code=400, detail="Mock payments are disabled in production")
     if store.currency != data.currency and db.query(Order.id).filter(Order.store_id == store.id).first():
