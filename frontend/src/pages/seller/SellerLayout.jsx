@@ -65,6 +65,7 @@ function AccountActions({ store, signOut, onNavigate, showAccount = true }) {
     <>
       {showAccount && <Link to="/seller/account" onClick={onNavigate}><Icon name="user" size={18} />{t('nav.account')}</Link>}
       {store && <Link to={`/store/${store.id}`} target="_blank" rel="noreferrer" onClick={onNavigate}><Icon name="eye" size={18} />{t('s.viewStore')}</Link>}
+      <Link to="/" onClick={onNavigate}><Icon name="home" size={18} />{t('nav.home')}</Link>
       <LocaleToggle />
       <Button variant="ghost" size="sm" onClick={signOut}><Icon name="logout" size={18} />{t('s.logout')}</Button>
     </>

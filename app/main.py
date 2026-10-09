@@ -143,7 +143,7 @@ async def security_headers_middleware(request: Request, call_next):
     f"script-src {script_policy}; "
     "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; "
     "font-src 'self' https://fonts.gstatic.com; "
-    "img-src 'self' https://res.cloudinary.com data:; "
+    "img-src 'self' https://res.cloudinary.com https://*.tile.openstreetmap.org data:; "
     "connect-src 'self'; "
     "frame-ancestors 'none'"
     )

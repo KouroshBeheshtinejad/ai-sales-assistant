@@ -20,6 +20,9 @@ export function sectionSubtitle(section, locale) {
 export function Rail({ label, children, count }) {
   const { t, meta } = useI18n()
   const track = useRef(null)
+  const drag = useRef(null)
+  const wasDragged = useRef(false)
+  const [dragging, setDragging] = useState(false)
   const [edge, setEdge] = useState({ start: true, end: true, overflow: false })
 
   const update = useCallback(() => {
@@ -54,10 +57,46 @@ export function Rail({ label, children, count }) {
     el.scrollBy({ left: direction * sign * Math.max(200, el.clientWidth * 0.85), behavior: reduce ? 'auto' : 'smooth' })
   }
 
+  const startDrag = (event) => {
+    if ((event.pointerType && event.pointerType !== 'mouse') || event.button !== 0) return
+    drag.current = { pointerId: event.pointerId, startX: event.clientX, startScrollLeft: track.current.scrollLeft, moved: false }
+    track.current.setPointerCapture?.(event.pointerId)
+  }
+
+  const moveDrag = (event) => {
+    const active = drag.current
+    if (!active || active.pointerId !== event.pointerId) return
+    const delta = event.clientX - active.startX
+    if (!active.moved && Math.abs(delta) > 4) {
+      active.moved = true
+      setDragging(true)
+    }
+    if (active.moved) {
+      track.current.scrollLeft = active.startScrollLeft - delta * (meta.dir === 'rtl' ? -1 : 1)
+      event.preventDefault()
+    }
+  }
+
+  const endDrag = (event) => {
+    if (!drag.current || drag.current.pointerId !== event.pointerId) return
+    wasDragged.current = drag.current.moved
+    drag.current = null
+    setDragging(false)
+    if (wasDragged.current) window.setTimeout(() => { wasDragged.current = false }, 0)
+    update()
+  }
+
+  const suppressDraggedClick = (event) => {
+    if (!wasDragged.current) return
+    event.preventDefault()
+    event.stopPropagation()
+    wasDragged.current = false
+  }
+
   return (
     <div className={cx('hs-rail', edge.overflow && 'is-scrollable', edge.start && 'at-start', edge.end && 'at-end')}>
       <button type="button" className="hs-arrow hs-prev" aria-label={t('homeSec.prev')} tabIndex={-1} disabled={edge.start} onClick={() => go(-1)}><Icon name="chevron" size={22} /></button>
-      <ul className="hs-track" ref={track} tabIndex={0} aria-label={label} onScroll={update}>{children}</ul>
+      <ul className={cx('hs-track', dragging && 'is-dragging')} ref={track} tabIndex={0} aria-label={label} onScroll={update} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onClickCapture={suppressDraggedClick}>{children}</ul>
       <button type="button" className="hs-arrow hs-next" aria-label={t('homeSec.next')} tabIndex={-1} disabled={edge.end} onClick={() => go(1)}><Icon name="chevron" size={22} /></button>
     </div>
   )

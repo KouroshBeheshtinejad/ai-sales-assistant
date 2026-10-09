@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { HomeSection, sectionStyle, sectionTitle } from './HomeSections'
 
@@ -66,5 +66,19 @@ describe('home section rendering', () => {
     expect(track.getAttribute('tabindex')).toBe('0')
     expect(track.getAttribute('aria-label')).toBe('Hungry?')
     expect(container.querySelector('section').style.getPropertyValue('--sec-bg')).toBe('#fff4d6')
+  })
+
+  it('supports dragging the horizontal section rail with a mouse', () => {
+    const { container } = view(section())
+    const track = container.querySelector('.hs-track')
+    const pointerDown = new Event('pointerdown', { bubbles: true })
+    Object.defineProperties(pointerDown, { pointerId: { value: 1 }, pointerType: { value: 'mouse' }, button: { value: 0 }, clientX: { value: 200 } })
+    const pointerMove = new Event('pointermove', { bubbles: true, cancelable: true })
+    Object.defineProperties(pointerMove, { pointerId: { value: 1 }, pointerType: { value: 'mouse' }, clientX: { value: 120 } })
+
+    fireEvent(track, pointerDown)
+    fireEvent(track, pointerMove)
+
+    expect(track.scrollLeft).toBe(80)
   })
 })

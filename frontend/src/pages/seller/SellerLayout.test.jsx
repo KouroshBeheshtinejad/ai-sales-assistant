@@ -54,6 +54,15 @@ describe('role-aware seller navigation', () => {
     expect(screen.queryByText('s.products')).toBeNull()
   })
 
+  it('offers a route back to the public site without signing out', () => {
+    mocks.user = { id: 7, role: 'store_owner' }
+    mocks.store = { id: 3, name: 'Store', permissions: ['store.read'] }
+    render(<MemoryRouter><SellerLayout /></MemoryRouter>)
+
+    expect(screen.getByRole('link', { name: 'nav.home' }).getAttribute('href')).toBe('/')
+    expect(mocks.signOut).not.toHaveBeenCalled()
+  })
+
   it('refreshes the dashboard without forcing a full browser reload', async () => {
     mocks.user = { id: 7, role: 'store_owner' }
     mocks.store = { id: 3, name: 'Store', permissions: ['store.read'] }

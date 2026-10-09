@@ -239,6 +239,7 @@ def test_security_headers_are_present(client):
     response = client.get("/health/live")
 
     assert response.headers["content-security-policy"].startswith("default-src 'self'")
+    assert "https://*.tile.openstreetmap.org" in response.headers["content-security-policy"]
     assert response.headers["strict-transport-security"] == "max-age=31536000; includeSubDomains"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
