@@ -982,15 +982,14 @@ def test_store_admin_is_limited_to_approved_store_membership(payment_context):
     ).status_code == 404
 
 
-def test_store_contact_and_location_fields_are_saved_and_publicly_visible(payment_context):
+def test_store_contact_and_map_location_are_saved_and_publicly_visible(payment_context):
     client, context = payment_context
     headers = {"Authorization": f"Bearer {context['store_admin_token']}"}
 
     payload = {
         "contact_phone": "+989121234567",
         "address": "Tehran, Iran",
-        "location_name": "NAVA Center",
-        "location_url": "https://maps.google.com/?q=NAVA+Center",
+        "location": {"lat": 35.7, "lng": 51.4},
         "store_hours": "Sat-Thu 09:00-18:00",
     }
 
@@ -999,12 +998,16 @@ def test_store_contact_and_location_fields_are_saved_and_publicly_visible(paymen
     body = response.json()
     for key, value in payload.items():
         assert body[key] == value
+    assert "location_name" not in body
+    assert "location_url" not in body
 
     catalog = client.get(f"/public/stores/{context['store_id']}/catalog")
     assert catalog.status_code == 200, catalog.text
     public_store = catalog.json()["store"]
     for key, value in payload.items():
         assert public_store[key] == value
+    assert "location_name" not in public_store
+    assert "location_url" not in public_store
 
 
 def test_store_membership_role_is_authoritative_per_store(payment_context):

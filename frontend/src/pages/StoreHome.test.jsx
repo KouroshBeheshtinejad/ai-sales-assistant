@@ -18,10 +18,11 @@ const shop = {
     ],
   },
 }
+const authState = vi.hoisted(() => ({ isAuthed: false }))
 
 vi.mock('../components/ProductCard', () => ({ default: ({ product }) => <article>{product.name}</article> }))
 vi.mock('../lib/hooks', () => ({ useBusinessTypes: () => [] }))
-vi.mock('../lib/auth', () => ({ useAuth: () => ({ isAuthed: false }) }))
+vi.mock('../lib/auth', () => ({ useAuth: () => authState }))
 vi.mock('../lib/i18n', () => ({
   useI18n: () => ({
     t: (key, params) => key === 'shop.count' ? `${params.n} products` : key,
@@ -34,9 +35,17 @@ function StoreContext() {
   return <Outlet context={{ shop, ask: vi.fn() }} />
 }
 
-afterEach(() => cleanup())
+afterEach(() => { cleanup(); authState.isAuthed = false })
 
 describe('public store category tabs', () => {
+  it('returns to the same store after signing in to write a review', () => {
+    render(<MemoryRouter initialEntries={['/store/7']}><Routes>
+      <Route element={<StoreContext />}><Route path="/store/:id" element={<StoreHome />} /></Route>
+    </Routes></MemoryRouter>)
+
+    expect(screen.getByRole('link', { name: 'nav.login' }).getAttribute('href')).toBe('/login?next=%2Fstore%2F7')
+  })
+
   it('shows all products first and filters products by selected tab', () => {
     render(<MemoryRouter initialEntries={['/store']}><Routes>
       <Route element={<StoreContext />}><Route path="/store" element={<StoreHome />} /></Route>

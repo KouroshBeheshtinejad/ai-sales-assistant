@@ -184,20 +184,9 @@ export default function StoreHome() {
         </div>
       </section>
 
-      {(store.contact_phone || store.address || store.location_name || store.store_hours || store.location_url) && (
-        <section className="store-info-panel">
-          <div className="store-info-header">
-            <h2>{t('shop.storeInfo')}</h2>
-            {store.location_url && <a href={store.location_url} target="_blank" rel="noreferrer" className="btn btn-sm btn-secondary">{t('shop.location')}</a>}
-          </div>
-          <div className="store-info-grid">
-            {store.contact_phone && <div><strong>{t('shop.phone')}</strong><p dir="ltr">{store.contact_phone}</p></div>}
-            {store.address && <div><strong>{t('shop.address')}</strong><p>{store.address}</p></div>}
-            {store.location_name && <div><strong>{t('shop.location')}</strong><p>{store.location_name}</p></div>}
-            {store.store_hours && <div><strong>{t('shop.hours')}</strong><p>{store.store_hours}</p></div>}
-          </div>
-        </section>
-      )}
+      <section className="store-details-link">
+        <Link className="btn btn-secondary" to={`/store/${store.id}/information`}>{t('shop.storeDetailsLink')}</Link>
+      </section>
 
       <div className="toolbar">
         <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('shop.search')} aria-label={t('shop.search')} />
@@ -230,7 +219,7 @@ export default function StoreHome() {
         {!isAuthed ? (
           <div className="review-login-card">
             <p>{t('shop.loginToReview')}</p>
-            <Link className="btn btn-primary" to="/login">{t('nav.login')}</Link>
+            <Link className="btn btn-primary" to={`/login?next=${encodeURIComponent(`/store/${store.id}`)}`}>{t('nav.login')}</Link>
           </div>
         ) : (
           <form className="review-form" onSubmit={submitReview}>

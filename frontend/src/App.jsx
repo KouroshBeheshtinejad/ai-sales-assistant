@@ -8,6 +8,7 @@ import { I18nProvider } from './lib/i18n'
 import AuthPage from './pages/Auth'
 import Landing from './pages/Landing'
 import StoreHome from './pages/StoreHome'
+import StoreInformation from './pages/StoreInformation'
 import StoreShell from './pages/StoreShell'
 import ProductPage from './pages/ProductPage'
 import Track from './pages/Track'
@@ -68,6 +69,7 @@ export default function App() {
 
                 <Route path="store/:id" element={<StoreShell />}>
                   <Route index element={<StoreHome />} />
+                  <Route path="information" element={<StoreInformation />} />
                   <Route path="product/:productId" element={<ProductPage />} />
                 </Route>
 

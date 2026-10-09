@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Async, Badge, Button, ConfirmButton, Empty, Field, Icon, Modal, useToast } from '../../components/ui'
 import { api } from '../../lib/api'
+import StoreLocationMap from '../../components/StoreLocationMap'
 import { useAsync, useSeo } from '../../lib/hooks'
 import { useI18n } from '../../lib/i18n'
 import { useAuth } from '../../lib/auth'
@@ -64,10 +65,7 @@ function StoreForm({ store, onSaved, onCancel }) {
     secondary_color: store?.secondary_color || '#f2f7f6',
     contact_phone: store?.contact_phone || '',
     address: store?.address || '',
-    location_name: store?.location_name || '',
-    latitude: store?.latitude ?? '',
-    longitude: store?.longitude ?? '',
-    location_url: store?.location_url || '',
+    location: store?.location || null,
     store_hours: store?.store_hours || '',
     logo: null,
   })
@@ -80,12 +78,6 @@ function StoreForm({ store, onSaved, onCancel }) {
     setBusy(true)
     setError('')
     try {
-      const latitude = form.latitude === '' ? null : Number(form.latitude)
-      const longitude = form.longitude === '' ? null : Number(form.longitude)
-      if ((form.latitude !== '' && Number.isNaN(latitude)) || (form.longitude !== '' && Number.isNaN(longitude))) {
-        setError('Latitude and longitude must be valid numbers.')
-        return
-      }
       const payload = {
         name: form.name.trim(),
         description: form.description.trim() || null,
@@ -95,10 +87,7 @@ function StoreForm({ store, onSaved, onCancel }) {
         secondary_color: form.secondary_color,
         contact_phone: form.contact_phone.trim() || null,
         address: form.address.trim() || null,
-        location_name: form.location_name.trim() || null,
-        latitude,
-        longitude,
-        location_url: form.location_url.trim() || null,
+        location: form.location,
         store_hours: form.store_hours.trim() || null,
       }
       const saved = store ? await api.seller.updateStore(store.id, payload) : await api.seller.createStore(payload)
@@ -121,14 +110,9 @@ function StoreForm({ store, onSaved, onCancel }) {
         <Field label={t('s.storeHours')}><input value={form.store_hours} onChange={set('store_hours')} /></Field>
       </div>
       <Field label={t('s.storeAddress')} className="full"><textarea rows={3} value={form.address} onChange={set('address')} /></Field>
-      <div className="form-grid">
-        <Field label={t('s.locationName')}><input value={form.location_name} onChange={set('location_name')} /></Field>
-        <Field label={t('s.locationUrl')}><input type="url" dir="ltr" value={form.location_url} onChange={set('location_url')} /></Field>
-      </div>
-      <div className="form-grid">
-        <Field label={t('s.latitude')}><input type="number" step="0.000001" value={form.latitude} onChange={set('latitude')} /></Field>
-        <Field label={t('s.longitude')}><input type="number" step="0.000001" value={form.longitude} onChange={set('longitude')} /></Field>
-      </div>
+      <Field label={t('shop.selectLocation')} className="full">
+        <StoreLocationMap editable location={form.location} onChange={(location) => setForm((current) => ({ ...current, location }))} />
+      </Field>
       <Field label={t('s.logo')}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => setForm({ ...form, logo: e.target.files?.[0] || null })} /></Field>
       <fieldset className="store-category-editor">
         <legend>{t('s.categoryTabs')}</legend>

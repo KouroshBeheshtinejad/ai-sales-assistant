@@ -136,10 +136,8 @@ class Store(Base):
     payment_provider: Mapped[str] = mapped_column(String(30), nullable=False, default="disabled", server_default="disabled")
     contact_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
-    location_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
-    location_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     store_hours: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     owner_id: Mapped[int] = mapped_column(

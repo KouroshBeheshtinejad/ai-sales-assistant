@@ -132,10 +132,11 @@ def public_store_catalog(store_id: int, db: Session = Depends(get_db)):
             "secondary_color": store.secondary_color,
             "contact_phone": store.contact_phone,
             "address": store.address,
-            "location_name": store.location_name,
-            "latitude": float(store.latitude) if store.latitude is not None else None,
-            "longitude": float(store.longitude) if store.longitude is not None else None,
-            "location_url": store.location_url,
+            "location": (
+                {"lat": float(store.latitude), "lng": float(store.longitude)}
+                if store.latitude is not None and store.longitude is not None
+                else None
+            ),
             "store_hours": store.store_hours,
             "average_rating": rating_summary["average_rating"],
             "reviews_count": rating_summary["reviews_count"],

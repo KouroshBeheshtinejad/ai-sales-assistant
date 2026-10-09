@@ -34,6 +34,17 @@ router = APIRouter(
     tags=["Stores"],
 )
 
+
+def _store_location(store: Store) -> dict[str, float] | None:
+    if store.latitude is None or store.longitude is None:
+        return None
+    return {"lat": float(store.latitude), "lng": float(store.longitude)}
+
+
+class StoreLocationInput(BaseModel):
+    lat: float = Field(..., ge=-90, le=90)
+    lng: float = Field(..., ge=-180, le=180)
+
 STORE_UPLOAD_DIR = Path("uploads/stores")
 MAX_LOGO_SIZE = 5 * 1024 * 1024
 LOGO_TYPES = {
@@ -66,10 +77,7 @@ class StoreCreateRequest(BaseModel):
     secondary_color: str = Field("#f2f7f6", pattern=r"^#[0-9a-fA-F]{6}$")
     contact_phone: str | None = Field(None, max_length=50)
     address: str | None = Field(None, max_length=2000)
-    location_name: str | None = Field(None, max_length=255)
-    latitude: float | None = Field(None, ge=-90, le=90)
-    longitude: float | None = Field(None, ge=-180, le=180)
-    location_url: str | None = Field(None, max_length=500)
+    location: StoreLocationInput | None = None
     store_hours: str | None = Field(None, max_length=255)
 
     @field_validator("name")
@@ -98,7 +106,7 @@ class StoreCreateRequest(BaseModel):
             cleaned.append({"id": category_id, "name": name})
         return cleaned
 
-    @field_validator("contact_phone", "address", "location_name", "location_url", "store_hours")
+    @field_validator("contact_phone", "address", "store_hours")
     @classmethod
     def trim_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -125,10 +133,8 @@ def create_store(
         secondary_color=data.secondary_color.lower(),
         contact_phone=data.contact_phone,
         address=data.address,
-        location_name=data.location_name,
-        latitude=data.latitude,
-        longitude=data.longitude,
-        location_url=data.location_url,
+        latitude=data.location.lat if data.location else None,
+        longitude=data.location.lng if data.location else None,
         store_hours=data.store_hours,
         owner_id=current_user.id,
     )
@@ -167,10 +173,7 @@ def create_store(
         "secondary_color": store.secondary_color,
         "contact_phone": store.contact_phone,
         "address": store.address,
-        "location_name": store.location_name,
-        "latitude": float(store.latitude) if store.latitude is not None else None,
-        "longitude": float(store.longitude) if store.longitude is not None else None,
-        "location_url": store.location_url,
+        "location": _store_location(store),
         "store_hours": store.store_hours,
         "country_code": store.country_code,
         "currency": store.currency,
@@ -202,10 +205,7 @@ def get_my_stores(
             "secondary_color": store.secondary_color,
             "contact_phone": store.contact_phone,
             "address": store.address,
-            "location_name": store.location_name,
-            "latitude": float(store.latitude) if store.latitude is not None else None,
-            "longitude": float(store.longitude) if store.longitude is not None else None,
-            "location_url": store.location_url,
+            "location": _store_location(store),
             "store_hours": store.store_hours,
             "country_code": store.country_code,
             "currency": store.currency,
@@ -250,10 +250,7 @@ def get_store(
         "secondary_color": store.secondary_color,
         "contact_phone": store.contact_phone,
         "address": store.address,
-        "location_name": store.location_name,
-        "latitude": float(store.latitude) if store.latitude is not None else None,
-        "longitude": float(store.longitude) if store.longitude is not None else None,
-        "location_url": store.location_url,
+        "location": _store_location(store),
         "store_hours": store.store_hours,
         "country_code": store.country_code,
         "currency": store.currency,
@@ -272,10 +269,7 @@ class StoreUpdateRequest(BaseModel):
     secondary_color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
     contact_phone: str | None = Field(None, max_length=50)
     address: str | None = Field(None, max_length=2000)
-    location_name: str | None = Field(None, max_length=255)
-    latitude: float | None = Field(None, ge=-90, le=90)
-    longitude: float | None = Field(None, ge=-180, le=180)
-    location_url: str | None = Field(None, max_length=500)
+    location: StoreLocationInput | None = None
     store_hours: str | None = Field(None, max_length=255)
 
     @field_validator("name")
@@ -295,7 +289,7 @@ class StoreUpdateRequest(BaseModel):
             return None
         return StoreCreateRequest.categories_must_have_unique_ids_and_names(value)
 
-    @field_validator("contact_phone", "address", "location_name", "location_url", "store_hours")
+    @field_validator("contact_phone", "address", "store_hours")
     @classmethod
     def trim_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -563,13 +557,15 @@ def update_store(
         "secondary_color": store.secondary_color,
         "contact_phone": store.contact_phone,
         "address": store.address,
-        "location_name": store.location_name,
-        "latitude": float(store.latitude) if store.latitude is not None else None,
-        "longitude": float(store.longitude) if store.longitude is not None else None,
-        "location_url": store.location_url,
+        "location": _store_location(store),
         "store_hours": store.store_hours,
     }
     update_data = data.model_dump(exclude_unset=True)
+
+    if "location" in update_data:
+        location = update_data.pop("location")
+        store.latitude = location["lat"] if location else None
+        store.longitude = location["lng"] if location else None
 
     if update_data.get("categories") is None:
         update_data.pop("categories", None)
@@ -607,10 +603,7 @@ def update_store(
             "secondary_color": store.secondary_color,
             "contact_phone": store.contact_phone,
             "address": store.address,
-            "location_name": store.location_name,
-            "latitude": float(store.latitude) if store.latitude is not None else None,
-            "longitude": float(store.longitude) if store.longitude is not None else None,
-            "location_url": store.location_url,
+            "location": _store_location(store),
             "store_hours": store.store_hours,
         },
         ip_address=request.client.host if request.client else None,
@@ -631,10 +624,7 @@ def update_store(
         "secondary_color": store.secondary_color,
         "contact_phone": store.contact_phone,
         "address": store.address,
-        "location_name": store.location_name,
-        "latitude": float(store.latitude) if store.latitude is not None else None,
-        "longitude": float(store.longitude) if store.longitude is not None else None,
-        "location_url": store.location_url,
+        "location": _store_location(store),
         "store_hours": store.store_hours,
     }
 

@@ -30,7 +30,7 @@ export async function copyText(text) {
 }
 
 export function safeNext(value) {
-  return value && value.startsWith('/') && !value.startsWith('//') ? value : '/workspace'
+  return value && value.startsWith('/') && !value.startsWith('//') ? value : '/'
 }
 
 export function downloadBlob(blob, filename) {
