@@ -1,4 +1,4 @@
-import { phoneCountries } from '../lib/phoneNumbers'
+import { flagEmoji, phoneCountries } from '../lib/phoneNumbers'
 import { useI18n } from '../lib/i18n'
 
 export default function CountryPhoneInput({ id, value, country, onCountryChange, onValueChange, ...inputProps }) {
@@ -7,7 +7,7 @@ export default function CountryPhoneInput({ id, value, country, onCountryChange,
     <div className="country-phone-input" dir="ltr">
       <select aria-label={t('auth.phoneCountry')} value={country} onChange={onCountryChange}>
         {phoneCountries(locale).map((option) => (
-          <option key={option.country} value={option.country}>{option.name} (+{option.callingCode})</option>
+          <option key={option.country} value={option.country}>{flagEmoji(option.country)} {option.name} (+{option.callingCode})</option>
         ))}
       </select>
       <input

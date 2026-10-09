@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({ user: null, store: null, signOut: vi.fn(), rel
 
 vi.mock('../../components/Layout', () => ({
   Brand: () => <span>NAVA</span>,
-  LocaleToggle: () => <button type="button">Language</button>,
+  LocaleToggle: ({ className }) => <button type="button" className={className}>Language</button>,
   SkipLink: () => null,
 }))
 vi.mock('../../components/ui', () => ({
@@ -61,6 +61,14 @@ describe('role-aware seller navigation', () => {
 
     expect(screen.getByRole('link', { name: 'nav.home' }).getAttribute('href')).toBe('/')
     expect(mocks.signOut).not.toHaveBeenCalled()
+  })
+
+  it('applies dashboard-only styling to its language switcher', () => {
+    mocks.user = { id: 7, role: 'store_owner' }
+    mocks.store = { id: 3, name: 'Store', permissions: ['store.read'] }
+    render(<MemoryRouter><SellerLayout /></MemoryRouter>)
+
+    expect(screen.getByRole('button', { name: 'Language' }).className).toContain('seller-locale-toggle')
   })
 
   it('refreshes the dashboard without forcing a full browser reload', async () => {

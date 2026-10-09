@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { normalizePhoneNumber, phoneCountries, splitPhoneNumber } from './phoneNumbers'
+import { flagEmoji, normalizePhoneNumber, phoneCountries, splitPhoneNumber } from './phoneNumbers'
 
 describe('international phone helpers', () => {
+  it('renders ISO country flag indicators', () => {
+    expect(flagEmoji('IT')).toBe('🇮🇹')
+    expect(flagEmoji('not-a-country')).toBe('')
+  })
+
   it('lists localized countries with their calling codes', () => {
     const countries = phoneCountries('en')
     expect(countries.length).toBeGreaterThan(200)

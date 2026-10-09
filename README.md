@@ -2,7 +2,7 @@
 
 # 🛍️ NAVA — AI Sales Assistant for Online Stores
 
-**A conversational-commerce platform where an AI assistant answers from your own catalog, fills the cart, takes the order, and hands you a paid, invoiced, trackable sale — with 14 selectable UI locales, around the clock.**
+**A conversational-commerce platform where an AI assistant answers from your own catalog, fills the cart, takes the order, and hands you a paid, invoiced, trackable sale — with 15 selectable UI locales, around the clock.**
 
 [![Backend](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Frontend](https://img.shields.io/badge/frontend-React%2018-61DAFB?logo=react&logoColor=white)](https://react.dev/)
@@ -41,7 +41,7 @@ The critical design decision: **the language model never invents a price, a stoc
 - 👤 **Guest checkout** — no account required, secured by a private session token
 - 📦 Track any order with its 10-digit tracking number
 - 🧾 Download a PDF invoice for any order
-- 🌍 **14 selectable UI locales** with right-to-left layout for Persian and Arabic; translation coverage varies and missing messages fall back to English
+- 🌍 **15 selectable UI locales** with right-to-left layout for Persian and Arabic; translation coverage varies and missing messages fall back to English
 
 </td>
 <td width="50%" valign="top">
@@ -78,7 +78,7 @@ The critical design decision: **the language model never invents a price, a stoc
 ┌───────────────────────┐      HTTPS       ┌───────────────────────────────────┐
 │     React 18 SPA       │ ───────────────▶ │             FastAPI                │
 │  (Vite build, RTL/LTR,  │                  │                                     │
-│   14 locale choices)   │ ◀─────────────── │  routes/  → auth, stores, products, │
+│   15 locale choices)   │ ◀─────────────── │  routes/  → auth, stores, products, │
 └───────────────────────┘   JSON over /api  │  cart, orders, chat, dashboard,     │
                                              │  faqs, knowledge base, payments,    │
         Same-origin,                        │  seller orders, business types      │
@@ -120,7 +120,7 @@ frontend/src/
 ├── pages/                    # route-level views, incl. seller/ dashboard
 ├── components/               # shared UI (layout, cart drawer, chat dock, …)
 ├── lib/                      # api client, auth, i18n engine, hooks
-│   └── locales/              # 14 selectable locale catalogs
+│   └── locales/              # 15 selectable locale catalogs
 └── styles/                   # design-token based CSS
 
 alembic/versions/             # one migration per schema change
@@ -305,7 +305,7 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full checklist and [docs/BA
 
 ## 🌍 Internationalization
 
-The language selector offers **14 locales**: Persian, English, Spanish, German, French, Russian, Arabic, Chinese, Portuguese, Korean, Japanese, Dutch, Turkish, and Hindi. Persian and Arabic use right-to-left direction; the others use left-to-right. Translation coverage differs between catalogs, and missing messages fall back to English. Locale metadata and catalogs live in `frontend/src/lib/i18n.jsx` and `frontend/src/lib/locales/`.
+The language selector offers **15 locales**: Persian, English, Spanish, German, French, Russian, Arabic, Chinese, Portuguese, Korean, Japanese, Dutch, Turkish, Hindi, and Italian. Persian and Arabic use right-to-left direction; the others use left-to-right. Translation coverage differs between catalogs, and missing messages fall back to English. Locale metadata and catalogs live in `frontend/src/lib/i18n.jsx` and `frontend/src/lib/locales/`.
 
 ---
 

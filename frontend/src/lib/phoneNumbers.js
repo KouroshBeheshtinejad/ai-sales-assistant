@@ -3,6 +3,12 @@ import { toLatinDigits } from './util'
 
 const countryCache = new Map()
 
+export function flagEmoji(countryCode) {
+  const code = String(countryCode || '').toUpperCase()
+  if (!/^[A-Z]{2}$/.test(code)) return ''
+  return String.fromCodePoint(...[...code].map((letter) => 127397 + letter.charCodeAt(0)))
+}
+
 export function phoneCountries(locale) {
   if (!countryCache.has(locale)) {
     const names = new Intl.DisplayNames([locale], { type: 'region' })

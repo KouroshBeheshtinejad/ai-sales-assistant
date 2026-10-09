@@ -31,7 +31,7 @@ from app.services.audit_service import record_audit_log
 
 router = APIRouter(tags=["Home Sections"])
 
-SUPPORTED_LOCALES = ("fa", "en", "es", "de", "fr")
+SUPPORTED_LOCALES = ("fa", "en", "es", "de", "fr", "it")
 MAX_SECTIONS = 20
 MAX_PER_STORE = 3
 _VALID_SLUGS = {item["slug"] for item in BUSINESS_TYPES}

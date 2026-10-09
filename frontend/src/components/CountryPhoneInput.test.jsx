@@ -13,7 +13,7 @@ describe('country-aware phone input', () => {
 
     const select = screen.getByRole('combobox', { name: 'auth.phoneCountry' })
     expect(select.options.length).toBeGreaterThan(200)
-    expect(screen.getByRole('option', { name: 'United States (+1)' })).toBeTruthy()
+    expect(screen.getByRole('option', { name: /🇺🇸 United States \(\+1\)/ })).toBeTruthy()
     fireEvent.change(select, { target: { value: 'US' } })
     expect(onCountryChange).toHaveBeenCalledOnce()
     expect(screen.getByRole('textbox').id).toBe('phone')

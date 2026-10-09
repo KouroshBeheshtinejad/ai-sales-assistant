@@ -6,6 +6,7 @@ import es from './locales/es'
 import fa from './locales/fa'
 import fr from './locales/fr'
 import hi from './locales/hi'
+import it from './locales/it'
 import ja from './locales/ja'
 import ko from './locales/ko'
 import nl from './locales/nl'
@@ -18,26 +19,27 @@ import { safeStorage, toLatinDigits } from './util'
 
 // One entry per supported language. `unit` is the legacy default currency label.
 export const LOCALES = [
-  { code: 'fa', name: 'فارسی', short: 'FA', dir: 'rtl', tag: 'fa-IR', unit: 'تومان' },
-  { code: 'en', name: 'English', short: 'EN', dir: 'ltr', tag: 'en-US', unit: 'Toman' },
-  { code: 'es', name: 'Español', short: 'ES', dir: 'ltr', tag: 'es-ES', unit: 'tomanes' },
-  { code: 'de', name: 'Deutsch', short: 'DE', dir: 'ltr', tag: 'de-DE', unit: 'Toman' },
-  { code: 'fr', name: 'Français', short: 'FR', dir: 'ltr', tag: 'fr-FR', unit: 'tomans' },
-  { code: 'ru', name: 'Русский', short: 'RU', dir: 'ltr', tag: 'ru-RU', unit: 'томанов' },
-  { code: 'ar', name: 'العربية', short: 'AR', dir: 'rtl', tag: 'ar-SA', unit: 'تومان' },
-  { code: 'zh', name: '中文', short: 'ZH', dir: 'ltr', tag: 'zh-CN', unit: '托曼' },
-  { code: 'pt', name: 'Português', short: 'PT', dir: 'ltr', tag: 'pt-BR', unit: 'tomanes' },
-  { code: 'ko', name: '한국어', short: 'KO', dir: 'ltr', tag: 'ko-KR', unit: '토만' },
-  { code: 'ja', name: '日本語', short: 'JP', dir: 'ltr', tag: 'ja-JP', unit: 'トマン' },
-  { code: 'nl', name: 'Nederlands', short: 'NL', dir: 'ltr', tag: 'nl-NL', unit: 'toman' },
-  { code: 'tr', name: 'Türkçe', short: 'TR', dir: 'ltr', tag: 'tr-TR', unit: 'toman' },
-  { code: 'hi', name: 'हिन्दी', short: 'HI', dir: 'ltr', tag: 'hi-IN', unit: 'टोमन' },
+  { code: 'fa', name: 'فارسی', short: 'FA', country: 'IR', dir: 'rtl', tag: 'fa-IR', unit: 'تومان' },
+  { code: 'en', name: 'English', short: 'EN', country: 'US', dir: 'ltr', tag: 'en-US', unit: 'Toman' },
+  { code: 'es', name: 'Español', short: 'ES', country: 'ES', dir: 'ltr', tag: 'es-ES', unit: 'tomanes' },
+  { code: 'de', name: 'Deutsch', short: 'DE', country: 'DE', dir: 'ltr', tag: 'de-DE', unit: 'Toman' },
+  { code: 'fr', name: 'Français', short: 'FR', country: 'FR', dir: 'ltr', tag: 'fr-FR', unit: 'tomans' },
+  { code: 'ru', name: 'Русский', short: 'RU', country: 'RU', dir: 'ltr', tag: 'ru-RU', unit: 'томанов' },
+  { code: 'ar', name: 'العربية', short: 'AR', country: 'SA', dir: 'rtl', tag: 'ar-SA', unit: 'تومان' },
+  { code: 'zh', name: '中文', short: 'ZH', country: 'CN', dir: 'ltr', tag: 'zh-CN', unit: '托曼' },
+  { code: 'pt', name: 'Português', short: 'PT', country: 'BR', dir: 'ltr', tag: 'pt-BR', unit: 'tomanes' },
+  { code: 'ko', name: '한국어', short: 'KO', country: 'KR', dir: 'ltr', tag: 'ko-KR', unit: '토만' },
+  { code: 'ja', name: '日本語', short: 'JP', country: 'JP', dir: 'ltr', tag: 'ja-JP', unit: 'トマン' },
+  { code: 'nl', name: 'Nederlands', short: 'NL', country: 'NL', dir: 'ltr', tag: 'nl-NL', unit: 'toman' },
+  { code: 'tr', name: 'Türkçe', short: 'TR', country: 'TR', dir: 'ltr', tag: 'tr-TR', unit: 'toman' },
+  { code: 'hi', name: 'हिन्दी', short: 'HI', country: 'IN', dir: 'ltr', tag: 'hi-IN', unit: 'टोमन' },
+  { code: 'it', name: 'Italiano', short: 'IT', country: 'IT', dir: 'ltr', tag: 'it-IT', unit: 'Toman' },
 ]
 
 export const DEFAULT_LOCALE = 'fa'
 const STORAGE_KEY = 'nava_locale'
 const EXPLICIT_STORAGE_KEY = 'nava_locale_explicit'
-export const MESSAGES = { fa, en, es, de, fr, ru, ar, zh, pt, ko, ja, nl, tr, hi }
+export const MESSAGES = { fa, en, es, de, fr, ru, ar, zh, pt, ko, ja, nl, tr, hi, it }
 const byCode = (code) => LOCALES.find((item) => item.code === code)
 
 export function detectLocale({ explicit, stored, languages = [] } = {}) {

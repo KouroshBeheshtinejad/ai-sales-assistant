@@ -1341,7 +1341,7 @@ def test_mock_payment_is_idempotent_and_server_verified(payment_context, monkeyp
     invoice = client.get(f"/orders/{order['id']}/invoice", headers=auth_headers(context))
     assert invoice.status_code == 200
     assert invoice.headers["content-type"] == "application/pdf"
-    for locale in ("fa", "en", "es", "de", "fr"):
+    for locale in ("fa", "en", "es", "de", "fr", "it"):
         localized_invoice = client.get(
             f"/orders/{order['id']}/invoice?locale={locale}&timezone=Europe%2FBerlin",
             headers=auth_headers(context),
@@ -1350,7 +1350,7 @@ def test_mock_payment_is_idempotent_and_server_verified(payment_context, monkeyp
         assert localized_invoice.content.startswith(b"%PDF")
         assert localized_invoice.headers["content-disposition"].endswith(f"-{locale}.pdf\"")
     invalid_locale = client.get(
-        f"/orders/{order['id']}/invoice?locale=it",
+        f"/orders/{order['id']}/invoice?locale=xx",
         headers=auth_headers(context),
     )
     assert invalid_locale.status_code == 400

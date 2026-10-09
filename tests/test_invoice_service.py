@@ -80,7 +80,7 @@ def test_render_invoice_pdf_embeds_the_persian_font():
 
 
 def test_render_invoice_pdf_supports_all_locales():
-    for locale in ("fa", "en", "es", "de", "fr"):
+    for locale in ("fa", "en", "es", "de", "fr", "it"):
         pdf_bytes = render_invoice_pdf(_Order(), locale, "Europe/Berlin")
         assert pdf_bytes.startswith(b"%PDF")
         assert b"%%EOF" in pdf_bytes
@@ -92,7 +92,7 @@ def test_all_invoice_labels_are_localized_and_consumed_by_renderer():
         "payment", "seller", "customer", "items", "row", "product", "quantity",
         "unit", "sum", "subtotal", "total", "email", "phone", "address", "footer",
     }
-    for locale in ("fa", "en", "es", "de", "fr"):
+    for locale in ("fa", "en", "es", "de", "fr", "it"):
         order = _Order()
         fields = invoice_fields(order, locale, "Europe/Berlin")
         labels = INVOICE_TEXT[locale]
@@ -118,6 +118,7 @@ def test_all_invoice_labels_are_localized_and_consumed_by_renderer():
             "es": "Enviado",
             "de": "Versendet",
             "fr": "Expédiée",
+                "it": "Spedito",
         }[locale]
         assert fields["timezone"] == ("Asia/Tehran" if locale == "fa" else "Europe/Berlin")
         assert render_invoice_pdf(order, locale, "Europe/Berlin").startswith(b"%PDF")

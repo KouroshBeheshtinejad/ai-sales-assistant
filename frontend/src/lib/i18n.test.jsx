@@ -28,6 +28,7 @@ describe('automatic visitor language selection', () => {
 
   it('matches newly supported Japanese and falls back for unsupported languages', () => {
     expect(detectLocale({ languages: ['ja-JP'] })).toBe('ja')
+    expect(detectLocale({ languages: ['it-IT'] })).toBe('it')
     expect(detectLocale({ languages: ['xx-ZZ'] })).toBe('en')
     expect(detectLocale({ languages: [] })).toBe('en')
   })
@@ -144,6 +145,31 @@ describe('locale catalog completeness', () => {
     expect(MESSAGES.pt['shop.storeInfo']).toBe('Informações da loja')
     expect(MESSAGES.ar['pay.credentialHint']).toContain('يُشفّر أثناء التخزين')
     expect(MESSAGES.hi['pay.credentialHint']).toContain('संग्रहीत रहते समय एन्क्रिप्ट')
+  })
+
+  it('advertises Italian and the correct locale count', () => {
+    expect(MESSAGES.en['landing.f7.d']).toContain('15 supported languages')
+    expect(MESSAGES.en['landing.f7.d']).toContain('Italian')
+    expect(MESSAGES.it['landing.f7.d']).toContain('15 lingue')
+    expect(MESSAGES.it['landing.f7.d']).toContain('italiano')
+    expect(MESSAGES.fa['faq.a4']).toContain('۱۵ زبان')
+    expect(MESSAGES.ar['faq.a4']).toContain('الخمس عشرة')
+  })
+
+  it('translates Italian dynamic business and product labels', () => {
+    localStorage.setItem('nava_locale', 'it')
+    function Probe() {
+      const { bizLabel, fieldLabel, optionLabel } = useI18n()
+      return <ul>
+        <li>{bizLabel('restaurant')}</li>
+        <li>{fieldLabel({ name: 'size', label: 'Size' })}</li>
+        <li>{optionLabel('Large')}</li>
+      </ul>
+    }
+    render(<I18nProvider><Probe /></I18nProvider>)
+    expect(screen.getByText('Ristorante')).toBeTruthy()
+    expect(screen.getByText('Taglia')).toBeTruthy()
+    expect(screen.getByText('Grande')).toBeTruthy()
   })
 
   it.each(LOCALES)('%s does not advertise the retired five-language limit', ({ code }) => {

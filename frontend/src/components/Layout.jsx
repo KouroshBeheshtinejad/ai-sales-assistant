@@ -2,6 +2,7 @@ import { Component, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
+import { flagEmoji } from '../lib/phoneNumbers'
 import { cx } from '../lib/util'
 import { Button, Icon } from './ui'
 import HeaderSearch from './HeaderSearch'
@@ -57,6 +58,7 @@ export function LocaleToggle({ className }) {
     <div ref={ref} className={cx('lang', 'lang-toggle', className, open && 'is-open')}>
       <button type="button" className="lang-button" aria-label={t('nav.langName')} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((value) => !value)}>
         <Icon name="globe" size={18} />
+        <span className="locale-flag" aria-hidden="true">{flagEmoji(current.country)}</span>
         <span className="lang-current" lang={current.code}>{current.short}</span>
         <span className="lang-name">{current.name}</span>
         <Icon name="chevron" size={14} className="lang-caret" />
@@ -85,6 +87,7 @@ export function LocaleToggle({ className }) {
                 onClick={() => { setLocale(item.code); setOpen(false); setQuery('') }}
               >
                 <span className="locale-main">
+                  <span className="locale-flag" aria-hidden="true">{flagEmoji(item.country)}</span>
                   <span className="locale-code">{item.short}</span>
                   <span className="locale-label">{item.name}</span>
                 </span>

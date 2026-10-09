@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
-import { SiteFooter, SiteHeader } from './Layout'
+import { LocaleToggle, SiteFooter, SiteHeader } from './Layout'
 
 const authState = vi.hoisted(() => ({ isAuthed: false, user: null }))
 
@@ -11,7 +11,10 @@ vi.mock('../lib/i18n', () => ({
     t: (key) => key,
     locale: 'en',
     setLocale: vi.fn(),
-    locales: [{ code: 'en', name: 'English' }],
+    locales: [
+      { code: 'en', name: 'English', short: 'EN', country: 'US', dir: 'ltr' },
+      { code: 'it', name: 'Italiano', short: 'IT', country: 'IT', dir: 'ltr' },
+    ],
     meta: { tag: 'en' },
   }),
 }))
@@ -41,5 +44,15 @@ describe('site navigation', () => {
     render(<MemoryRouter><SiteHeader /></MemoryRouter>)
 
     expect(screen.getByText('Sara Nava')).toBeTruthy()
+  })
+
+  it('shows country flags beside language choices', () => {
+    render(<MemoryRouter><LocaleToggle /></MemoryRouter>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'nav.langName' }))
+
+    const italianOption = screen.getByRole('option', { name: /IT Italiano/ })
+    expect(italianOption.querySelector('.locale-flag').textContent).toBe('🇮🇹')
+    expect(document.querySelector('.lang-button .locale-flag').textContent).toBe('🇺🇸')
   })
 })

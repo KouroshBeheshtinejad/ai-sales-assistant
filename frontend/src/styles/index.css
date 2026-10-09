@@ -410,7 +410,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--lapis); }
 .seller-topbar, .seller-tabbar { display: none; }
 .seller-topbar-store { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-weight: 600; text-align: center; }
 .seller-sheet { align-items: stretch; }
-.seller-sheet .lang-toggle { align-self: start; width: max-content; max-width: 100%; }
+.seller-sheet .lang-toggle { align-self: stretch; width: 100%; min-width: 0; max-width: 100%; }
+.seller-foot .seller-locale-toggle, .seller-sheet .seller-locale-toggle { width: 100%; min-width: 0; max-width: 100%; justify-content: stretch; }
+.seller-foot .seller-locale-toggle .lang-button, .seller-sheet .seller-locale-toggle .lang-button { width: 100%; min-width: 0; max-width: 100%; justify-content: flex-start; padding-inline-end: 30px; }
+.seller-foot .seller-locale-toggle .lang-name, .seller-sheet .seller-locale-toggle .lang-name { display: inline; flex: 1 1 auto; min-width: 0; max-width: none; }
+.seller-foot .seller-locale-toggle .locale-menu, .seller-sheet .seller-locale-toggle .locale-menu { inset-inline: 0; width: 100%; max-width: 100%; box-sizing: border-box; }
 .seller-sheet .field label { font-weight: 600; }
 .seller-sheet a, .seller-sheet .btn-ghost { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--r-s); color: var(--ink); text-decoration: none; justify-content: flex-start; }
 .seller-sheet a:hover, .seller-sheet .btn-ghost:hover:not(:disabled) { background: var(--teal-soft); }
@@ -518,6 +522,7 @@ td.actions { display: flex; gap: 8px; align-items: center; justify-content: flex
 .locale-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 12px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--ink); text-align: start; cursor: pointer; }
 .locale-option:hover, .locale-option.is-selected { background: var(--teal-soft); border-color: var(--line); }
 .locale-main { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.locale-flag { display: inline-grid; place-items: center; flex: 0 0 1.35rem; width: 1.35rem; font-size: 1.05rem; line-height: 1; }
 .locale-code { display: inline-grid; place-items: center; min-width: 2.2rem; padding: 4px 6px; border-radius: 8px; background: var(--paper); color: var(--teal-ink); font-size: .72rem; font-weight: 700; }
 .locale-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .locale-dir { color: var(--muted); font-size: .7rem; font-weight: 700; letter-spacing: .06em; }
